@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作記錄 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card.success {
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        
+        .stat-card .stat-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-summary {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .stat-card {
+                padding: 16px;
+            }
+            
+            .stat-card .stat-icon {
+                font-size: 28px;
+            }
+            
+            .stat-card .stat-value {
+                font-size: 28px;
+            }
+        }
+        
+        .action-type-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .action-type-badge.login {
+            background-color: #17a2b8;
+            color: white;
+        }
+        
+        .action-type-badge.create {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .action-type-badge.update {
+            background-color: #ffc107;
+            color: #333;
+        }
+        
+        .action-type-badge.delete {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .action-type-badge.view {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .action-type-badge.other {
+            background-color: #667eea;
+            color: white;
+        }
+        
+        .log-detail {
+            font-size: 13px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <h1>📋 人員操作記錄</h1>
+        
+        <div class="stats-summary">
+            <div class="stat-card">
+                <div class="stat-icon">📝</div>
+                <div class="stat-value"><%= logs ? logs.length : 0 %></div>
+                <div class="stat-label">總記錄數</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value"><%
+                    const uniqueUsers = logs ? [...new Set(logs.map(l => l.username))].length : 0;
+                %><%= uniqueUsers %></div>
+                <div class="stat-label">操作人數</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon">📅</div>
+                <div class="stat-value">今日</div>
+                <div class="stat-label">時間範圍</div>
+            </div>
+        </div>
+        
+        <!-- 搜尋區域 -->
+        <div class="search-section">
+            <form method="GET" action="/activity-logs">
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 150px;">
+                        <label for="username">使用者</label>
+                        <input type="text" id="username" name="username" value="<%= username || '' %>" placeholder="輸入使用者名稱">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label for="action_type">操作類型</label>
+                        <select id="action_type" name="action_type">
+                            <option value="">全部類型</option>
+                            <option value="login" <%= action_type === 'login' ? 'selected' : '' %>>登入</option>
+                            <option value="logout" <%= action_type === 'logout' ? 'selected' : '' %>>登出</option>
+                            <option value="create" <%= action_type === 'create' ? 'selected' : '' %>>新增</option>
+                            <option value="update" <%= action_type === 'update' ? 'selected' : '' %>>修改</option>
+                            <option value="delete" <%= action_type === 'delete' ? 'selected' : '' %>>刪除</option>
+                            <option value="inbound" <%= action_type === 'inbound' ? 'selected' : '' %>>入庫</option>
+                            <option value="outbound" <%= action_type === 'outbound' ? 'selected' : '' %>>出庫</option>
+                            <option value="loan" <%= action_type === 'loan' ? 'selected' : '' %>>借測</option>
+                            <option value="return" <%= action_type === 'return' ? 'selected' : '' %>>歸還</option>
+                            <option value="export" <%= action_type === 'export' ? 'selected' : '' %>>匯出</option>
+                            <option value="import" <%= action_type === 'import' ? 'selected' : '' %>>匯入</option>
+                            <option value="backup" <%= action_type === 'backup' ? 'selected' : '' %>>備份</option>
+                            <option value="restore" <%= action_type === 'restore' ? 'selected' : '' %>>還原</option>
+                            <option value="adjust" <%= action_type === 'adjust' ? 'selected' : '' %>>調整</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label for="date_from">開始日期</label>
+                        <input type="date" id="date_from" name="date_from" value="<%= date_from || '' %>">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label for="date_to">結束日期</label>
+                        <input type="date" id="date_to" name="date_to" value="<%= date_to || '' %>">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn btn-primary">🔍 搜尋</button>
+                        <a href="/activity-logs" class="btn btn-secondary">清除</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <% if (logs && logs.length > 0) { %>
+        <div class="mobile-scroll-hint" style="display: none; background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; color: #856404; font-size: 13px; font-weight: 600;">
+            ⬅️ 表格可左右滑動查看完整內容 ➡️
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>時間</th>
+                    <th>使用者</th>
+                    <th>操作類型</th>
+                    <th>操作詳情</th>
+                    <th>目標類型</th>
+                    <th>IP位址</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% logs.forEach(function(log) { %>
+                <tr>
+                    <td><%= new Date(log.created_at).toLocaleString('zh-TW') %></td>
+                    <td><strong><%= log.username %></strong></td>
+                    <td>
+                        <% 
+                        let badgeClass = 'other';
+                        if (log.action_type === 'login' || log.action_type === 'logout') badgeClass = 'login';
+                        else if (log.action_type === 'create') badgeClass = 'create';
+                        else if (log.action_type === 'update') badgeClass = 'update';
+                        else if (log.action_type === 'delete') badgeClass = 'delete';
+                        else if (log.action_type === 'view') badgeClass = 'view';
+                        else if (log.action_type === 'inbound' || log.action_type === 'return') badgeClass = 'create';
+                        else if (log.action_type === 'outbound' || log.action_type === 'loan') badgeClass = 'update';
+                        else if (log.action_type === 'export' || log.action_type === 'import') badgeClass = 'other';
+                        else if (log.action_type === 'backup' || log.action_type === 'restore') badgeClass = 'other';
+                        else if (log.action_type === 'adjust') badgeClass = 'update';
+                        %>
+                        <span class="action-type-badge <%= badgeClass %>"><%= log.action_type %></span>
+                    </td>
+                    <td class="log-detail"><%= log.action_detail || '-' %></td>
+                    <td><%= log.target_type || '-' %></td>
+                    <td><code><%= log.ip_address || '-' %></code></td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= logs.length %> 筆記錄</p>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有操作記錄</p>
+            <p>或請調整搜尋條件</p>
+        </div>
+        <% } %>
+    </div>
+    
+    <%- include('_common-nav-script') %>
+</body>
+</html>

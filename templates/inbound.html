@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}料件入庫 - 庫存管理系統{% endblock %}
+
+{% block content %}
+<h1>📥 料件入庫</h1>
+
+{% if parts %}
+<form method="POST">
+    <div class="form-group">
+        <label for="part_id">選擇料件 *</label>
+        <select id="part_id" name="part_id" required>
+            <option value="">-- 請選擇料件 --</option>
+            {% for part in parts %}
+            <option value="{{ part['id'] }}">
+                {{ part['part_number'] }} - {{ part['part_name'] }}
+                {% if part['specification'] %}({{ part['specification'] }}){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="quantity">入庫數量 *</label>
+        <input type="number" id="quantity" name="quantity" required min="1" placeholder="請輸入數量">
+    </div>
+    
+    <div class="form-group">
+        <label for="inbound_date">入庫日期 *</label>
+        <input type="date" id="inbound_date" name="inbound_date" required value="{{ today }}">
+    </div>
+    
+    <div class="form-group">
+        <label for="note">備註</label>
+        <textarea id="note" name="note" placeholder="請輸入備註（選填）"></textarea>
+    </div>
+    
+    <button type="submit">確認入庫</button>
+    <a href="/" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+</form>
+{% else %}
+<div class="empty-state">
+    <p>目前沒有任何料件可以入庫</p>
+    <p>請先前往<a href="/parts/add">料件管理</a>新增料件</p>
+</div>
+{% endif %}
+{% endblock %}
+

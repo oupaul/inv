@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>備份管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        .backup-actions {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-backup {
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        
+        .btn-backup:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        .backup-table {
+            margin-top: 20px;
+        }
+        
+        .backup-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-download {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-download:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-restore {
+            background-color: #ffc107;
+            color: #000;
+        }
+        
+        .btn-restore:hover {
+            background-color: #e0a800;
+        }
+        
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background-color: #c82333;
+        }
+        
+        .file-size {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .file-date {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .warning-box {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        
+        .warning-box h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>💾 備份管理</h1>
+        
+        <div class="warning-box">
+            <h3>⚠️ 重要提示</h3>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>備份功能會複製整個資料庫檔案，建議定期進行備份</li>
+                <li>還原備份前，系統會自動創建當前資料庫的安全備份</li>
+                <li>還原操作完成後，請重新啟動伺服器以確保資料完整性</li>
+                <li>建議在操作前先下載重要備份檔案到本地保存</li>
+            </ul>
+        </div>
+        
+        <div class="backup-actions">
+            <form method="POST" action="/backup/create" style="display: inline;">
+                <button type="submit" class="btn-backup">➕ 創建新備份</button>
+            </form>
+            <button type="button" class="btn-backup" onclick="showScheduleModal()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">⏰ 備份排程</button>
+            <button type="button" class="btn-backup" onclick="showOptFoldersModal()" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">📂 /opt 資料夾管理</button>
+        </div>
+        
+        <!-- 備份排程設定模態框 -->
+        <div id="scheduleModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <h2 style="margin-top: 0;">⏰ 備份排程設定</h2>
+                <form id="scheduleForm" method="POST" action="/backup/schedule">
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="scheduleEnabled" name="enabled" value="true"> 啟用自動備份
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleTime">備份時間</label>
+                        <input type="time" id="scheduleTime" name="time" value="02:00" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleFrequency">備份頻率</label>
+                        <select id="scheduleFrequency" name="frequency" required>
+                            <option value="daily">每天</option>
+                            <option value="weekly">每週</option>
+                            <option value="monthly">每月</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="dayOfWeekGroup" style="display: none;">
+                        <label for="scheduleDayOfWeek">每週幾</label>
+                        <select id="scheduleDayOfWeek" name="dayOfWeek">
+                            <option value="0">星期日</option>
+                            <option value="1">星期一</option>
+                            <option value="2">星期二</option>
+                            <option value="3">星期三</option>
+                            <option value="4">星期四</option>
+                            <option value="5">星期五</option>
+                            <option value="6">星期六</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="dayOfMonthGroup" style="display: none;">
+                        <label for="scheduleDayOfMonth">每月幾號</label>
+                        <input type="number" id="scheduleDayOfMonth" name="dayOfMonth" min="1" max="31" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleBackupDir">備份目錄</label>
+                        <input type="text" id="scheduleBackupDir" name="backupDir" value="<%= typeof backupDir !== 'undefined' ? backupDir : '' %>" placeholder="預設: ./backups">
+                    </div>
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button type="submit" class="btn btn-primary">💾 保存設定</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()">取消</button>
+                    </div>
+                </form>
+                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; font-size: 13px; color: #666;">
+                    <strong>📝 說明：</strong><br>
+                    設定完成後，請在系統中設定 cron 任務以啟用自動備份。<br>
+                    範例 cron 指令（每天凌晨 2 點）：<br>
+                    <code>0 2 * * * /path/to/backup.sh</code>
+                </div>
+            </div>
+        </div>
+        
+        <!-- /opt 資料夾管理模態框 -->
+        <div id="optFoldersModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <h2 style="margin-top: 0;">📂 /opt 資料夾管理</h2>
+                <div id="optFoldersList">
+                    <p>正在載入...</p>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeOptFoldersModal()">關閉</button>
+                </div>
+            </div>
+        </div>
+        
+        <% if (backups && backups.length > 0) { %>
+        <div class="backup-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>備份檔案名稱</th>
+                        <th>檔案大小</th>
+                        <th>創建時間</th>
+                        <th>修改時間</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% backups.forEach(function(backup) { %>
+                    <tr>
+                        <td><strong><%= backup.filename %></strong></td>
+                        <td class="file-size">
+                            <% 
+                            let sizeText = '';
+                            if (backup.size < 1024) {
+                                sizeText = backup.size + ' B';
+                            } else if (backup.size < 1024 * 1024) {
+                                sizeText = (backup.size / 1024).toFixed(2) + ' KB';
+                            } else {
+                                sizeText = (backup.size / 1024 / 1024).toFixed(2) + ' MB';
+                            }
+                            %>
+                            <%= sizeText %>
+                        </td>
+                        <td class="file-date"><%= new Date(backup.created).toLocaleString('zh-TW') %></td>
+                        <td class="file-date"><%= new Date(backup.modified).toLocaleString('zh-TW') %></td>
+                        <td>
+                            <div class="backup-item-actions">
+                                <a href="/backup/download/<%= backup.filename %>" class="btn-small btn-download">⬇️ 下載</a>
+                                <form method="POST" action="/backup/restore/<%= backup.filename %>" style="display: inline;" onsubmit="return confirm('確定要還原此備份嗎？當前資料庫將被覆蓋，系統會自動創建安全備份。')">
+                                    <button type="submit" class="btn-small btn-restore">🔄 還原</button>
+                                </form>
+                                <form method="POST" action="/backup/delete/<%= backup.filename %>" style="display: inline;" onsubmit="return confirm('確定要刪除此備份檔案嗎？此操作無法復原。')">
+                                    <button type="submit" class="btn-small btn-delete">🗑️ 刪除</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+            <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= backups.length %> 個備份檔案</p>
+        </div>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有任何備份檔案</p>
+            <p>點擊「創建新備份」按鈕開始備份資料庫</p>
+        </div>
+        <% } %>
+    </div>
+    
+    <script>
+        // 載入排程設定
+        function loadSchedule() {
+            fetch('/backup/schedule')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.schedule) {
+                        const s = data.schedule;
+                        document.getElementById('scheduleEnabled').checked = s.enabled;
+                        document.getElementById('scheduleTime').value = s.time || '02:00';
+                        document.getElementById('scheduleFrequency').value = s.frequency || 'daily';
+                        document.getElementById('scheduleDayOfWeek').value = s.dayOfWeek || 0;
+                        document.getElementById('scheduleDayOfMonth').value = s.dayOfMonth || 1;
+                        document.getElementById('scheduleBackupDir').value = s.backupDir || '';
+                        updateFrequencyFields();
+                    }
+                })
+                .catch(err => console.error('載入排程設定失敗:', err));
+        }
+        
+        function updateFrequencyFields() {
+            const frequency = document.getElementById('scheduleFrequency').value;
+            document.getElementById('dayOfWeekGroup').style.display = frequency === 'weekly' ? 'block' : 'none';
+            document.getElementById('dayOfMonthGroup').style.display = frequency === 'monthly' ? 'block' : 'none';
+        }
+        
+        document.getElementById('scheduleFrequency').addEventListener('change', updateFrequencyFields);
+        
+        function showScheduleModal() {
+            loadSchedule();
+            document.getElementById('scheduleModal').style.display = 'flex';
+        }
+        
+        function closeScheduleModal() {
+            document.getElementById('scheduleModal').style.display = 'none';
+        }
+        
+        // /opt 資料夾管理
+        function loadOptFolders() {
+            fetch('/backup/opt-folders')
+                .then(res => res.json())
+                .then(data => {
+                    const listDiv = document.getElementById('optFoldersList');
+                    if (!data.success || data.folders.length === 0) {
+                        listDiv.innerHTML = '<p>未找到 /opt 下的備份資料夾</p>';
+                        return;
+                    }
+                    
+                    let html = '<table style="width: 100%; margin-top: 10px;"><thead><tr><th>資料夾名稱</th><th>路徑</th><th>備份檔案數</th><th>操作</th></tr></thead><tbody>';
+                    data.folders.forEach(folder => {
+                        html += `<tr>
+                            <td><strong>${folder.name}</strong></td>
+                            <td><code>${folder.path}</code></td>
+                            <td>${folder.fileCount} 個</td>
+                            <td>
+                                <button class="btn-small btn-restore" onclick="showRestoreFromOpt('${folder.path}')">🔄 還原</button>
+                                <button class="btn-small btn-delete" onclick="removeOptFolder('${folder.path}')">🗑️ 刪除</button>
+                            </td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    listDiv.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('載入 /opt 資料夾失敗:', err);
+                    document.getElementById('optFoldersList').innerHTML = '<p style="color: red;">載入失敗：' + err.message + '</p>';
+                });
+        }
+        
+        function showOptFoldersModal() {
+            loadOptFolders();
+            document.getElementById('optFoldersModal').style.display = 'flex';
+        }
+        
+        function closeOptFoldersModal() {
+            document.getElementById('optFoldersModal').style.display = 'none';
+        }
+        
+        function showRestoreFromOpt(folderPath) {
+            fetch('/backup/list-folder/' + encodeURIComponent(folderPath))
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success || data.files.length === 0) {
+                        alert('該資料夾中沒有備份檔案');
+                        return;
+                    }
+                    
+                    let options = data.files.map((file, index) => 
+                        `${index + 1}. ${file.filename} (${formatFileSize(file.size)}, ${new Date(file.created).toLocaleString('zh-TW')})`
+                    ).join('\\n');
+                    
+                    const choice = prompt(`請選擇要還原的備份檔案：\\n\\n${options}\\n\\n輸入編號 (1-${data.files.length}):`);
+                    const index = parseInt(choice) - 1;
+                    
+                    if (isNaN(index) || index < 0 || index >= data.files.length) {
+                        alert('無效的選擇');
+                        return;
+                    }
+                    
+                    const filename = data.files[index].filename;
+                    if (confirm(`確定要還原備份檔案 ${filename} 嗎？\\n當前資料庫將被覆蓋，系統會自動創建安全備份。`)) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '/backup/restore-from-opt';
+                        form.innerHTML = `
+                            <input type="hidden" name="folderPath" value="${folderPath}">
+                            <input type="hidden" name="filename" value="${filename}">
+                        `;
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                })
+                .catch(err => {
+                    alert('載入備份檔案列表失敗：' + err.message);
+                });
+        }
+        
+        function removeOptFolder(folderPath) {
+            const folderName = folderPath.split('/').pop();
+            if (confirm(`確定要刪除資料夾 ${folderName} 嗎？\\n此操作將永久刪除資料夾及其所有內容，無法復原！`)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/backup/remove-opt-folder';
+                form.innerHTML = `<input type="hidden" name="folderPath" value="${folderPath}">`;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+        }
+        
+        // 點擊模態框外部關閉
+        document.getElementById('scheduleModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeScheduleModal();
+        });
+        
+        document.getElementById('optFoldersModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeOptFoldersModal();
+        });
+    </script>
+</body>
+</html>
+

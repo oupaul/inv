@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出入庫記錄 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .search-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .search-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .search-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .search-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .search-group input,
+        .search-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .search-group input:focus,
+        .search-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .search-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button, .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        button:hover, .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-clear {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .type-badge.inbound {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .type-badge.outbound {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .type-badge.return {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .type-badge.loan {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 8px;
+                gap: 5px;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+                padding: 12px 10px;
+                font-size: 13px;
+                min-height: 44px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+            
+            /* 搜索區域手機版 */
+            .search-section {
+                padding: 15px !important;
+            }
+            
+            .search-section form {
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+            
+            .search-section .search-row {
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+            
+            .search-section .search-group,
+            .search-section .search-buttons {
+                width: 100% !important;
+            }
+            
+            .search-section input,
+            .search-section select,
+            .search-section button,
+            .search-section a.btn {
+                width: 100% !important;
+                font-size: 16px !important;
+                padding: 14px !important;
+                min-height: 48px;
+            }
+            
+            .search-section .search-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            /* 表格手機版隱藏，使用卡片顯示 */
+            table {
+                display: none !important;
+            }
+            
+            /* 出入庫記錄手機版卡片特殊優化 - 增強區隔和閱讀性 */
+            .table-mobile-container {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card,
+            .table-mobile-container .table-mobile-card {
+                background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
+                border-left: 5px solid #667eea;
+                padding: 22px 20px;
+                margin-bottom: 0;
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.18), 0 4px 12px rgba(0,0,0,0.1);
+                position: relative;
+                overflow: visible;
+                border-radius: 14px;
+                border-right: 1px solid #e0e0e0;
+                border-top: 1px solid #e0e0e0;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            
+            /* 根據交易類型改變左側邊框顏色 */
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="inbound"] {
+                border-left-color: #28a745 !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="outbound"] {
+                border-left-color: #dc3545 !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="return"] {
+                border-left-color: #17a2b8 !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="loan"] {
+                border-left-color: #ffc107 !important;
+            }
+            
+            /* 卡片之間的視覺分隔線 */
+            #transactionTable + .table-mobile-container .table-mobile-card::after {
+                content: '';
+                position: absolute;
+                bottom: -10px;
+                left: 10%;
+                right: 10%;
+                height: 2px;
+                background: linear-gradient(to right, transparent, #d0d0d0 30%, #d0d0d0 70%, transparent);
+                border-radius: 2px;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card:last-child::after {
+                display: none;
+            }
+            
+            /* 卡片標題區域優化（日期） */
+            #transactionTable + .table-mobile-container .table-mobile-card-header {
+                margin-bottom: 20px;
+                padding-bottom: 18px;
+                border-bottom: 3px solid #e0e0e0;
+                background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(102, 126, 234, 0.03) 100%);
+                padding: 16px 14px;
+                border-radius: 10px;
+                margin-left: -14px;
+                margin-right: -14px;
+                margin-top: -4px;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-title {
+                font-size: 20px;
+                font-weight: 700;
+                color: #667eea;
+                margin-bottom: 0;
+                line-height: 1.5;
+                letter-spacing: 0.5px;
+            }
+            
+            /* 類型行突出顯示（包含 badge） */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(2) {
+                background: linear-gradient(to right, rgba(102, 126, 234, 0.12) 0%, rgba(102, 126, 234, 0.05) 100%) !important;
+                border-left-color: #667eea !important;
+                border-left-width: 4px !important;
+                padding: 16px 14px !important;
+                margin-bottom: 12px !important;
+                font-weight: 700;
+                border-radius: 10px !important;
+                box-shadow: 0 2px 6px rgba(102, 126, 234, 0.1);
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(2) .table-mobile-card-label {
+                font-size: 15px;
+                color: #667eea;
+                font-weight: 700;
+            }
+            
+            /* 類型 badge 樣式優化 */
+            #transactionTable + .table-mobile-container .table-mobile-card-value .type-badge {
+                display: inline-block;
+                padding: 8px 16px !important;
+                border-radius: 12px !important;
+                font-size: 15px !important;
+                font-weight: 700 !important;
+                margin: 0 !important;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-value .type-badge.inbound {
+                background: linear-gradient(135deg, #28a745 0%, #218838 100%) !important;
+                color: white !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-value .type-badge.outbound {
+                background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+                color: white !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-value .type-badge.return {
+                background: linear-gradient(135deg, #17a2b8 0%, #138496 100%) !important;
+                color: white !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-value .type-badge.loan {
+                background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%) !important;
+                color: #856404 !important;
+            }
+            
+            /* 料號行突出顯示 */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(3) {
+                background: linear-gradient(to right, rgba(102, 126, 234, 0.10) 0%, rgba(102, 126, 234, 0.04) 100%) !important;
+                border-left-color: #667eea !important;
+                border-left-width: 4px !important;
+                padding: 14px 14px !important;
+                margin-bottom: 10px !important;
+                font-weight: 600;
+                border-radius: 10px !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(3) .table-mobile-card-label {
+                font-size: 15px;
+                color: #667eea;
+                font-weight: 700;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(3) .table-mobile-card-value {
+                font-size: 17px;
+                font-weight: 700;
+                color: #333;
+            }
+            
+            /* 料件名稱行 */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(4) {
+                background: linear-gradient(to right, rgba(102, 126, 234, 0.06) 0%, rgba(102, 126, 234, 0.02) 100%) !important;
+                border-left-color: #667eea !important;
+                border-left-width: 3px !important;
+                padding: 14px 14px !important;
+                margin-bottom: 14px !important;
+                border-radius: 8px !important;
+            }
+            
+            /* 數量行（重點突出） */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) {
+                background: linear-gradient(135deg, rgba(40, 167, 69, 0.15) 0%, rgba(40, 167, 69, 0.08) 100%) !important;
+                border-left: 5px solid #28a745 !important;
+                padding: 18px 14px !important;
+                margin-bottom: 14px !important;
+                margin-top: 8px !important;
+                font-weight: 700;
+                border-radius: 12px !important;
+                box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2);
+            }
+            
+            /* 出庫/借測數量為紅色背景 */
+            #transactionTable + .table-mobile-container .table-mobile-card[data-quantity-type="negative"] .table-mobile-card-row:nth-child(5),
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="outbound"] .table-mobile-card-row:nth-child(5),
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="loan"] .table-mobile-card-row:nth-child(5) {
+                background: linear-gradient(135deg, rgba(220, 53, 69, 0.15) 0%, rgba(220, 53, 69, 0.08) 100%) !important;
+                border-left-color: #dc3545 !important;
+                box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2) !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card[data-quantity-type="negative"] .table-mobile-card-row:nth-child(5) .table-mobile-card-label,
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="outbound"] .table-mobile-card-row:nth-child(5) .table-mobile-card-label,
+            #transactionTable + .table-mobile-container .table-mobile-card[data-transaction-type="loan"] .table-mobile-card-row:nth-child(5) .table-mobile-card-label {
+                color: #dc3545 !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) .table-mobile-card-label {
+                font-size: 17px;
+                font-weight: 700;
+                color: #28a745;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) .table-mobile-card-value {
+                font-size: 22px !important;
+                font-weight: 700 !important;
+            }
+            
+            /* 數量值顏色樣式 */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) .table-mobile-card-value [style*="#28a745"],
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) .table-mobile-card-value[style*="#28a745"] {
+                color: #28a745 !important;
+                font-size: 22px !important;
+                font-weight: 700 !important;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) .table-mobile-card-value [style*="#dc3545"],
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(5) .table-mobile-card-value[style*="#dc3545"] {
+                color: #dc3545 !important;
+                font-size: 22px !important;
+                font-weight: 700 !important;
+            }
+            
+            /* 操作人員行（突出顯示） */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(7) {
+                background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(102, 126, 234, 0.06) 100%) !important;
+                border-left: 4px solid #667eea !important;
+                padding: 16px 14px !important;
+                margin-bottom: 12px !important;
+                margin-top: 8px !important;
+                font-weight: 700;
+                border-radius: 12px !important;
+                box-shadow: 0 3px 10px rgba(102, 126, 234, 0.15);
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(7) .table-mobile-card-label {
+                font-size: 16px;
+                font-weight: 700;
+                color: #667eea;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(7) .table-mobile-card-value {
+                font-size: 18px !important;
+                font-weight: 700 !important;
+                color: #667eea !important;
+            }
+            
+            /* 一般資訊行基礎樣式 */
+            #transactionTable + .table-mobile-container .table-mobile-card-row {
+                margin-bottom: 10px;
+                padding: 12px 14px;
+                background-color: rgba(255, 255, 255, 0.9);
+                border-radius: 8px;
+                transition: all 0.2s ease;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row .table-mobile-card-label {
+                font-size: 14px;
+                min-width: 95px;
+            }
+            
+            #transactionTable + .table-mobile-container .table-mobile-card-row .table-mobile-card-value {
+                font-size: 15px;
+            }
+            
+            /* 單位和備註行（低調顯示） */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(6),
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(8) {
+                background-color: rgba(248, 249, 250, 0.8) !important;
+                border-left: 2px solid #ccc !important;
+                padding: 10px 14px !important;
+                font-size: 13px;
+                color: #666;
+            }
+            
+            /* 記錄時間行（次要資訊） */
+            #transactionTable + .table-mobile-container .table-mobile-card-row:nth-child(9) {
+                background-color: rgba(248, 249, 250, 0.6) !important;
+                border-left: 2px solid #ddd !important;
+                padding: 10px 14px !important;
+                margin-top: 4px !important;
+                font-size: 13px;
+                color: #999;
+            }
+            
+            /* 空狀態優化 */
+            .empty-state {
+                padding: 60px 25px;
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-radius: 14px;
+                border: 2px dashed #ccc;
+                margin-top: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            }
+            
+            .empty-state p {
+                font-size: 16px;
+                line-height: 2;
+            }
+            
+            /* 記錄計數優化 */
+            .records-count {
+                margin-top: 25px !important;
+                padding: 18px !important;
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+                border-radius: 10px !important;
+                text-align: center !important;
+                font-weight: 700 !important;
+                color: #667eea !important;
+                font-size: 16px !important;
+                border: 2px solid #e0e0e0 !important;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.05) !important;
+            }
+        }
+        
+        /* 桌面版顯示表格 */
+        @media (min-width: 769px) {
+            #transactionTable {
+                display: table !important;
+            }
+            
+            .table-mobile-container {
+                display: none !important;
+            }
+        }
+        
+        /* 頁面特定樣式 */
+        .type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .type-badge.inbound {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .type-badge.outbound {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .type-badge.return {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .type-badge.loan {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>📝 出入庫記錄</h1>
+
+        <div class="search-section">
+            <form method="GET" action="/transaction/records" id="searchForm">
+                <div class="search-row">
+                    <div class="search-group">
+                        <label for="search">搜尋（料號/名稱/條碼）</label>
+                        <input type="text" id="search" name="search" value="<%= search || '' %>" placeholder="輸入料號、名稱或條碼">
+                    </div>
+                    <div class="search-group">
+                        <label for="type">類型</label>
+                        <select id="type" name="type">
+                            <option value="">全部</option>
+                            <option value="inbound" <%= type === 'inbound' ? 'selected' : '' %>>入庫</option>
+                            <option value="outbound" <%= type === 'outbound' ? 'selected' : '' %>>出庫</option>
+                            <option value="return" <%= type === 'return' ? 'selected' : '' %>>歸還</option>
+                            <option value="loan" <%= type === 'loan' ? 'selected' : '' %>>借測</option>
+                        </select>
+                    </div>
+                    <div class="search-group">
+                        <label for="date_from">開始日期</label>
+                        <input type="date" id="date_from" name="date_from" value="<%= date_from || '' %>">
+                    </div>
+                    <div class="search-group">
+                        <label for="date_to">結束日期</label>
+                        <input type="date" id="date_to" name="date_to" value="<%= date_to || '' %>">
+                    </div>
+                    <div class="search-buttons">
+                        <button type="submit">🔍 搜尋</button>
+                        <a href="/transaction/records" class="btn btn-clear">清除</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <% if (records && records.length > 0) { %>
+        <div class="mobile-scroll-hint" style="display: none; background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; color: #856404; font-size: 13px; font-weight: 600;">
+            ⬅️ 表格可左右滑動查看完整內容 ➡️
+        </div>
+        <table id="transactionTable">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>類型</th>
+                    <th>料號</th>
+                    <th>料件名稱</th>
+                    <th>數量</th>
+                    <th>單位</th>
+                    <th>操作人員</th>
+                    <th>備註</th>
+                    <th>記錄時間</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% records.forEach(function(record) { %>
+                <tr>
+                    <td><%= record.transaction_date %></td>
+                    <td>
+                        <% if (record.type === 'inbound') { %>
+                            <span class="type-badge inbound">📥 入庫</span>
+                        <% } else if (record.type === 'outbound') { %>
+                            <span class="type-badge outbound">📤 出庫</span>
+                        <% } else if (record.type === 'return') { %>
+                            <span class="type-badge return">🔄 歸還</span>
+                        <% } else if (record.type === 'loan') { %>
+                            <span class="type-badge loan">📋 借測</span>
+                        <% } %>
+                    </td>
+                    <td><%= record.part_number %></td>
+                    <td><%= record.part_name %></td>
+                    <td style="font-weight: bold; color: <%= record.type === 'inbound' || record.type === 'return' ? '#28a745' : '#dc3545' %>;">
+                        <%= record.type === 'inbound' || record.type === 'return' ? '+' : '-' %><%= record.quantity %>
+                    </td>
+                    <td><%= record.unit %></td>
+                    <td style="color: #667eea; font-weight: 500;"><%= record.created_by || '系統' %></td>
+                    <td><%= record.note || '-' %></td>
+                    <td style="font-size: 12px; color: #999;"><%= record.created_at %></td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <p style="margin-top: 10px; color: #999; font-size: 14px;" class="records-count">共 <%= records.length %> 筆記錄</p>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有任何記錄</p>
+            <p>請調整搜尋條件或進行出入庫操作</p>
+        </div>
+        <% } %>
+    </div>
+    <script>
+        <%- include('_common-mobile-script') %>
+        <%- include('_common-nav-script') %>
+    </script>
+</body>
+</html>
+

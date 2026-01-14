@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel匯入 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-download {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            text-decoration: none;
+            display: inline-block;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .instructions {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+        
+        .instructions table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .instructions table th,
+        .instructions table td {
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            text-align: left;
+        }
+        
+        .instructions table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            /* 表單手機版優化 */
+            input[type="file"] {
+                font-size: 16px !important;
+                padding: 14px !important;
+            }
+            
+            button {
+                width: 100% !important;
+                min-height: 48px !important;
+                font-size: 16px !important;
+                padding: 14px 20px !important;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>📥 Excel 匯入</h1>
+
+        <div class="instructions">
+            <h3>📋 匯入說明</h3>
+            <p><strong>必填欄位：</strong></p>
+            <ul>
+                <li><strong>料號</strong>：必須唯一，不能重複</li>
+                <li><strong>料件名稱</strong>：料件的名稱</li>
+                <li><strong>單位</strong>：必須是已存在的單位名稱（如不存在，將使用預設單位「個」）</li>
+            </ul>
+            
+            <p><strong>選填欄位：</strong></p>
+            <ul>
+                <li><strong>規格</strong>：料件的規格說明</li>
+                <li><strong>條碼</strong>：料件的條碼（必須唯一，如重複將被跳過）</li>
+                <li><strong>類型</strong>：類型名稱（如不存在會自動建立）</li>
+            </ul>
+            
+            <p><strong>Excel 欄位對照表：</strong></p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Excel 欄位名稱</th>
+                        <th>說明</th>
+                        <th>是否必填</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>料號</td>
+                        <td>料件的編號，必須唯一</td>
+                        <td>✓ 必填</td>
+                    </tr>
+                    <tr>
+                        <td>料件名稱</td>
+                        <td>料件的名稱</td>
+                        <td>✓ 必填</td>
+                    </tr>
+                    <tr>
+                        <td>規格</td>
+                        <td>料件的規格說明</td>
+                        <td>選填</td>
+                    </tr>
+                    <tr>
+                        <td>條碼</td>
+                        <td>料件的條碼，必須唯一</td>
+                        <td>選填</td>
+                    </tr>
+                    <tr>
+                        <td>單位</td>
+                        <td>料件的單位（如：個、支、片等，如不存在會自動建立）</td>
+                        <td>✓ 必填</td>
+                    </tr>
+                    <tr>
+                        <td>類型</td>
+                        <td>料件的類型（如不存在會自動建立）</td>
+                        <td>選填</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <p style="margin-top: 15px; color: #dc3545;"><strong>注意事項：</strong></p>
+            <ul>
+                <li>重複的料號會被跳過，不會覆蓋現有資料</li>
+                <li>重複的條碼會被跳過</li>
+                <li>如果類型不存在，系統會自動建立該類型</li>
+                <li>如果單位不存在，系統會自動建立該單位</li>
+                <li>支援的檔案格式：.xlsx, .xls</li>
+            </ul>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="excelFile">選擇 Excel 檔案 *</label>
+                <input type="file" id="excelFile" name="excelFile" accept=".xlsx,.xls" required>
+                <small style="color: #666; display: block; margin-top: 5px;">支援格式：.xlsx, .xls（最大 10MB）</small>
+            </div>
+            
+            <button type="submit">開始匯入</button>
+            <a href="/import/template" class="btn btn-download" style="text-decoration: none; display: inline-block;">📥 下載匯入範本</a>
+            <a href="/parts" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+        </form>
+    </div>
+</body>
+</html>
+

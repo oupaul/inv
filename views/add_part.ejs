@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新增料件 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .barcode-scanner {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .barcode-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .barcode-input-group input {
+            flex: 1;
+        }
+        
+        .barcode-input-group button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        
+        .barcode-camera {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .barcode-camera.active {
+            display: block;
+        }
+        
+        #barcode-video {
+            width: 100%;
+            max-width: 640px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+        }
+        
+        .barcode-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .barcode-status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+            display: block;
+        }
+        
+        .barcode-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+            display: block;
+        }
+        
+        .mode-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .mode-selector h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .mode-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px 25px;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .mode-btn:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .mode-btn .icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .mode-btn .title {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        
+        .mode-btn .desc {
+            font-size: 12px;
+            opacity: 0.8;
+            font-weight: normal;
+        }
+        
+        .form-section {
+            display: none;
+        }
+        
+        .form-section.active {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            /* 表單手機版優化 */
+            .form-group {
+                margin-bottom: 18px;
+            }
+            
+            input[type="text"],
+            input[type="number"],
+            input[type="date"],
+            select,
+            textarea {
+                font-size: 16px !important;
+                padding: 14px !important;
+                -webkit-appearance: none;
+            }
+            
+            button,
+            .btn {
+                width: 100% !important;
+                min-height: 48px !important;
+                font-size: 16px !important;
+                padding: 14px 20px !important;
+                margin-bottom: 10px;
+            }
+            
+            .mode-btn {
+                width: 100% !important;
+                margin-bottom: 12px !important;
+                padding: 20px !important;
+            }
+            
+            .barcode-input-group {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .barcode-input-group input,
+            .barcode-input-group button {
+                width: 100% !important;
+            }
+        }
+    </style>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <nav>
+        <div class="nav-wrapper">
+            <a href="/">📊 庫存查詢</a>
+            <a href="/parts">📦 料件管理</a>
+            <a href="/categories">🏷️ 類型管理</a>
+            <a href="/units">📏 單位管理</a>
+            <a href="/users">👥 人員管理</a>
+            <a href="/inbound">📥 料件入庫</a>
+            <a href="/outbound">📤 料件出庫</a>
+            <a href="/inventory/check">🔍 庫存盤點</a>
+            <a href="/import">📋 Excel匯入</a>
+            <a href="/transaction/records">📝 出入庫記錄</a>
+            <a href="/loans">📋 借出中料件</a>
+            <a href="/inventory/check/records">📝 盤點記錄</a>
+            <% if (user && user.role === 'admin') { %>
+            <a href="/backup">💾 備份管理</a>
+            <a href="/health">🏥 系統健康</a>
+            <% } %>
+            <% if (user) { %>
+            <a href="/logout" class="auth-link logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">🚪 登出 (<%= user.username %>)</a>
+            <% } else { %>
+            <a href="/login" class="auth-link login">🔐 登入</a>
+            <% } %>
+        </div>
+    </nav>
+    <form id="logoutForm" method="POST" action="/logout" style="display: none;"></form>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>➕ 新增料件</h1>
+
+        <!-- 模式選擇 -->
+        <div class="mode-selector">
+            <h3>選擇新增方式</h3>
+            <div class="mode-buttons">
+                <div class="mode-btn active" data-mode="scan">
+                    <span class="icon">📷</span>
+                    <div class="title">掃描條碼</div>
+                    <div class="desc">使用無線掃描器或手機相機掃描</div>
+                </div>
+                <div class="mode-btn" data-mode="manual">
+                    <span class="icon">✏️</span>
+                    <div class="title">手動建立</div>
+                    <div class="desc">手動輸入所有料件資訊</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 無線掃描器使用提示 -->
+        <div style="background-color: #e7f3ff; border: 2px solid #007bff; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <strong style="color: #004085; font-size: 15px;">📱 無線掃描器使用說明：</strong>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #004085; font-size: 14px; line-height: 1.8;">
+                <li><strong>DK-ONE 頸掛式藍芽掃描器</strong>可直接使用！</li>
+                <li>確保掃描器已連接（藍芽或 2.4G 接收器）</li>
+                <li>確保下方「條碼掃描」輸入框已聚焦（點擊一下）</li>
+                <li>對準條碼掃描，系統會自動查詢料件資訊</li>
+                <li>如果料件不存在，可繼續填寫其他資訊來新增</li>
+            </ul>
+        </div>
+
+        <form method="POST" id="partForm">
+            <!-- 掃描模式 -->
+            <div class="form-section active" id="scanMode">
+                <div class="form-group">
+                    <label for="barcode">條碼掃描</label>
+                    <div class="barcode-scanner">
+                        <div class="barcode-input-group">
+                            <input type="text" id="barcode" name="barcode" placeholder="掃描或輸入條碼">
+                            <button type="button" id="scanBtn" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">📷 掃描</button>
+                            <button type="button" id="lookupBtn" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">🔍 查詢</button>
+                        </div>
+                        <div class="barcode-camera" id="barcodeCamera">
+                            <video id="barcode-video" autoplay playsinline></video>
+                            <button type="button" id="stopScanBtn" class="btn" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); margin-top: 10px;">停止掃描</button>
+                        </div>
+                        <div class="barcode-status" id="barcodeStatus"></div>
+                    </div>
+                    <small style="color: #666; margin-top: 5px; display: block;">
+                        💡 提示：掃描或輸入條碼後，如果料號欄位為空，系統會自動將條碼填入料號欄位。您也可以手動修改料號。系統會查詢資料庫中是否已有此條碼的料件，如果找到可以選擇複製資訊，如果沒找到可以繼續填寫其他資訊來新增料件。
+                    </small>
+                </div>
+            </div>
+            
+            <!-- 手動模式提示 -->
+            <div class="form-section" id="manualMode">
+                <div style="padding: 15px; background-color: #e7f3ff; border-left: 4px solid #007bff; border-radius: 6px; margin-bottom: 20px;">
+                    <strong>📝 手動建立模式</strong>
+                    <p style="margin: 5px 0 0 0; color: #555;">請在下方表單中手動輸入所有料件資訊。</p>
+                </div>
+            </div>
+            
+            <!-- 表單欄位 -->
+            <div class="form-group">
+                <label for="part_number">料號 *</label>
+                <input type="text" id="part_number" name="part_number" required placeholder="例如：A001">
+            </div>
+            
+            <div class="form-group">
+                <label for="part_name">料件名稱 *</label>
+                <input type="text" id="part_name" name="part_name" required placeholder="例如：螺絲">
+            </div>
+            
+            <div class="form-group">
+                <label for="specification">規格</label>
+                <input type="text" id="specification" name="specification" placeholder="例如：M8x20mm">
+            </div>
+            
+            <div class="form-group">
+                <label for="category_id">類型</label>
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <select id="category_id" name="category_id" style="flex: 1;">
+                        <option value="">-- 請選擇類型 --</option>
+                        <option value="__new__">+ 新增類型</option>
+                        <% if (categories && categories.length > 0) { %>
+                            <% categories.forEach(function(category) { %>
+                                <option value="<%= category.id %>"><%= category.name %></option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                    <input type="text" id="new_category_name" name="new_category_name" placeholder="輸入新類型名稱" style="flex: 1; display: none;">
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：選擇「+ 新增類型」後，可以在右側輸入框輸入新類型名稱，系統會自動建立。
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="unit">單位 *</label>
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <select id="unit" name="unit" required style="flex: 1;">
+                        <option value="">-- 請選擇單位 --</option>
+                        <option value="__new__">+ 新增單位</option>
+                        <% if (units && units.length > 0) { %>
+                            <% units.forEach(function(unit) { %>
+                                <option value="<%= unit.name %>"><%= unit.name %><% if (unit.symbol && unit.symbol !== unit.name) { %> (<%= unit.symbol %>)<% } %></option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                    <input type="text" id="new_unit_name" name="new_unit_name" placeholder="輸入新單位名稱" style="flex: 1; display: none;">
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：選擇「+ 新增單位」後，可以在右側輸入框輸入新單位名稱，系統會自動建立。
+                </small>
+            </div>
+            
+            <button type="submit">新增料件</button>
+            <a href="/parts" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+        </form>
+        
+        <script>
+            const { BrowserMultiFormatReader } = ZXing;
+            const codeReader = new BrowserMultiFormatReader();
+            let scanning = false;
+            let currentMode = 'scan'; // 'scan' 或 'manual'
+            
+            // 模式選擇
+            const modeButtons = document.querySelectorAll('.mode-btn');
+            const scanMode = document.getElementById('scanMode');
+            const manualMode = document.getElementById('manualMode');
+            
+            modeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const mode = btn.dataset.mode;
+                    currentMode = mode;
+                    
+                    // 更新按鈕狀態
+                    modeButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // 顯示/隱藏對應的表單區域
+                    if (mode === 'scan') {
+                        scanMode.classList.add('active');
+                        manualMode.classList.remove('active');
+                        // 如果正在掃描，停止掃描
+                        if (scanning) {
+                            stopScan();
+                        }
+                    } else {
+                        scanMode.classList.remove('active');
+                        manualMode.classList.add('active');
+                        // 停止掃描
+                        if (scanning) {
+                            stopScan();
+                        }
+                    }
+                });
+            });
+            
+            const scanBtn = document.getElementById('scanBtn');
+            const stopScanBtn = document.getElementById('stopScanBtn');
+            const lookupBtn = document.getElementById('lookupBtn');
+            const barcodeInput = document.getElementById('barcode');
+            const barcodeCamera = document.getElementById('barcodeCamera');
+            const barcodeStatus = document.getElementById('barcodeStatus');
+            const video = document.getElementById('barcode-video');
+            
+            // 掃描按鈕
+            scanBtn.addEventListener('click', async () => {
+                if (scanning) return;
+                if (currentMode !== 'scan') {
+                    alert('請先選擇「掃描條碼」模式');
+                    return;
+                }
+                
+                try {
+                    scanning = true;
+                    scanBtn.disabled = true;
+                    barcodeCamera.classList.add('active');
+                    barcodeStatus.className = 'barcode-status';
+                    barcodeStatus.textContent = '正在啟動攝像頭...';
+                    barcodeStatus.style.display = 'block';
+                    
+                    const result = await codeReader.decodeFromVideoDevice(null, 'barcode-video', (result, err) => {
+                        if (result) {
+                            // 先將條碼值填入欄位（主要功能）
+                            barcodeInput.value = result.text;
+                            
+                            // 如果料號欄位為空，自動將條碼填入料號
+                            const partNumberInput = document.getElementById('part_number');
+                            if (!partNumberInput.value || partNumberInput.value.trim() === '') {
+                                partNumberInput.value = result.text;
+                            }
+                            
+                            barcodeStatus.textContent = '✓ 條碼已掃描：' + result.text;
+                            barcodeStatus.className = 'barcode-status success';
+                            stopScan();
+                            
+                            // 可選：查詢資料庫中是否已有該條碼的料件（輔助功能）
+                            // 如果找到，可以選擇是否要複製資訊；如果沒找到，條碼已填入，可以繼續新增
+                            lookupBarcodeForReference(result.text);
+                        }
+                        if (err && !(err instanceof ZXing.NotFoundException)) {
+                            console.error(err);
+                        }
+                    });
+                } catch (error) {
+                    barcodeStatus.textContent = '✗ 無法啟動攝像頭：' + error.message;
+                    barcodeStatus.className = 'barcode-status error';
+                    stopScan();
+                }
+            });
+            
+            // 停止掃描
+            stopScanBtn.addEventListener('click', () => {
+                stopScan();
+            });
+            
+            function stopScan() {
+                scanning = false;
+                scanBtn.disabled = false;
+                codeReader.reset();
+                barcodeCamera.classList.remove('active');
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                    video.srcObject = null;
+                }
+            }
+            
+            // 查詢按鈕（用於手動輸入條碼後查詢）
+            lookupBtn.addEventListener('click', () => {
+                if (currentMode !== 'scan') {
+                    alert('請先選擇「掃描條碼」模式');
+                    return;
+                }
+                const barcode = barcodeInput.value.trim();
+                if (barcode) {
+                    lookupBarcode(barcode);
+                } else {
+                    barcodeStatus.textContent = '請先輸入或掃描條碼';
+                    barcodeStatus.className = 'barcode-status error';
+                    barcodeStatus.style.display = 'block';
+                }
+            });
+            
+            // 查詢條碼資訊（用於參考，如果找到現有料件可以選擇是否複製）
+            async function lookupBarcodeForReference(barcode) {
+                try {
+                    // 先顯示條碼已掃描的訊息
+                    barcodeStatus.textContent = '✓ 條碼已掃描：' + barcode + ' | 正在查詢資料庫...';
+                    barcodeStatus.className = 'barcode-status success';
+                    barcodeStatus.style.display = 'block';
+                    
+                    const response = await fetch(`/api/barcode/${encodeURIComponent(barcode)}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.part) {
+                        // 找到現有料件，詢問是否要複製資訊
+                        const confirmCopy = confirm(
+                            '✓ 資料庫中已存在此條碼的料件：\n\n' +
+                            '料號：' + data.part.part_number + '\n' +
+                            '名稱：' + data.part.part_name + '\n\n' +
+                            '是否要複製此料件的資訊到表單中？\n\n' +
+                            '（點擊「確定」複製，點擊「取消」保留條碼，手動輸入其他資訊）'
+                        );
+                        
+                        if (confirmCopy) {
+                            // 自動填充表單
+                            document.getElementById('part_number').value = data.part.part_number || '';
+                            document.getElementById('part_name').value = data.part.part_name || '';
+                            document.getElementById('specification').value = data.part.specification || '';
+                            document.getElementById('unit').value = data.part.unit || '個';
+                            document.getElementById('category_id').value = data.part.category_id || '';
+                            
+                            barcodeStatus.textContent = '✓ 條碼已掃描，料件資訊已複製到表單（請修改料號後再提交）';
+                            barcodeStatus.className = 'barcode-status success';
+                        } else {
+                            barcodeStatus.textContent = '✓ 條碼已掃描：' + barcode + ' | 請繼續填寫其他資訊來新增料件';
+                            barcodeStatus.className = 'barcode-status success';
+                        }
+                    } else {
+                        // 未找到現有料件，這是正常情況，可以用來新增商品
+                        barcodeStatus.textContent = '✓ 條碼已掃描：' + barcode + ' | 這是新條碼，請填寫其他資訊來新增料件';
+                        barcodeStatus.className = 'barcode-status success';
+                    }
+                } catch (error) {
+                    // 查詢失敗不影響，條碼已經填入，可以繼續使用
+                    barcodeStatus.textContent = '✓ 條碼已掃描：' + barcode + ' | 查詢資料庫時發生錯誤，但不影響新增（' + error.message + '）';
+                    barcodeStatus.className = 'barcode-status success';
+                }
+            }
+            
+            // 查詢按鈕（用於手動查詢現有料件資訊）
+            async function lookupBarcode(barcode) {
+                if (!barcode || !barcode.trim()) {
+                    barcodeStatus.textContent = '請先輸入或掃描條碼';
+                    barcodeStatus.className = 'barcode-status error';
+                    barcodeStatus.style.display = 'block';
+                    return;
+                }
+                
+                // 先將條碼填入欄位
+                barcodeInput.value = barcode.trim();
+                
+                // 如果料號欄位為空，自動將條碼填入料號
+                const partNumberInput = document.getElementById('part_number');
+                if (!partNumberInput.value || partNumberInput.value.trim() === '') {
+                    partNumberInput.value = barcode.trim();
+                }
+                
+                // 然後查詢資料庫
+                await lookupBarcodeForReference(barcode.trim());
+            }
+            
+            // 條碼輸入框按 Enter 時自動查詢
+            barcodeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (currentMode === 'scan') {
+                        lookupBtn.click();
+                    }
+                }
+            });
+            
+            // 條碼輸入框失去焦點時，如果料號為空，自動填入條碼
+            barcodeInput.addEventListener('blur', () => {
+                const barcode = barcodeInput.value.trim();
+                if (barcode) {
+                    const partNumberInput = document.getElementById('part_number');
+                    if (!partNumberInput.value || partNumberInput.value.trim() === '') {
+                        partNumberInput.value = barcode;
+                    }
+                }
+            });
+            
+            // 類型選擇處理
+            const categorySelect = document.getElementById('category_id');
+            const newCategoryInput = document.getElementById('new_category_name');
+            
+            categorySelect.addEventListener('change', () => {
+                if (categorySelect.value === '__new__') {
+                    // 顯示新類型輸入框
+                    newCategoryInput.style.display = 'block';
+                    newCategoryInput.required = true;
+                    newCategoryInput.focus();
+                } else {
+                    // 隱藏新類型輸入框
+                    newCategoryInput.style.display = 'none';
+                    newCategoryInput.required = false;
+                    newCategoryInput.value = '';
+                }
+            });
+            
+            // 單位選擇處理
+            const unitSelect = document.getElementById('unit');
+            const newUnitInput = document.getElementById('new_unit_name');
+            
+            unitSelect.addEventListener('change', () => {
+                if (unitSelect.value === '__new__') {
+                    // 顯示新單位輸入框
+                    newUnitInput.style.display = 'block';
+                    newUnitInput.required = true;
+                    newUnitInput.focus();
+                } else {
+                    // 隱藏新單位輸入框
+                    newUnitInput.style.display = 'none';
+                    newUnitInput.required = false;
+                    newUnitInput.value = '';
+                }
+            });
+            
+            // 表單提交時，如果是手動模式，確保條碼欄位為空（可選）
+            document.getElementById('partForm').addEventListener('submit', (e) => {
+                if (currentMode === 'manual') {
+                    // 手動模式時，條碼欄位設為空（如果用戶沒有輸入）
+                    if (!barcodeInput.value.trim()) {
+                        barcodeInput.value = '';
+                    }
+                }
+                
+                // 如果選擇了新增類型，確保輸入了類型名稱
+                if (categorySelect.value === '__new__') {
+                    const newCategoryName = newCategoryInput.value.trim();
+                    if (!newCategoryName) {
+                        e.preventDefault();
+                        alert('請輸入新類型名稱');
+                        newCategoryInput.focus();
+                        return false;
+                    }
+                }
+                
+                // 如果選擇了新增單位，確保輸入了單位名稱
+                if (unitSelect.value === '__new__') {
+                    const newUnitName = newUnitInput.value.trim();
+                    if (!newUnitName) {
+                        e.preventDefault();
+                        alert('請輸入新單位名稱');
+                        newUnitInput.focus();
+                        return false;
+                    }
+                }
+            });
+            
+            // 初始化：確保條碼輸入框聚焦（支援無線掃描器）
+            function ensureBarcodeFocus() {
+                if (currentMode === 'scan' && barcodeInput) {
+                    barcodeInput.focus();
+                    // 將輸入框滾動到可視區域
+                    barcodeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            
+            // 頁面加載完成後立即聚焦
+            ensureBarcodeFocus();
+            
+            // DOM 完全加載後再次聚焦（確保其他腳本不會影響）
+            setTimeout(ensureBarcodeFocus, 500);
+            
+            // 當用戶點擊頁面其他地方後，如果在掃描模式且沒有選中任何輸入框，自動回到條碼輸入框
+            document.addEventListener('click', (e) => {
+                // 如果在掃描模式，且點擊的不是輸入框、按鈕或連結，則自動聚焦到條碼輸入框
+                if (currentMode === 'scan' && !e.target.matches('input, button, a, select, textarea')) {
+                    setTimeout(() => barcodeInput.focus(), 50);
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>
+

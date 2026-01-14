@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新增角色 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .permissions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .permission-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .permission-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .permission-item {
+            margin: 8px 0;
+        }
+        
+        .permission-item label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .permission-item input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <h1>➕ 新增角色</h1>
+        
+        <form method="POST" action="/roles/add">
+            <div class="form-group">
+                <label for="role_name">角色名稱 * (英文，用於系統識別)</label>
+                <input type="text" id="role_name" name="role_name" required pattern="[a-z_]+" 
+                       placeholder="例如：warehouse_manager" 
+                       title="只能使用小寫英文字母和底線">
+            </div>
+            
+            <div class="form-group">
+                <label for="display_name">顯示名稱 *</label>
+                <input type="text" id="display_name" name="display_name" required 
+                       placeholder="例如：倉庫管理員">
+            </div>
+            
+            <div class="form-group">
+                <label for="description">說明</label>
+                <textarea id="description" name="description" rows="3" 
+                          placeholder="角色的用途和職責說明"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>權限設定</label>
+                <div class="permissions-grid">
+                    <!-- 使用者管理權限 -->
+                    <div class="permission-group">
+                        <h3>👥 使用者管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:view">
+                                查看使用者
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:create">
+                                新增使用者
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:edit">
+                                編輯使用者
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:delete">
+                                刪除使用者
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 料件管理權限 -->
+                    <div class="permission-group">
+                        <h3>📦 料件管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:view">
+                                查看料件
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:create">
+                                新增料件
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:edit">
+                                編輯料件
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:delete">
+                                刪除料件
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 庫存管理權限 -->
+                    <div class="permission-group">
+                        <h3>📊 庫存管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:view">
+                                查看庫存
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:inbound">
+                                料件入庫
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:outbound">
+                                料件出庫
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:check">
+                                庫存盤點
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 系統管理權限 -->
+                    <div class="permission-group">
+                        <h3>⚙️ 系統管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:backup">
+                                備份管理
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:health">
+                                系統健康
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:roles">
+                                角色管理
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:logs">
+                                操作記錄
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions" style="display: flex; gap: 10px; margin-top: 30px;">
+                <button type="submit" class="btn btn-primary">✅ 新增角色</button>
+                <a href="/roles" class="btn btn-secondary">❌ 取消</a>
+            </div>
+        </form>
+    </div>
+    
+    <%- include('_common-nav-script') %>
+</body>
+</html>

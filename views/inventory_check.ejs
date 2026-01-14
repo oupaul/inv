@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>庫存盤點 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        /* 觸控友好：增大點擊區域 */
+        button, .btn {
+            min-height: 44px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+        }
+        
+        button:active, .btn:active {
+            transform: scale(0.98);
+            transition: transform 0.1s;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .barcode-scanner {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .barcode-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .barcode-input-group input {
+            flex: 1;
+        }
+        
+        .barcode-input-group button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        
+        .barcode-camera {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .barcode-camera.active {
+            display: block;
+        }
+        
+        #barcode-video {
+            width: 100%;
+            max-width: 640px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+        }
+        
+        .barcode-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .barcode-status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+            display: block;
+        }
+        
+        .barcode-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+            display: block;
+        }
+        
+        .part-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .part-info.hidden {
+            display: none;
+        }
+        
+        .part-info-item {
+            margin-bottom: 8px;
+        }
+        
+        .part-info-item strong {
+            color: #333;
+            margin-right: 10px;
+        }
+        
+        .system-quantity {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        
+        .difference {
+            font-size: 16px;
+            font-weight: bold;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .difference.positive {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .difference.negative {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .difference.zero {
+            background-color: #e7f3ff;
+            color: #004085;
+        }
+        
+        /* 手機版響應式設計 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 15px;
+                border-radius: 8px;
+            }
+            
+            h1 {
+                font-size: 20px;
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+            }
+            
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 8px;
+                gap: 5px;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+                padding: 12px 10px;
+                font-size: 13px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            /* 盤點頁面手機版佈局 */
+            .check-main-grid {
+                grid-template-columns: 1fr !important;
+                gap: 15px !important;
+            }
+            
+            .check-scan-area,
+            .check-cart-area {
+                padding: 15px !important;
+            }
+            
+            .barcode-input-group {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .barcode-input-group input {
+                font-size: 18px !important;
+                padding: 16px !important;
+                -webkit-appearance: none;
+                border: 2px solid #667eea !important;
+                border-radius: 8px !important;
+                width: 100% !important;
+            }
+            
+            .barcode-input-group button {
+                width: 100% !important;
+                padding: 16px !important;
+                font-size: 17px !important;
+                min-height: 50px;
+                border-radius: 8px !important;
+            }
+            
+            #quick_part_select {
+                font-size: 16px !important;
+                padding: 12px !important;
+                -webkit-appearance: none;
+            }
+            
+            .part-info {
+                padding: 12px !important;
+                font-size: 14px !important;
+            }
+            
+            .part-info-item {
+                margin-bottom: 8px !important;
+                font-size: 14px !important;
+            }
+            
+            #quick_quantity {
+                font-size: 20px !important;
+                padding: 16px !important;
+                width: 100% !important;
+                text-align: center !important;
+                border: 2px solid #667eea !important;
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                -webkit-appearance: none;
+            }
+            
+            #addToCartBtn {
+                width: 100% !important;
+                padding: 18px !important;
+                font-size: 18px !important;
+                font-weight: 600 !important;
+                margin-top: 15px !important;
+                min-height: 56px;
+                border-radius: 8px !important;
+                box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3) !important;
+            }
+            
+            /* 購物車手機版 */
+            #checkCart {
+                max-height: 400px !important;
+            }
+            
+            #cartTable {
+                display: none !important;
+            }
+            
+            .cart-mobile-item {
+                display: block !important;
+            }
+            
+            #emptyCart {
+                padding: 30px 15px !important;
+                font-size: 14px !important;
+            }
+            
+            /* 購物車項目卡片（手機版） */
+            .cart-item-card {
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 12px;
+                border: 1px solid #e0e0e0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .cart-item-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 10px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .cart-item-part-number {
+                font-weight: 600;
+                font-size: 16px;
+                color: #667eea;
+                flex: 1;
+            }
+            
+            .cart-item-delete-btn {
+                background: #dc3545;
+                color: white;
+                border: none;
+                padding: 10px 18px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 15px;
+                font-weight: 600;
+                min-width: 80px;
+                min-height: 44px;
+                box-shadow: 0 2px 6px rgba(220, 53, 69, 0.3);
+            }
+            
+            .cart-item-delete-btn:active {
+                transform: scale(0.98);
+                box-shadow: 0 1px 3px rgba(220, 53, 69, 0.2);
+            }
+            
+            .cart-item-name {
+                color: #666;
+                font-size: 14px;
+                margin-bottom: 12px;
+            }
+            
+            .cart-item-quantity-section {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 10px;
+                flex-wrap: wrap;
+            }
+            
+            .cart-item-qty-label {
+                font-size: 14px;
+                color: #666;
+                font-weight: 600;
+                min-width: 60px;
+            }
+            
+            .cart-item-qty-input {
+                flex: 1;
+                padding: 14px !important;
+                font-size: 20px !important;
+                font-weight: 600 !important;
+                text-align: center !important;
+                border: 2px solid #667eea !important;
+                border-radius: 8px !important;
+                min-width: 120px;
+                -webkit-appearance: none;
+                background-color: white;
+            }
+            
+            .cart-item-unit {
+                color: #999;
+                font-size: 13px;
+                min-width: 40px;
+            }
+            
+            .cart-item-meta {
+                display: flex;
+                justify-content: space-between;
+                font-size: 12px;
+                color: #999;
+                margin-top: 8px;
+                padding-top: 8px;
+                border-top: 1px solid #f0f0f0;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .cart-item-difference {
+                font-weight: 600;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            
+            .cart-item-difference.positive {
+                background-color: #d4edda;
+                color: #155724;
+            }
+            
+            .cart-item-difference.negative {
+                background-color: #f8d7da;
+                color: #721c24;
+            }
+            
+            .cart-item-difference.zero {
+                background-color: #e7f3ff;
+                color: #004085;
+            }
+            
+            /* 批量提交區域（手機版） */
+            .batch-submit-area {
+                position: sticky;
+                bottom: 0;
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+                margin-top: 15px;
+            }
+            
+            #batch_auto_adjust {
+                width: 24px !important;
+                height: 24px !important;
+                margin-right: 10px;
+            }
+            
+            #submitBatchBtn,
+            #clearCartBtn {
+                width: 100% !important;
+                padding: 18px !important;
+                font-size: 18px !important;
+                margin-top: 10px !important;
+                min-height: 56px;
+            }
+            
+            /* 提示信息（手機版） */
+            .usage-tips {
+                font-size: 13px !important;
+                padding: 12px !important;
+                margin-top: 15px !important;
+            }
+            
+            .usage-tips ul {
+                padding-left: 18px !important;
+                margin: 8px 0 !important;
+            }
+            
+            .usage-tips li {
+                margin-bottom: 6px !important;
+                line-height: 1.5 !important;
+            }
+            
+            /* 當前盤點事件信息（手機版） */
+            .session-info-box {
+                flex-direction: column !important;
+                gap: 10px !important;
+                padding: 12px !important;
+                font-size: 14px !important;
+            }
+            
+            .session-info-box strong {
+                font-size: 15px !important;
+            }
+        }
+        
+        /* 桌面版：隱藏手機版購物車卡片 */
+        .cart-mobile-container {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .cart-mobile-container {
+                display: block;
+            }
+            
+            #cartTable {
+                display: none !important;
+            }
+        }
+    </style>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>🔍 庫存盤點</h1>
+        
+        <% if (!currentSession) { %>
+        <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #856404;">⚠️ 提示：請先創建盤點事件</h3>
+            <p style="color: #856404; margin: 10px 0;">
+                盤點需要先創建一個盤點事件（例如：每月最後一天的盤點作業）。盤點事件完成後，將成為下次盤點的基準。
+            </p>
+            <a href="/inventory/check/sessions" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; margin-top: 10px;">➕ 創建盤點事件</a>
+        </div>
+        <% } else { %>
+        <div class="session-info-box" style="background-color: #d1ecf1; border: 2px solid #17a2b8; border-radius: 8px; padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div style="flex: 1; min-width: 200px;">
+                <strong style="color: #0c5460; font-size: 16px; display: block; margin-bottom: 8px;">📋 當前盤點事件：<%= currentSession.session_name || currentSession.session_date %></strong>
+                <div style="color: #0c5460; font-size: 13px; margin-top: 5px; line-height: 1.6;">
+                    <div>盤點日期：<%= currentSession.session_date %></div>
+                    <div>狀態：<span style="background-color: #fff3cd; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 12px;">進行中</span></div>
+                </div>
+            </div>
+            <div>
+                <a href="/inventory/check/sessions" style="color: #007bff; text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap;">切換盤點事件 →</a>
+            </div>
+        </div>
+        <% } %>
+
+        <% if (currentSession) { %>
+        <!-- 無線掃描器使用提示 -->
+        <div style="background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <strong style="color: #155724; font-size: 15px;">📱 無線掃描器連續盤點模式：</strong>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #155724; font-size: 14px; line-height: 1.8;">
+                <li><strong>DK-ONE 頸掛式藍芽掃描器</strong>可快速連續盤點！</li>
+                <li>確保掃描器已連接，點擊下方「條碼掃描」輸入框使其聚焦</li>
+                <li>直接掃描條碼，系統會自動查詢並加入盤點清單</li>
+                <li>相同料件會自動累加數量，也可在右側清單中手動調整</li>
+                <li>完成所有盤點後，點擊「提交盤點單」一次性提交</li>
+            </ul>
+        </div>
+
+        <!-- 連續掃描模式：購物車式盤點清單 -->
+        <div class="check-main-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <!-- 左側：掃描區域 -->
+            <div class="check-scan-area" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px solid #e0e0e0;">
+                <h2 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 18px;">📷 連續掃描盤點</h2>
+                
+            <div class="form-group">
+                <label for="barcode" style="font-size: 15px; font-weight: 600; margin-bottom: 8px; display: block;">條碼掃描 / 輸入料號</label>
+                <div class="barcode-scanner">
+                    <div class="barcode-input-group" style="display: flex; gap: 10px; align-items: stretch;">
+                        <input type="text" id="barcode" placeholder="掃描條碼或輸入料號後按 Enter" style="font-size: 16px; padding: 12px; flex: 1; border: 2px solid #e0e0e0; border-radius: 6px;" autofocus>
+                        <button type="button" id="scanBtn" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); padding: 12px 20px; white-space: nowrap; min-width: 80px;">📷 掃描</button>
+                        <button type="button" id="lookupBtn" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%); padding: 12px 20px; white-space: nowrap; min-width: 80px;">🔍 查詢</button>
+                    </div>
+                        <div class="barcode-camera" id="barcodeCamera">
+                            <video id="barcode-video" autoplay playsinline></video>
+                            <button type="button" id="stopScanBtn" class="btn" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); margin-top: 10px;">停止掃描</button>
+                        </div>
+                        <div class="barcode-status" id="barcodeStatus"></div>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="quick_part_select" style="font-size: 15px; font-weight: 600; margin-bottom: 8px; display: block;">快速選擇料件</label>
+                    <select id="quick_part_select" style="width: 100%; padding: 12px; font-size: 15px; border: 2px solid #e0e0e0; border-radius: 6px; background-color: white;">
+                        <option value="">-- 選擇料件 --</option>
+                        <% if (parts && parts.length > 0) { %>
+                            <% parts.forEach(function(part) { %>
+                                <option value="<%= part.id %>" data-barcode="<%= part.barcode || '' %>">
+                                    <%= part.part_number %> - <%= part.part_name %> <% if (part.barcode) { %>(條碼: <%= part.barcode %>)<% } %>
+                                </option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                </div>
+                
+                <!-- 料件資訊顯示區域 -->
+                <div class="part-info hidden" id="partInfo" style="background-color: white; padding: 15px; border-radius: 6px; margin-top: 15px; border: 1px solid #ddd;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>料號：</strong><span id="infoPartNumber">-</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>料件名稱：</strong><span id="infoPartName">-</span>
+                    </div>
+                    <div style="margin-bottom: 10px;" id="previousQuantityDisplay" style="display: none;">
+                        <strong>上次盤點：</strong><span id="previousQuantity">-</span> <span id="previousUnit">個</span>
+                    </div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label for="quick_quantity">盤點數量 *</label>
+                        <input type="number" id="quick_quantity" min="1" step="1" value="1" style="width: 100%; padding: 10px; font-size: 16px;" placeholder="數量">
+                    </div>
+                    <button type="button" id="addToCartBtn" class="btn" style="width: 100%; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-top: 10px; padding: 12px; font-size: 16px; font-weight: 600;">
+                        ➕ 加入盤點清單
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 右側：盤點清單（購物車） -->
+            <div class="check-cart-area" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px solid #e0e0e0;">
+                <h2 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 18px;">
+                    📋 盤點清單 
+                    <span id="cartCount" style="background-color: #667eea; color: white; padding: 4px 8px; border-radius: 12px; font-size: 14px; margin-left: 10px;">0</span>
+                </h2>
+                
+                <div id="checkCart" style="max-height: 500px; overflow-y: auto; margin-bottom: 15px;">
+                    <div id="emptyCart" style="text-align: center; padding: 40px; color: #999;">
+                        <p style="font-size: 16px;">盤點清單為空</p>
+                        <p style="font-size: 14px; margin-top: 10px;">請掃描或選擇料件開始盤點</p>
+                    </div>
+                    
+                    <!-- 桌面版：表格顯示 -->
+                    <table id="cartTable" style="display: none; width: 100%; background-color: white; border-radius: 6px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <th style="padding: 10px; text-align: left; font-size: 13px;">料號</th>
+                                <th style="padding: 10px; text-align: left; font-size: 13px;">名稱</th>
+                                <th style="padding: 10px; text-align: center; font-size: 13px;">數量</th>
+                                <th style="padding: 10px; text-align: center; font-size: 13px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cartTableBody">
+                        </tbody>
+                    </table>
+                    
+                    <!-- 手機版：卡片顯示 -->
+                    <div id="cartMobileContainer" class="cart-mobile-container" style="display: none;">
+                        <div id="cartMobileBody">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="batch-submit-area" style="background-color: white; padding: 15px; border-radius: 6px; margin-top: 15px;">
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px;">
+                            <input type="checkbox" id="batch_auto_adjust" style="width: 20px; height: 20px; margin: 0; cursor: pointer;">
+                            <span style="font-weight: 600; color: #856404; flex: 1;">⚙️ 批量自動調整庫存</span>
+                        </label>
+                        <small style="color: #666; margin-top: 8px; display: block; margin-left: 30px; font-size: 13px;">
+                            勾選後，所有有差異的料件將自動調整庫存
+                        </small>
+                    </div>
+                    
+                    <form method="POST" id="batchCheckForm" action="/inventory/check/batch">
+                        <input type="hidden" id="batch_session_id" name="session_id" value="<%= currentSession.id %>">
+                        <input type="hidden" id="batch_session_date" name="session_date" value="<%= currentSession.session_date %>">
+                        <input type="hidden" id="batch_items" name="items" value="">
+                        <input type="hidden" id="batch_auto_adjust_val" name="auto_adjust" value="false">
+                        
+                        <button type="submit" id="submitBatchBtn" class="btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; font-size: 16px; font-weight: 600; min-height: 50px;" disabled>
+                            ✓ 提交盤點單 (<span id="submitCount">0</span> 項)
+                        </button>
+                    </form>
+                    
+                    <button type="button" id="clearCartBtn" class="btn" style="width: 100%; background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); padding: 12px; margin-top: 10px; font-size: 15px; min-height: 45px;" onclick="clearCart()">
+                        🗑️ 清空清單
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="usage-tips" style="margin-top: 20px; padding: 15px; background-color: #e7f3ff; border-radius: 8px; border: 1px solid #b3d9ff;">
+            <strong style="color: #004085; font-size: 15px;">💡 使用說明：</strong>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #004085; font-size: 14px; line-height: 1.8;">
+                <li>連續掃描或選擇料件，相同料件會自動累加數量</li>
+                <li>可以在清單中編輯數量或刪除項目</li>
+                <li>完成所有料件盤點後，一次性提交整個盤點單</li>
+                <li>提交前可選擇是否自動調整庫存差異</li>
+            </ul>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <a href="/inventory/check/sessions" style="color: #666; text-decoration: none; margin-right: 15px;">📋 盤點事件管理</a>
+            <a href="/inventory/check/records" style="color: #666; text-decoration: none; margin-right: 15px;">📝 查看盤點記錄</a>
+            <a href="/inventory/check/differences?session_id=<%= currentSession.id %>" style="color: #667eea; text-decoration: none; font-weight: 600;">📊 本事件差異報表</a>
+        </div>
+        <% } %>
+    </div>
+    
+    <script>
+        const { BrowserMultiFormatReader } = ZXing;
+        const codeReader = new BrowserMultiFormatReader();
+        let scanning = false;
+        
+        // 盤點購物車（臨時清單）
+        let checkCart = [];
+        
+        // DOM 元素
+        const scanBtn = document.getElementById('scanBtn');
+        const stopScanBtn = document.getElementById('stopScanBtn');
+        const lookupBtn = document.getElementById('lookupBtn');
+        const barcodeInput = document.getElementById('barcode');
+        const barcodeCamera = document.getElementById('barcodeCamera');
+        const barcodeStatus = document.getElementById('barcodeStatus');
+        const video = document.getElementById('barcode-video');
+        const quickPartSelect = document.getElementById('quick_part_select');
+        const partInfo = document.getElementById('partInfo');
+        const quickQuantityInput = document.getElementById('quick_quantity');
+        const addToCartBtn = document.getElementById('addToCartBtn');
+        
+        // 料件資料（從選項中提取）
+        const partsData = {};
+        <% if (parts && parts.length > 0) { %>
+            <% parts.forEach(function(part) { %>
+                partsData[<%= part.id %>] = {
+                    id: <%= part.id %>,
+                    part_number: '<%= part.part_number %>',
+                    part_name: '<%= (part.part_name || '').replace(/'/g, "\\'") %>',
+                    specification: '<%= (part.specification || '').replace(/'/g, "\\'") %>',
+                    category_name: '<%= (part.category_name || '').replace(/'/g, "\\'") %>',
+                    unit: '<%= part.unit %>',
+                    barcode: '<%= part.barcode || '' %>',
+                    previous_check_quantity: <%= part.previous_check_quantity !== null && part.previous_check_quantity !== undefined ? part.previous_check_quantity : 0 %>,
+                    current_check_quantity: <%= part.current_check_quantity !== null && part.current_check_quantity !== undefined ? part.current_check_quantity : 'null' %>
+                };
+            <% }); %>
+        <% } %>
+        
+        // 當前選中的料件
+        let currentPart = null;
+        
+        // 條碼輸入框按 Enter 時自動查詢並加入購物車
+        barcodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                lookupByBarcode(barcodeInput.value.trim());
+            }
+        });
+        
+        // 快速選擇料件
+        quickPartSelect.addEventListener('change', () => {
+            const partId = quickPartSelect.value;
+            if (partId && partsData[partId]) {
+                selectPart(partsData[partId]);
+            }
+        });
+        
+        // 選擇料件並顯示資訊
+        function selectPart(part) {
+            currentPart = part;
+            document.getElementById('infoPartNumber').textContent = part.part_number;
+            document.getElementById('infoPartName').textContent = part.part_name;
+            
+            const previousQty = part.previous_check_quantity !== null && part.previous_check_quantity !== undefined ? part.previous_check_quantity : 0;
+            document.getElementById('previousQuantity').textContent = previousQty;
+            document.getElementById('previousUnit').textContent = part.unit;
+            document.getElementById('previousQuantityDisplay').style.display = 'block';
+            
+            // 清空數量輸入框並聚焦
+            quickQuantityInput.value = '1';
+            quickQuantityInput.focus();
+            
+            partInfo.classList.remove('hidden');
+            addToCartBtn.disabled = false;
+            
+            // 如果條碼欄位為空，填入條碼
+            if (!barcodeInput.value && part.barcode) {
+                barcodeInput.value = part.barcode;
+            }
+        }
+        
+        // 根據條碼查詢料件（新的購物車模式）
+        function lookupByBarcode(barcode) {
+            if (!barcode) {
+                barcodeStatus.textContent = '請先輸入或掃描條碼';
+                barcodeStatus.className = 'barcode-status error';
+                barcodeStatus.style.display = 'block';
+                // 重新聚焦到條碼輸入框
+                setTimeout(() => barcodeInput.focus(), 100);
+                return;
+            }
+            
+            // 先在下拉選單中查找
+            const option = Array.from(quickPartSelect.options).find(opt => {
+                const optBarcode = opt.getAttribute('data-barcode');
+                return optBarcode && optBarcode === barcode;
+            });
+            
+            if (option && option.value) {
+                const part = partsData[option.value];
+                if (part) {
+                    selectPart(part);
+                    quickPartSelect.value = option.value;
+                    barcodeStatus.textContent = '✓ 找到料件：' + part.part_number + '（自動加入盤點清單）';
+                    barcodeStatus.className = 'barcode-status success';
+                    barcodeStatus.style.display = 'block';
+                    // 自動加入購物車（如果已找到料件）
+                    setTimeout(() => {
+                        addToCart();
+                        // 清空條碼輸入框並重新聚焦，準備下一次掃描
+                        barcodeInput.value = '';
+                        barcodeInput.focus();
+                    }, 200);
+                    return;
+                }
+            }
+            
+            // 如果下拉選單中沒找到，嘗試API查詢
+            fetch(`/api/barcode/${encodeURIComponent(barcode)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.part && partsData[data.part.id]) {
+                        const part = partsData[data.part.id];
+                        selectPart(part);
+                        quickPartSelect.value = data.part.id;
+                        barcodeStatus.textContent = '✓ 找到料件：' + part.part_number + '（自動加入盤點清單）';
+                        barcodeStatus.className = 'barcode-status success';
+                        barcodeStatus.style.display = 'block';
+                        // 自動加入購物車
+                        setTimeout(() => {
+                            addToCart();
+                            // 清空條碼輸入框並重新聚焦，準備下一次掃描
+                            barcodeInput.value = '';
+                            barcodeInput.focus();
+                        }, 200);
+                    } else {
+                        barcodeStatus.textContent = '✗ 未找到對應的料件：' + barcode;
+                        barcodeStatus.className = 'barcode-status error';
+                        barcodeStatus.style.display = 'block';
+                        // 重新聚焦到條碼輸入框
+                        setTimeout(() => {
+                            barcodeInput.select(); // 選中文字，方便重新掃描
+                            barcodeInput.focus();
+                        }, 1500);
+                    }
+                })
+                .catch(error => {
+                    barcodeStatus.textContent = '✗ 查詢失敗：' + error.message;
+                    barcodeStatus.className = 'barcode-status error';
+                    barcodeStatus.style.display = 'block';
+                    // 重新聚焦到條碼輸入框
+                    setTimeout(() => barcodeInput.focus(), 100);
+                });
+        }
+        
+        // 加入購物車
+        addToCartBtn.addEventListener('click', addToCart);
+        
+        function addToCart() {
+            if (!currentPart) {
+                alert('請先選擇料件！');
+                // 重新聚焦到條碼輸入框
+                setTimeout(() => barcodeInput.focus(), 100);
+                return;
+            }
+            
+            const quantity = parseInt(quickQuantityInput.value) || 1;
+            if (quantity <= 0) {
+                alert('數量必須大於 0！');
+                // 重新聚焦到數量輸入框
+                setTimeout(() => quickQuantityInput.focus(), 100);
+                return;
+            }
+            
+            // 檢查購物車中是否已有相同料件
+            const existingIndex = checkCart.findIndex(item => item.part_id === currentPart.id);
+            
+            if (existingIndex >= 0) {
+                // 累加數量
+                checkCart[existingIndex].quantity += quantity;
+            } else {
+                // 添加新項目
+                checkCart.push({
+                    part_id: currentPart.id,
+                    part_number: currentPart.part_number,
+                    part_name: currentPart.part_name,
+                    unit: currentPart.unit,
+                    previous_quantity: currentPart.previous_check_quantity || 0,
+                    quantity: quantity
+                });
+            }
+            
+            // 更新購物車顯示
+            updateCartDisplay();
+            
+            // 清空當前選擇
+            quickPartSelect.value = '';
+            barcodeInput.value = '';
+            quickQuantityInput.value = '1';
+            partInfo.classList.add('hidden');
+            currentPart = null;
+            
+            // 重新聚焦到條碼輸入框，準備下一次掃描
+            // 使用較短的延遲以提高連續掃描的速度
+            setTimeout(() => barcodeInput.focus(), 50);
+        }
+        
+        // 更新購物車顯示
+        function updateCartDisplay() {
+            const cartTable = document.getElementById('cartTable');
+            const cartTableBody = document.getElementById('cartTableBody');
+            const cartMobileContainer = document.getElementById('cartMobileContainer');
+            const cartMobileBody = document.getElementById('cartMobileBody');
+            const emptyCart = document.getElementById('emptyCart');
+            const cartCount = document.getElementById('cartCount');
+            const submitCount = document.getElementById('submitCount');
+            const submitBatchBtn = document.getElementById('submitBatchBtn');
+            
+            // 判斷是否為手機版
+            const isMobile = window.innerWidth <= 768;
+            
+            if (checkCart.length === 0) {
+                if (cartTable) cartTable.style.display = 'none';
+                if (cartMobileContainer) cartMobileContainer.style.display = 'none';
+                if (emptyCart) emptyCart.style.display = 'block';
+                if (cartCount) cartCount.textContent = '0';
+                if (submitCount) submitCount.textContent = '0';
+                if (submitBatchBtn) submitBatchBtn.disabled = true;
+            } else {
+                if (emptyCart) emptyCart.style.display = 'none';
+                if (cartCount) cartCount.textContent = checkCart.length;
+                if (submitCount) submitCount.textContent = checkCart.length;
+                if (submitBatchBtn) submitBatchBtn.disabled = false;
+                
+                if (isMobile) {
+                    // 手機版：卡片顯示
+                    if (cartTable) cartTable.style.display = 'none';
+                    if (cartMobileContainer) cartMobileContainer.style.display = 'block';
+                    if (cartMobileBody) {
+                        cartMobileBody.innerHTML = '';
+                        checkCart.forEach((item, index) => {
+                            const difference = item.quantity - item.previous_quantity;
+                            const diffClass = difference > 0 ? 'positive' : (difference < 0 ? 'negative' : 'zero');
+                            const diffText = difference > 0 ? `+${difference}` : difference;
+                            const diffLabel = difference > 0 ? '盤盈' : (difference < 0 ? '盤虧' : '相符');
+                            
+                            const card = document.createElement('div');
+                            card.className = 'cart-item-card';
+                            card.innerHTML = `
+                                <div class="cart-item-header">
+                                    <div class="cart-item-part-number">${item.part_number}</div>
+                                    <button type="button" 
+                                            class="cart-item-delete-btn"
+                                            onclick="removeCartItem(${index})">
+                                        🗑️ 刪除
+                                    </button>
+                                </div>
+                                <div class="cart-item-name">${item.part_name}</div>
+                                <div class="cart-item-quantity-section">
+                                    <span class="cart-item-qty-label">數量：</span>
+                                    <input type="number" 
+                                           class="cart-item-qty-input"
+                                           value="${item.quantity}" 
+                                           min="1" 
+                                           step="1"
+                                           onchange="updateCartItemQuantity(${index}, this.value)"
+                                           onblur="updateCartItemQuantity(${index}, this.value)">
+                                    <span class="cart-item-unit">${item.unit}</span>
+                                </div>
+                                <div class="cart-item-meta">
+                                    <span>上次盤點：${item.previous_quantity} ${item.unit}</span>
+                                    <span class="cart-item-difference ${diffClass}">
+                                        差異：${diffText} (${diffLabel})
+                                    </span>
+                                </div>
+                            `;
+                            cartMobileBody.appendChild(card);
+                        });
+                    }
+                } else {
+                    // 桌面版：表格顯示
+                    if (cartMobileContainer) cartMobileContainer.style.display = 'none';
+                    if (cartTable) cartTable.style.display = 'table';
+                    if (cartTableBody) {
+                        cartTableBody.innerHTML = '';
+                        checkCart.forEach((item, index) => {
+                            const row = document.createElement('tr');
+                            const difference = item.quantity - item.previous_quantity;
+                            const diffClass = difference > 0 ? 'positive' : (difference < 0 ? 'negative' : 'zero');
+                            const diffText = difference > 0 ? `+${difference}` : difference;
+                            
+                            row.innerHTML = `
+                                <td style="padding: 10px; font-weight: 600;">${item.part_number}</td>
+                                <td style="padding: 10px;">${item.part_name}</td>
+                                <td style="padding: 10px; text-align: center;">
+                                    <input type="number" 
+                                           value="${item.quantity}" 
+                                           min="1" 
+                                           step="1" 
+                                           style="width: 80px; padding: 5px; text-align: center; border: 1px solid #ddd; border-radius: 4px;"
+                                           onchange="updateCartItemQuantity(${index}, this.value)"
+                                           onblur="updateCartItemQuantity(${index}, this.value)">
+                                    <span style="color: #999; font-size: 12px; margin-left: 5px;">${item.unit}</span>
+                                    <br><small style="color: #666; font-size: 11px;">上次: ${item.previous_quantity} | 差異: <span class="difference ${diffClass}">${diffText}</span></small>
+                                </td>
+                                <td style="padding: 10px; text-align: center;">
+                                    <button type="button" 
+                                            onclick="removeCartItem(${index})" 
+                                            style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                        🗑️ 刪除
+                                    </button>
+                                </td>
+                            `;
+                            cartTableBody.appendChild(row);
+                        });
+                    }
+                }
+            }
+        }
+        
+        // 監聽窗口大小變化，重新渲染購物車
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (checkCart.length > 0) {
+                    updateCartDisplay();
+                }
+            }, 250);
+        });
+        
+        // 更新購物車項目數量
+        window.updateCartItemQuantity = function(index, newQuantity) {
+            const quantity = parseInt(newQuantity) || 1;
+            if (quantity <= 0) {
+                alert('數量必須大於 0！');
+                checkCart[index].quantity = 1;
+                updateCartDisplay();
+                return;
+            }
+            checkCart[index].quantity = quantity;
+            updateCartDisplay();
+        };
+        
+        // 刪除購物車項目
+        window.removeCartItem = function(index) {
+            if (confirm('確定要刪除此項目嗎？')) {
+                checkCart.splice(index, 1);
+                updateCartDisplay();
+                // 刪除後重新聚焦到條碼輸入框
+                setTimeout(() => barcodeInput.focus(), 100);
+            }
+        };
+        
+        // 清空購物車
+        window.clearCart = function() {
+            if (checkCart.length === 0) {
+                return;
+            }
+            if (confirm('確定要清空整個盤點清單嗎？')) {
+                checkCart = [];
+                updateCartDisplay();
+                // 清空後重新聚焦到條碼輸入框
+                setTimeout(() => barcodeInput.focus(), 100);
+            }
+        };
+        
+        // 批量提交表單
+        document.getElementById('batchCheckForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (checkCart.length === 0) {
+                alert('盤點清單為空，無法提交！');
+                return;
+            }
+            
+            // 準備提交資料
+            const items = checkCart.map(item => ({
+                part_id: item.part_id,
+                actual_quantity: item.quantity,
+                previous_quantity: item.previous_quantity
+            }));
+            
+            document.getElementById('batch_items').value = JSON.stringify(items);
+            document.getElementById('batch_auto_adjust_val').value = document.getElementById('batch_auto_adjust').checked ? 'true' : 'false';
+            
+            // 確認提交
+            const autoAdjust = document.getElementById('batch_auto_adjust').checked;
+            const confirmMsg = autoAdjust 
+                ? `確定要提交 ${checkCart.length} 項盤點記錄嗎？\n將自動調整所有差異項目的庫存。`
+                : `確定要提交 ${checkCart.length} 項盤點記錄嗎？\n差異項目需要手動調整。`;
+            
+            if (confirm(confirmMsg)) {
+                this.submit();
+            }
+        });
+        
+        // 初始化：確保條碼輸入框聚焦（支援無線掃描器）
+        // 使用多重策略確保聚焦成功
+        function ensureBarcodeFocus() {
+            if (barcodeInput) {
+                barcodeInput.focus();
+                // 將輸入框滾動到可視區域
+                barcodeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        
+        // 頁面加載完成後立即聚焦
+        ensureBarcodeFocus();
+        
+        // DOM 完全加載後再次聚焦（確保其他腳本不會影響）
+        setTimeout(ensureBarcodeFocus, 500);
+        
+        // 當用戶點擊頁面其他地方後，如果沒有選中任何輸入框，自動回到條碼輸入框
+        document.addEventListener('click', (e) => {
+            // 如果點擊的不是輸入框、按鈕或連結，則自動聚焦到條碼輸入框
+            if (!e.target.matches('input, button, a, select, textarea')) {
+                setTimeout(() => barcodeInput.focus(), 50);
+            }
+        });
+        
+        // 掃描成功後自動加入購物車
+        scanBtn.addEventListener('click', async () => {
+            if (scanning) return;
+            
+            try {
+                scanning = true;
+                scanBtn.disabled = true;
+                barcodeCamera.classList.add('active');
+                barcodeStatus.className = 'barcode-status';
+                barcodeStatus.textContent = '正在啟動攝像頭...';
+                barcodeStatus.style.display = 'block';
+                
+                await codeReader.decodeFromVideoDevice(null, 'barcode-video', (result, err) => {
+                    if (result) {
+                        barcodeInput.value = result.text;
+                        barcodeStatus.textContent = '✓ 掃描成功：' + result.text;
+                        barcodeStatus.className = 'barcode-status success';
+                        stopScan();
+                        
+                        // 自動查詢並加入購物車
+                        setTimeout(() => {
+                            lookupByBarcode(result.text);
+                        }, 500);
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error(err);
+                    }
+                });
+            } catch (error) {
+                barcodeStatus.textContent = '✗ 無法啟動攝像頭：' + error.message;
+                barcodeStatus.className = 'barcode-status error';
+                stopScan();
+            }
+        });
+        
+        // 停止掃描
+        stopScanBtn.addEventListener('click', () => {
+            stopScan();
+        });
+        
+        function stopScan() {
+            scanning = false;
+            if (scanBtn) scanBtn.disabled = false;
+            codeReader.reset();
+            if (barcodeCamera) barcodeCamera.classList.remove('active');
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+        
+        // 查詢按鈕
+        lookupBtn.addEventListener('click', () => {
+            const barcode = barcodeInput.value.trim();
+            lookupByBarcode(barcode);
+        });
+    </script>
+</body>
+</html>
+

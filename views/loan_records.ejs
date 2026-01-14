@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>借出中料件 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .summary-item {
+            text-align: center;
+        }
+        
+        .summary-item .value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .summary-item .label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-badge.pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-badge.partial {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .quantity-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .quantity-loaned {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .quantity-returned {
+            color: #28a745;
+        }
+        
+        .quantity-remaining {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .due-status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .due-status-badge.overdue {
+            background-color: #f8d7da;
+            color: #721c24;
+            animation: pulse 2s infinite;
+        }
+        
+        .due-status-badge.due-today {
+            background-color: #fff3cd;
+            color: #856404;
+            animation: pulse 2s infinite;
+        }
+        
+        .due-status-badge.due-soon {
+            background-color: #ffeaa7;
+            color: #856404;
+        }
+        
+        .due-status-badge.normal {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .due-status-badge.no-date {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            /* 搜索區域手機版 */
+            .search-section form {
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+            
+            .search-section input,
+            .search-section select,
+            .search-section button {
+                width: 100% !important;
+                font-size: 16px !important;
+                padding: 14px !important;
+                min-height: 48px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>📋 借出中料件</h1>
+
+        <% if (records && records.length > 0) { %>
+        <div class="summary">
+            <div class="summary-item">
+                <div class="value"><%= records.length %></div>
+                <div class="label">借出筆數</div>
+            </div>
+            <div class="summary-item">
+                <div class="value"><% 
+                    let totalLoaned = 0;
+                    let totalReturned = 0;
+                    let totalRemaining = 0;
+                    records.forEach(function(r) {
+                        totalLoaned += r.loaned_quantity || 0;
+                        totalReturned += r.returned_quantity || 0;
+                        totalRemaining += r.remaining_quantity || 0;
+                    });
+                %><%= totalLoaned %></div>
+                <div class="label">總借出數量</div>
+            </div>
+            <div class="summary-item">
+                <div class="value"><%= totalReturned %></div>
+                <div class="label">已歸還數量</div>
+            </div>
+            <div class="summary-item">
+                <div class="value"><%= totalRemaining %></div>
+                <div class="label">未歸還數量</div>
+            </div>
+        </div>
+
+        <div class="mobile-scroll-hint" style="display: none; background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; color: #856404; font-size: 13px; font-weight: 600;">
+            ⬅️ 表格可左右滑動查看完整內容 ➡️
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>借出日期</th>
+                    <th>到期日期</th>
+                    <th>到期狀態</th>
+                    <th>料號</th>
+                    <th>料件名稱</th>
+                    <th>類型</th>
+                    <th>規格</th>
+                    <th>條碼</th>
+                    <th>借出數量</th>
+                    <th>已歸還</th>
+                    <th>未歸還</th>
+                    <th>單位</th>
+                    <th>狀態</th>
+                    <th>備註</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% records.forEach(function(record) { %>
+                <tr>
+                    <td><%= record.loan_date %></td>
+                    <td>
+                        <% if (record.loan_due_date) { %>
+                            <%= record.loan_due_date %>
+                            <% if (record.days_until_due !== null) { %>
+                                <% if (record.days_until_due < 0) { %>
+                                    <br><small style="color: #dc3545;">（已過期 <%= Math.abs(Math.floor(record.days_until_due)) %> 天）</small>
+                                <% } else if (record.days_until_due === 0) { %>
+                                    <br><small style="color: #856404;">（今日到期）</small>
+                                <% } else if (record.days_until_due <= 3) { %>
+                                    <br><small style="color: #856404;">（剩餘 <%= Math.floor(record.days_until_due) %> 天）</small>
+                                <% } %>
+                            <% } %>
+                        <% } else { %>
+                            <span style="color: #999;">未設定</span>
+                        <% } %>
+                    </td>
+                    <td>
+                        <% if (record.due_status === '已過期') { %>
+                            <span class="due-status-badge overdue">⚠️ 已過期</span>
+                        <% } else if (record.due_status === '今日到期') { %>
+                            <span class="due-status-badge due-today">⚠️ 今日到期</span>
+                        <% } else if (record.due_status === '即將到期') { %>
+                            <span class="due-status-badge due-soon">⏰ 即將到期</span>
+                        <% } else if (record.due_status === '正常') { %>
+                            <span class="due-status-badge normal">✓ 正常</span>
+                        <% } else { %>
+                            <span class="due-status-badge no-date">- 無到期日期</span>
+                        <% } %>
+                    </td>
+                    <td><%= record.part_number %></td>
+                    <td><%= record.part_name %></td>
+                    <td><%= record.category_name || '-' %></td>
+                    <td><%= record.specification || '-' %></td>
+                    <td><%= record.barcode || '-' %></td>
+                    <td>
+                        <div class="quantity-info">
+                            <span class="quantity-loaned"><%= record.loaned_quantity %></span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="quantity-info">
+                            <span class="quantity-returned"><%= record.returned_quantity %></span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="quantity-info">
+                            <span class="quantity-remaining"><%= record.remaining_quantity %></span>
+                        </div>
+                    </td>
+                    <td><%= record.unit %></td>
+                    <td>
+                        <% if (record.returned_quantity === 0) { %>
+                            <span class="status-badge pending">未歸還</span>
+                        <% } else { %>
+                            <span class="status-badge partial">部分歸還</span>
+                        <% } %>
+                    </td>
+                    <td><%= record.loan_note || '-' %></td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有任何借出中的料件</p>
+            <p>所有借測記錄都已歸還</p>
+        </div>
+        <% } %>
+    </div>
+    <script>
+        <%- include('_common-mobile-script') %>
+        <%- include('_common-nav-script') %>
+    </script>
+</body>
+</html>
+

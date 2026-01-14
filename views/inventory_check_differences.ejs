@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>盤點差異報表 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card.warning {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+        }
+        
+        .stat-card.success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        
+        .stat-card.danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+        
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .difference {
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .difference.positive {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .difference.negative {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .adjustment-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .adjustment-status.adjusted {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .adjustment-status.pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .btn-adjust {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-adjust:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+        }
+        
+        .btn-adjust:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .adjust-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .adjust-modal.active {
+            display: flex;
+        }
+        
+        .adjust-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .adjust-modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        
+        .search-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        /* 手機版：隱藏表格，使用卡片顯示 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+            
+            /* 刪除 table { display: none !important; } */
+            /* 讓通用樣式中的橫向滾動表格生效 */
+            
+            .stats-summary {
+                grid-template-columns: 1fr !important;
+                gap: 12px !important;
+            }
+            
+            .stat-card {
+                padding: 15px !important;
+            }
+            
+            .stat-card h3 {
+                font-size: 13px !important;
+            }
+            
+            .stat-card .value {
+                font-size: 24px !important;
+            }
+            
+            .search-section {
+                padding: 15px !important;
+            }
+            
+            .search-section form {
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+            
+            .search-section input,
+            .search-section select,
+            .search-section button,
+            .search-section a {
+                width: 100% !important;
+                font-size: 16px !important;
+                padding: 14px !important;
+                min-height: 48px;
+            }
+            
+            .search-section > div {
+                min-width: 100% !important;
+            }
+            
+            .adjust-modal-content {
+                width: 95% !important;
+                padding: 20px !important;
+                max-height: 90vh !important;
+            }
+        }
+        
+        /* 桌面版顯示表格 */
+        @media (min-width: 769px) {
+            #differencesTable {
+                display: table !important;
+            }
+            
+            .table-mobile-container {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>📊 盤點差異報表</h1>
+        
+        <!-- 統計摘要 -->
+        <div class="stats-summary">
+            <div class="stat-card">
+                <h3>總差異筆數</h3>
+                <div class="value"><%= stats.total %></div>
+            </div>
+            <div class="stat-card warning">
+                <h3>盤盈筆數</h3>
+                <div class="value"><%= stats.positive %></div>
+            </div>
+            <div class="stat-card danger">
+                <h3>盤虧筆數</h3>
+                <div class="value"><%= stats.negative %></div>
+            </div>
+            <div class="stat-card success">
+                <h3>已調整</h3>
+                <div class="value"><%= stats.adjusted %></div>
+            </div>
+            <div class="stat-card warning">
+                <h3>待調整</h3>
+                <div class="value"><%= stats.pending %></div>
+            </div>
+        </div>
+        
+        <!-- 搜尋區域 -->
+        <div class="search-section">
+            <form method="GET" action="/inventory/check/differences" id="searchForm" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label for="search" style="display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 14px;">搜尋（料號/名稱/條碼）</label>
+                    <input type="text" id="search" name="search" value="<%= search || '' %>" placeholder="輸入料號、名稱或條碼" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label for="session_id" style="display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 14px;">盤點事件</label>
+                    <select id="session_id" name="session_id" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                        <option value="">全部事件</option>
+                        <% if (checkSessions && checkSessions.length > 0) { %>
+                            <% checkSessions.forEach(function(session) { %>
+                            <option value="<%= session.id %>" <%= session_id == session.id ? 'selected' : '' %>>
+                                <%= session.session_name || session.session_date %> (<%= session.session_date %>) - <%= session.status === 'completed' ? '已完成' : '進行中' %>
+                            </option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label for="date_from" style="display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 14px;">開始日期</label>
+                    <input type="date" id="date_from" name="date_from" value="<%= date_from || '' %>" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label for="date_to" style="display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 14px;">結束日期</label>
+                    <input type="date" id="date_to" name="date_to" value="<%= date_to || '' %>" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🔍 搜尋</button>
+                    <a href="/inventory/check/differences" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">清除</a>
+                </div>
+            </form>
+        </div>
+        
+        <% if (records && records.length > 0) { %>
+        <div class="mobile-scroll-hint" style="display: none; background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; color: #856404; font-size: 13px; font-weight: 600;">
+            ⬅️ 表格可左右滑動查看完整內容 ➡️
+        </div>
+        <table id="differencesTable">
+            <thead>
+                <tr>
+                    <th>盤點事件</th>
+                    <th>盤點日期</th>
+                    <th>料號</th>
+                    <th>料件名稱</th>
+                    <th>上次盤點數量</th>
+                    <th>本次盤點數量</th>
+                    <th>差異</th>
+                    <th>單位</th>
+                    <th>調整狀態</th>
+                    <th>備註</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% records.forEach(function(record) { %>
+                <tr>
+                    <td>
+                        <strong><%= record.session_name || record.session_date %></strong>
+                        <br><small style="color: #999; font-size: 11px;">
+                            <%= record.session_status === 'completed' ? '✓ 已完成' : '🔄 進行中' %>
+                        </small>
+                    </td>
+                    <td><%= record.session_date %></td>
+                    <td><%= record.part_number %></td>
+                    <td><%= record.part_name %></td>
+                    <td style="font-weight: bold; color: #667eea;">
+                        <%= record.previous_quantity !== null && record.previous_quantity !== undefined ? record.previous_quantity : (record.system_quantity || '-') %>
+                        <br><small style="color: #999; font-size: 11px;">上次盤點</small>
+                    </td>
+                    <td style="font-weight: bold; color: #333;">
+                        <%= record.actual_quantity %>
+                        <br><small style="color: #999; font-size: 11px;">本次盤點</small>
+                    </td>
+                    <td>
+                        <% if (record.difference > 0) { %>
+                            <span class="difference positive">+<%= record.difference %> (盤盈)</span>
+                            <br><small style="color: #999; font-size: 11px;">較上次增加</small>
+                        <% } else if (record.difference < 0) { %>
+                            <span class="difference negative"><%= record.difference %> (盤虧)</span>
+                            <br><small style="color: #999; font-size: 11px;">較上次減少</small>
+                        <% } %>
+                    </td>
+                    <td><%= record.unit %></td>
+                    <td>
+                        <% if (record.is_adjusted === 1) { %>
+                            <span class="adjustment-status adjusted">✓ 已調整</span>
+                            <% if (record.adjusted_at) { %>
+                                <br><small style="color: #999; font-size: 11px;"><%= new Date(record.adjusted_at).toLocaleString('zh-TW') %></small>
+                                <% if (record.adjusted_by) { %>
+                                    <br><small style="color: #999; font-size: 11px;">調整人：<%= record.adjusted_by %></small>
+                                <% } %>
+                            <% } %>
+                        <% } else { %>
+                            <span class="adjustment-status pending">⚠ 待調整</span>
+                        <% } %>
+                    </td>
+                    <td>
+                        <%= record.note || '-' %>
+                        <% if (record.adjustment_note && record.is_adjusted === 1) { %>
+                            <br><small style="color: #667eea;">調整備註：<%= record.adjustment_note %></small>
+                        <% } %>
+                    </td>
+                    <td class="action-cell">
+                        <% if (record.is_adjusted === 0) { %>
+                            <button type="button" class="btn-adjust" onclick="openAdjustModal(<%= record.id %>, '<%= (record.part_number || '').replace(/'/g, "\\'") %>', '<%= (record.part_name || '').replace(/'/g, "\\'") %>', <%= record.previous_quantity !== null && record.previous_quantity !== undefined ? record.previous_quantity : 'null' %>, <%= record.actual_quantity %>, <%= record.difference %>)">🔧 調整</button>
+                        <% } else { %>
+                            <span style="color: #999; font-size: 12px;">已調整</span>
+                        <% } %>
+                    </td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= records.length %> 筆差異記錄</p>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有任何盤點差異記錄</p>
+            <p>所有盤點記錄都相符，或請調整搜尋條件</p>
+        </div>
+        <% } %>
+    </div>
+    
+    <!-- 調整模態框 -->
+    <div id="adjustModal" class="adjust-modal">
+        <div class="adjust-modal-content">
+            <h2>手動調整盤點差異</h2>
+            <form id="adjustForm" method="POST">
+                <div class="form-group">
+                    <label>料號</label>
+                    <input type="text" id="modal_part_number" readonly style="background-color: #f8f9fa;">
+                </div>
+                <div class="form-group">
+                    <label>料件名稱</label>
+                    <input type="text" id="modal_part_name" readonly style="background-color: #f8f9fa;">
+                </div>
+                <div class="form-group">
+                    <label>上次盤點數量</label>
+                    <input type="text" id="modal_previous_quantity" readonly style="background-color: #f8f9fa;">
+                </div>
+                <div class="form-group">
+                    <label>本次盤點數量</label>
+                    <input type="text" id="modal_actual_quantity" readonly style="background-color: #f8f9fa;">
+                </div>
+                <div class="form-group">
+                    <label>差異數量</label>
+                    <input type="text" id="modal_difference" readonly style="background-color: #f8f9fa; font-weight: bold; font-size: 16px;">
+                </div>
+                <div class="form-group">
+                    <label for="adjustment_note">調整備註 *</label>
+                    <textarea id="adjustment_note" name="adjustment_note" placeholder="請輸入調整原因或說明" required></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn-success">確認調整</button>
+                    <button type="button" class="btn-secondary" onclick="closeAdjustModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let currentRecordId = null;
+        
+        function openAdjustModal(id, partNumber, partName, previousQuantity, actualQuantity, difference) {
+            currentRecordId = id;
+            document.getElementById('modal_part_number').value = partNumber;
+            document.getElementById('modal_part_name').value = partName;
+            document.getElementById('modal_previous_quantity').value = previousQuantity !== null && previousQuantity !== undefined ? previousQuantity : '-';
+            document.getElementById('modal_actual_quantity').value = actualQuantity;
+            document.getElementById('modal_difference').value = (difference > 0 ? '+' : '') + difference + (difference > 0 ? ' (盤盈)' : ' (盤虧)');
+            document.getElementById('modal_difference').style.color = difference > 0 ? '#155724' : '#721c24';
+            document.getElementById('adjustForm').action = `/inventory/check/adjust/${id}`;
+            document.getElementById('adjustment_note').value = '';
+            document.getElementById('adjustModal').classList.add('active');
+        }
+        
+        function closeAdjustModal() {
+            document.getElementById('adjustModal').classList.remove('active');
+            currentRecordId = null;
+        }
+        
+        // 點擊模態框外部關閉
+        document.getElementById('adjustModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAdjustModal();
+            }
+        });
+    </script>
+    <script>
+        <%- include('_common-mobile-script') %>
+        <%- include('_common-nav-script') %>
+    </script>
+</body>
+</html>
+

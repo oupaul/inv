@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>料件入庫 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            /* 表單手機版優化 */
+            .form-group {
+                margin-bottom: 18px;
+            }
+            
+            input[type="text"],
+            input[type="number"],
+            input[type="date"],
+            select,
+            textarea {
+                font-size: 16px !important;
+                padding: 14px !important;
+                -webkit-appearance: none;
+            }
+            
+            button,
+            .btn {
+                width: 100% !important;
+                min-height: 48px !important;
+                font-size: 16px !important;
+                padding: 14px 20px !important;
+                margin-bottom: 10px;
+            }
+            
+            .barcode-input-group {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .barcode-input-group input,
+            .barcode-input-group button {
+                width: 100% !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>📥 料件入庫</h1>
+
+        <!-- 無線掃描器使用提示 -->
+        <div style="background-color: #d1ecf1; border: 2px solid #17a2b8; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <strong style="color: #0c5460; font-size: 15px;">📱 無線掃描器快速入庫：</strong>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #0c5460; font-size: 14px; line-height: 1.8;">
+                <li><strong>DK-ONE 頸掛式藍芽掃描器</strong>可直接使用！</li>
+                <li>確保掃描器已連接，點擊下方「條碼掃描」輸入框使其聚焦</li>
+                <li>直接掃描條碼，系統會自動查詢料件並填入表單</li>
+                <li>確認數量和日期後，點擊「入庫」按鈕提交</li>
+            </ul>
+        </div>
+
+        <% if (parts && parts.length > 0) { %>
+        <form method="POST" id="inboundForm">
+            <div class="form-group">
+                <label>條碼掃描</label>
+                <div style="margin-bottom: 10px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border: 2px solid #e0e0e0;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                        <input type="text" id="barcode-input" placeholder="掃描或輸入條碼" style="flex: 1; min-width: 200px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                        <button type="button" id="barcode-scan" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">📷 掃描</button>
+                        <button type="button" id="barcode-lookup" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🔍 查詢</button>
+                    </div>
+                    <div id="barcode-camera" style="display: none; margin-top: 10px;">
+                        <video id="barcode-video" autoplay playsinline style="width: 100%; max-width: 640px; border: 2px solid #667eea; border-radius: 6px;"></video>
+                        <button type="button" id="stop-scan" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-top: 10px; font-weight: 600;">停止掃描</button>
+                    </div>
+                    <div id="barcode-status" style="display: none; padding: 10px; border-radius: 6px; margin-top: 10px;"></div>
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：點擊「掃描」按鈕使用手機攝像頭掃描條碼，或手動輸入條碼後點擊「查詢」。
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="part_id">選擇料件 *</label>
+                <select id="part_id" name="part_id" required>
+                    <option value="">-- 請選擇料件 --</option>
+                    <% parts.forEach(function(part) { %>
+                    <option value="<%= part.id %>" data-barcode="<%= part.barcode || '' %>">
+                        <%= part.part_number %> - <%= part.part_name %>
+                        <% if (part.specification) { %>(<%= part.specification %>)<% } %>
+                        <% if (part.category_name) { %> [<%= part.category_name %>]<% } %>
+                    </option>
+                    <% }); %>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="quantity">入庫數量 *</label>
+                <input type="number" id="quantity" name="quantity" required min="1" placeholder="請輸入數量">
+            </div>
+            
+            <div class="form-group">
+                <label for="inbound_date">入庫日期 *</label>
+                <input type="date" id="inbound_date" name="inbound_date" required value="<%= today %>">
+            </div>
+            
+            <div class="form-group" id="return-section" style="display: none;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="is_return" name="is_return" style="width: auto; margin: 0;">
+                    <span style="font-weight: 600; color: #28a745;">📥 歸還（勾選此項表示此入庫為歸還借測的料件）</span>
+                </label>
+                <div id="loan-records-info" style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 6px; display: none;">
+                    <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">未歸還的借測記錄：</div>
+                    <div id="loan-records-list"></div>
+                    <select id="return_outbound_id" name="return_outbound_id" style="margin-top: 10px; display: none;">
+                        <option value="">-- 選擇要歸還的借測記錄 --</option>
+                    </select>
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：當掃描到有未歸還借測記錄的料件時，系統會自動顯示歸還選項。
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="note">備註</label>
+                <textarea id="note" name="note" placeholder="請輸入備註（選填）"></textarea>
+            </div>
+            
+            <button type="submit">確認入庫</button>
+            <a href="/" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+        </form>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有任何料件可以入庫</p>
+            <p>請先前往<a href="/parts/add">料件管理</a>新增料件</p>
+        </div>
+        <% } %>
+    </div>
+    
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <script>
+        const { BrowserMultiFormatReader } = ZXing;
+        const codeReader = new BrowserMultiFormatReader();
+        let scanning = false;
+        
+        const barcodeInput = document.getElementById('barcode-input');
+        const barcodeScan = document.getElementById('barcode-scan');
+        const barcodeLookup = document.getElementById('barcode-lookup');
+        const barcodeStatus = document.getElementById('barcode-status');
+        const barcodeCamera = document.getElementById('barcode-camera');
+        const video = document.getElementById('barcode-video');
+        const stopScanBtn = document.getElementById('stop-scan');
+        const partSelect = document.getElementById('part_id');
+        
+        // 掃描按鈕
+        barcodeScan.addEventListener('click', async () => {
+            if (scanning) return;
+            
+            try {
+                scanning = true;
+                barcodeScan.disabled = true;
+                barcodeCamera.style.display = 'block';
+                showStatus('正在啟動攝像頭...', 'info');
+                
+                await codeReader.decodeFromVideoDevice(null, 'barcode-video', (result, err) => {
+                    if (result) {
+                        barcodeInput.value = result.text;
+                        showStatus('✓ 掃描成功：' + result.text, 'success');
+                        stopScan();
+                        
+                        // 自動查詢條碼
+                        lookupBarcode(result.text);
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error(err);
+                    }
+                });
+            } catch (error) {
+                showStatus('✗ 無法啟動攝像頭：' + error.message, 'error');
+                stopScan();
+            }
+        });
+        
+        // 停止掃描
+        stopScanBtn.addEventListener('click', () => {
+            stopScan();
+        });
+        
+        function stopScan() {
+            scanning = false;
+            barcodeScan.disabled = false;
+            codeReader.reset();
+            barcodeCamera.style.display = 'none';
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+        
+        // 查詢條碼
+        async function lookupBarcode(barcode) {
+            if (!barcode || !barcode.trim()) {
+                showStatus('請輸入條碼', 'error');
+                setTimeout(() => barcodeInput.focus(), 100);
+                return;
+            }
+            
+            try {
+                showStatus('正在查詢...', 'info');
+                const response = await fetch(`/api/barcode/${encodeURIComponent(barcode)}`);
+                const data = await response.json();
+                
+                if (data.success && data.part) {
+                    // 找到料件，自動選擇
+                    const option = Array.from(partSelect.options).find(opt => 
+                        opt.value == data.part.id
+                    );
+                    if (option) {
+                        partSelect.value = data.part.id;
+                        partSelect.dispatchEvent(new Event('change'));
+                        showStatus('✓ 找到料件：' + data.part.part_number + ' - ' + data.part.part_name, 'success');
+                        // 清空條碼輸入框並重新聚焦，準備下一次掃描
+                        setTimeout(() => {
+                            barcodeInput.value = '';
+                            barcodeInput.focus();
+                        }, 300);
+                    } else {
+                        showStatus('✗ 料件不在列表中', 'error');
+                        setTimeout(() => {
+                            barcodeInput.select();
+                            barcodeInput.focus();
+                        }, 1500);
+                    }
+                } else {
+                    showStatus('✗ 未找到對應的料件', 'error');
+                    setTimeout(() => {
+                        barcodeInput.select();
+                        barcodeInput.focus();
+                    }, 1500);
+                }
+            } catch (error) {
+                showStatus('✗ 查詢失敗：' + error.message, 'error');
+                setTimeout(() => barcodeInput.focus(), 100);
+            }
+        }
+        
+        // 查詢按鈕
+        barcodeLookup.addEventListener('click', () => {
+            const barcode = barcodeInput.value.trim();
+            if (barcode) {
+                lookupBarcode(barcode);
+            } else {
+                showStatus('請先輸入或掃描條碼', 'error');
+            }
+        });
+        
+        // 條碼輸入框按 Enter 時自動查詢
+        barcodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                lookupBarcode(barcodeInput.value.trim());
+            }
+        });
+        
+        // 料件選擇改變時，查詢是否有未歸還的借測記錄
+        const returnSection = document.getElementById('return-section');
+        const isReturnCheckbox = document.getElementById('is_return');
+        const loanRecordsInfo = document.getElementById('loan-records-info');
+        const loanRecordsList = document.getElementById('loan-records-list');
+        const returnOutboundSelect = document.getElementById('return_outbound_id');
+        
+        partSelect.addEventListener('change', async () => {
+            const partId = partSelect.value;
+            if (!partId) {
+                returnSection.style.display = 'none';
+                isReturnCheckbox.checked = false;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/loan-records/${partId}`);
+                const data = await response.json();
+                
+                if (data.success && data.records && data.records.length > 0) {
+                    // 有未歸還的借測記錄，顯示歸還選項
+                    returnSection.style.display = 'block';
+                    loanRecordsInfo.style.display = 'block';
+                    
+                    // 顯示借測記錄列表
+                    let html = '';
+                    returnOutboundSelect.innerHTML = '<option value="">-- 選擇要歸還的借測記錄 --</option>';
+                    
+                    data.records.forEach(record => {
+                        html += `<div style="padding: 8px; margin-bottom: 5px; background-color: white; border-left: 3px solid #667eea; border-radius: 4px;">
+                            <strong>借測日期：</strong>${record.outbound_date} | 
+                            <strong>數量：</strong>${record.quantity} | 
+                            <strong>未歸還：</strong>${record.remaining_quantity}
+                            ${record.note ? `<br><small style="color: #666;">備註：${record.note}</small>` : ''}
+                        </div>`;
+                        
+                        const option = document.createElement('option');
+                        option.value = record.id;
+                        option.textContent = `${record.outbound_date} - 數量：${record.quantity}（未歸還：${record.remaining_quantity}）`;
+                        returnOutboundSelect.appendChild(option);
+                    });
+                    
+                    loanRecordsList.innerHTML = html;
+                } else {
+                    // 沒有未歸還的借測記錄，隱藏歸還選項
+                    returnSection.style.display = 'none';
+                    loanRecordsInfo.style.display = 'none';
+                    isReturnCheckbox.checked = false;
+                }
+            } catch (error) {
+                console.error('查詢借測記錄失敗:', error);
+            }
+        });
+        
+        // 歸還選項改變時，顯示/隱藏借測記錄選擇
+        isReturnCheckbox.addEventListener('change', () => {
+            if (isReturnCheckbox.checked) {
+                returnOutboundSelect.style.display = 'block';
+                returnOutboundSelect.required = true;
+            } else {
+                returnOutboundSelect.style.display = 'none';
+                returnOutboundSelect.required = false;
+                returnOutboundSelect.value = '';
+            }
+        });
+        
+        // 顯示狀態訊息
+        function showStatus(message, type) {
+            barcodeStatus.textContent = message;
+            barcodeStatus.style.display = 'block';
+            barcodeStatus.className = '';
+            if (type === 'success') {
+                barcodeStatus.style.backgroundColor = '#d4edda';
+                barcodeStatus.style.color = '#155724';
+                barcodeStatus.style.borderLeft = '4px solid #28a745';
+            } else if (type === 'error') {
+                barcodeStatus.style.backgroundColor = '#f8d7da';
+                barcodeStatus.style.color = '#721c24';
+                barcodeStatus.style.borderLeft = '4px solid #dc3545';
+            } else {
+                barcodeStatus.style.backgroundColor = '#d1ecf1';
+                barcodeStatus.style.color = '#0c5460';
+                barcodeStatus.style.borderLeft = '4px solid #17a2b8';
+            }
+        }
+        
+        // 初始化：確保條碼輸入框聚焦（支援無線掃描器）
+        function ensureBarcodeFocus() {
+            if (barcodeInput) {
+                barcodeInput.focus();
+                // 將輸入框滾動到可視區域
+                barcodeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        
+        // 頁面加載完成後立即聚焦
+        ensureBarcodeFocus();
+        
+        // DOM 完全加載後再次聚焦（確保其他腳本不會影響）
+        setTimeout(ensureBarcodeFocus, 500);
+        
+        // 當用戶點擊頁面其他地方後，如果沒有選中任何輸入框，自動回到條碼輸入框
+        document.addEventListener('click', (e) => {
+            // 如果點擊的不是輸入框、按鈕或連結，則自動聚焦到條碼輸入框
+            if (!e.target.matches('input, button, a, select, textarea')) {
+                setTimeout(() => barcodeInput.focus(), 50);
+            }
+        });
+    </script>
+</body>
+</html>
+

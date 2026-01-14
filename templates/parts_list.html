@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}料件管理 - 庫存管理系統{% endblock %}
+
+{% block content %}
+<h1>📋 料件管理</h1>
+
+<div style="margin-bottom: 20px;">
+    <a href="/parts/add" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">➕ 新增料件</a>
+</div>
+
+{% if parts %}
+<table>
+    <thead>
+        <tr>
+            <th>料號</th>
+            <th>料件名稱</th>
+            <th>規格</th>
+            <th>單位</th>
+            <th>建立時間</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for part in parts %}
+        <tr>
+            <td>{{ part['part_number'] }}</td>
+            <td>{{ part['part_name'] }}</td>
+            <td>{{ part['specification'] or '-' }}</td>
+            <td>{{ part['unit'] }}</td>
+            <td>{{ part['created_at'] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>目前沒有任何料件</p>
+    <p><a href="/parts/add">點擊這裡新增第一個料件</a></p>
+</div>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}庫存查詢 - 庫存管理系統{% endblock %}
+
+{% block content %}
+<h1>📦 當前庫存</h1>
+
+{% if inventory %}
+<table>
+    <thead>
+        <tr>
+            <th>料號</th>
+            <th>料件名稱</th>
+            <th>規格</th>
+            <th>庫存數量</th>
+            <th>單位</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in inventory %}
+        <tr>
+            <td>{{ item['part_number'] }}</td>
+            <td>{{ item['part_name'] }}</td>
+            <td>{{ item['specification'] or '-' }}</td>
+            <td style="font-weight: bold; color: {% if item['total_quantity'] > 0 %}#4CAF50{% else %}#999{% endif %};">
+                {{ item['total_quantity'] }}
+            </td>
+            <td>{{ item['unit'] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>目前沒有任何料件資料</p>
+    <p>請先前往<a href="/parts/add">料件管理</a>新增料件</p>
+</div>
+{% endif %}
+{% endblock %}
+

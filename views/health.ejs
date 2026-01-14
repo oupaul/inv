@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系統健康狀態 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        .health-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .health-section h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 20px;
+        }
+        
+        .health-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .health-item:last-child {
+            border-bottom: none;
+        }
+        
+        .health-label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .health-value {
+            color: #333;
+            font-family: monospace;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-badge.healthy {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge.warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-badge.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .health-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .health-card h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #667eea;
+            font-size: 16px;
+        }
+        
+        .refresh-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+        }
+        
+        .table-counts {
+            margin-top: 15px;
+        }
+        
+        .table-count-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .table-count-item:last-child {
+            border-bottom: none;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+            transition: width 0.3s;
+        }
+        
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #ffc107 0%, #ff9800 100%);
+        }
+        
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>🏥 系統健康狀態</h1>
+            <button class="refresh-btn" onclick="location.reload()">🔄 刷新</button>
+        </div>
+        
+        <div class="health-grid">
+            <!-- 系統資訊 -->
+            <div class="health-card">
+                <h3>💻 系統資訊</h3>
+                <div class="health-item">
+                    <span class="health-label">節點版本</span>
+                    <span class="health-value"><%= health.system.nodeVersion %></span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">作業系統</span>
+                    <span class="health-value"><%= health.system.platform %> (<%= health.system.arch %>)</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">運行時間</span>
+                    <span class="health-value">
+                        <% 
+                        const uptime = health.system.uptime;
+                        const days = Math.floor(uptime / 86400);
+                        const hours = Math.floor((uptime % 86400) / 3600);
+                        const minutes = Math.floor((uptime % 3600) / 60);
+                        %>
+                        <%= days %> 天 <%= hours %> 小時 <%= minutes %> 分鐘
+                    </span>
+                </div>
+            </div>
+            
+            <!-- 記憶體使用 -->
+            <div class="health-card">
+                <h3>🧠 記憶體使用</h3>
+                <div class="health-item">
+                    <span class="health-label">堆積記憶體</span>
+                    <span class="health-value"><%= health.system.memory.used %> MB / <%= health.system.memory.total %> MB</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">RSS 記憶體</span>
+                    <span class="health-value"><%= health.system.memory.rss %> MB</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">使用率</span>
+                    <span class="health-value">
+                        <% 
+                        const memoryPercent = ((health.system.memory.used / health.system.memory.total) * 100).toFixed(1);
+                        const memoryClass = memoryPercent > 80 ? 'danger' : memoryPercent > 60 ? 'warning' : '';
+                        %>
+                        <div>
+                            <%= memoryPercent %>%
+                            <div class="progress-bar">
+                                <div class="progress-fill <%= memoryClass %>" style="width: <%= memoryPercent %>%"></div>
+                            </div>
+                        </div>
+                    </span>
+                </div>
+            </div>
+            
+            <!-- 資料庫狀態 -->
+            <div class="health-card">
+                <h3>🗄️ 資料庫狀態</h3>
+                <div class="health-item">
+                    <span class="health-label">連接狀態</span>
+                    <span class="health-value">
+                        <% if (health.database.status === 'healthy') { %>
+                            <span class="status-badge healthy">✓ 正常</span>
+                        <% } else if (health.database.status === 'error') { %>
+                            <span class="status-badge error">✗ 錯誤</span>
+                        <% } else { %>
+                            <span class="status-badge warning">⚠ 未知</span>
+                        <% } %>
+                    </span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">資料庫大小</span>
+                    <span class="health-value">
+                        <% 
+                        let dbSizeText = '';
+                        if (health.database.size < 1024) {
+                            dbSizeText = health.database.size + ' KB';
+                        } else {
+                            dbSizeText = (health.database.size / 1024).toFixed(2) + ' MB';
+                        }
+                        %>
+                        <%= dbSizeText %>
+                    </span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">資料表數量</span>
+                    <span class="health-value"><%= health.database.tables ? health.database.tables.length : 0 %> 個</span>
+                </div>
+                <% if (health.database.error) { %>
+                <div class="health-item">
+                    <span class="health-label">錯誤訊息</span>
+                    <span class="health-value" style="color: #dc3545;"><%= health.database.error %></span>
+                </div>
+                <% } %>
+            </div>
+            
+            <!-- 磁碟空間 -->
+            <% if (health.disk && health.disk.total > 0) { %>
+            <div class="health-card">
+                <h3>💿 磁碟空間</h3>
+                <div class="health-item">
+                    <span class="health-label">總容量</span>
+                    <span class="health-value"><%= (health.disk.total / 1024).toFixed(2) %> GB</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">可用空間</span>
+                    <span class="health-value"><%= (health.disk.free / 1024).toFixed(2) %> GB</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">使用率</span>
+                    <span class="health-value">
+                        <% 
+                        const diskUsed = health.disk.total - health.disk.free;
+                        const diskPercent = ((diskUsed / health.disk.total) * 100).toFixed(1);
+                        const diskClass = diskPercent > 90 ? 'danger' : diskPercent > 75 ? 'warning' : '';
+                        %>
+                        <div>
+                            <%= diskPercent %>%
+                            <div class="progress-bar">
+                                <div class="progress-fill <%= diskClass %>" style="width: <%= diskPercent %>%"></div>
+                            </div>
+                        </div>
+                    </span>
+                </div>
+            </div>
+            <% } %>
+        </div>
+        
+        <!-- 資料表記錄統計 -->
+        <% if (health.database.tables && health.database.tables.length > 0) { %>
+        <div class="health-section">
+            <h2>📊 資料表記錄統計</h2>
+            <div class="table-counts">
+                <% health.database.tables.forEach(function(tableName) { %>
+                <div class="table-count-item">
+                    <span class="health-label"><%= tableName %></span>
+                    <span class="health-value"><%= health.database.recordCounts[tableName] || 0 %> 筆記錄</span>
+                </div>
+                <% }); %>
+            </div>
+        </div>
+        <% } %>
+        
+        <!-- 檢查時間 -->
+        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 13px;">
+            最後檢查時間：<%= new Date(health.timestamp).toLocaleString('zh-TW') %>
+        </div>
+    </div>
+    
+    <script>
+        // 自動刷新（每30秒）
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
+

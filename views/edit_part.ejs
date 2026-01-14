@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>編輯料件 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 12px 15px;
+            gap: 8px;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        nav a[href="/users"] {
+            background-color: rgba(255,255,255,0.15);
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        nav a[href="/users"]:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        
+        nav .auth-link {
+            margin-left: auto;
+            background-color: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+        
+        nav .auth-link.logout {
+            background-color: #dc3545;
+        }
+        
+        nav .auth-link.login {
+            background-color: #007bff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .barcode-scanner {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .barcode-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .barcode-input-group input {
+            flex: 1;
+        }
+        
+        .barcode-input-group button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        
+        .barcode-camera {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .barcode-camera.active {
+            display: block;
+        }
+        
+        #barcode-video {
+            width: 100%;
+            max-width: 640px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+        }
+        
+        .barcode-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .barcode-status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+            display: block;
+        }
+        
+        .barcode-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            nav a {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            nav .auth-link {
+                margin-left: 0;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            /* 表單手機版優化 */
+            .form-group {
+                margin-bottom: 18px;
+            }
+            
+            input[type="text"],
+            input[type="number"],
+            input[type="date"],
+            select,
+            textarea {
+                font-size: 16px !important;
+                padding: 14px !important;
+                -webkit-appearance: none;
+            }
+            
+            button,
+            .btn {
+                width: 100% !important;
+                min-height: 48px !important;
+                font-size: 16px !important;
+                padding: 14px 20px !important;
+                margin-bottom: 10px;
+            }
+            
+            .barcode-input-group {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .barcode-input-group input,
+            .barcode-input-group button {
+                width: 100% !important;
+            }
+        }
+    </style>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <nav>
+        <div class="nav-wrapper">
+            <a href="/">📊 庫存查詢</a>
+            <a href="/parts">📦 料件管理</a>
+            <a href="/categories">🏷️ 類型管理</a>
+            <a href="/units">📏 單位管理</a>
+            <a href="/users">👥 人員管理</a>
+            <a href="/inbound">📥 料件入庫</a>
+            <a href="/outbound">📤 料件出庫</a>
+            <a href="/inventory/check">🔍 庫存盤點</a>
+            <a href="/import">📋 Excel匯入</a>
+            <a href="/transaction/records">📝 出入庫記錄</a>
+            <a href="/loans">📋 借出中料件</a>
+            <a href="/inventory/check/records">📝 盤點記錄</a>
+            <% if (user && user.role === 'admin') { %>
+            <a href="/backup">💾 備份管理</a>
+            <a href="/health">🏥 系統健康</a>
+            <% } %>
+            <% if (user) { %>
+            <a href="/logout" class="auth-link logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">🚪 登出 (<%= user.username %>)</a>
+            <% } else { %>
+            <a href="/login" class="auth-link login">🔐 登入</a>
+            <% } %>
+        </div>
+    </nav>
+    <form id="logoutForm" method="POST" action="/logout" style="display: none;"></form>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>✏️ 編輯料件</h1>
+
+        <form method="POST" id="partForm">
+            <div class="form-group">
+                <label for="barcode">條碼</label>
+                <div class="barcode-scanner">
+                    <div class="barcode-input-group">
+                        <input type="text" id="barcode" name="barcode" value="<%= part.barcode || '' %>" placeholder="掃描或輸入條碼">
+                        <button type="button" id="scanBtn" class="btn" style="background-color: #007bff;">📷 掃描</button>
+                        <button type="button" id="lookupBtn" class="btn" style="background-color: #28a745;">🔍 查詢</button>
+                    </div>
+                    <div class="barcode-camera" id="barcodeCamera">
+                        <video id="barcode-video" autoplay playsinline></video>
+                        <button type="button" id="stopScanBtn" class="btn" style="background-color: #dc3545; margin-top: 10px;">停止掃描</button>
+                    </div>
+                    <div class="barcode-status" id="barcodeStatus"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="part_number">料號 *</label>
+                <input type="text" id="part_number" name="part_number" required value="<%= part.part_number %>">
+            </div>
+            
+            <div class="form-group">
+                <label for="part_name">料件名稱 *</label>
+                <input type="text" id="part_name" name="part_name" required value="<%= part.part_name %>">
+            </div>
+            
+            <div class="form-group">
+                <label for="specification">規格</label>
+                <input type="text" id="specification" name="specification" value="<%= part.specification || '' %>">
+            </div>
+            
+            <div class="form-group">
+                <label for="category_id">類型</label>
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <select id="category_id" name="category_id" style="flex: 1;">
+                        <option value="">-- 請選擇類型 --</option>
+                        <option value="__new__">+ 新增類型</option>
+                        <% if (categories && categories.length > 0) { %>
+                            <% categories.forEach(function(category) { %>
+                                <option value="<%= category.id %>" <%= part.category_id == category.id ? 'selected' : '' %>><%= category.name %></option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                    <input type="text" id="new_category_name" name="new_category_name" placeholder="輸入新類型名稱" style="flex: 1; display: none;">
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：選擇「+ 新增類型」後，可以在右側輸入框輸入新類型名稱，系統會自動建立。
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="unit">單位 *</label>
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <select id="unit" name="unit" required style="flex: 1;">
+                        <option value="">-- 請選擇單位 --</option>
+                        <option value="__new__">+ 新增單位</option>
+                        <% if (units && units.length > 0) { %>
+                            <% units.forEach(function(unit) { %>
+                                <option value="<%= unit.name %>" <%= part.unit === unit.name ? 'selected' : '' %>><%= unit.name %><% if (unit.symbol && unit.symbol !== unit.name) { %> (<%= unit.symbol %>)<% } %></option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                    <input type="text" id="new_unit_name" name="new_unit_name" placeholder="輸入新單位名稱" style="flex: 1; display: none;">
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：選擇「+ 新增單位」後，可以在右側輸入框輸入新單位名稱，系統會自動建立。
+                </small>
+            </div>
+            
+            <button type="submit">更新料件</button>
+            <a href="/parts" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+        </form>
+        
+        <script>
+            const { BrowserMultiFormatReader } = ZXing;
+            const codeReader = new BrowserMultiFormatReader();
+            let scanning = false;
+            
+            const scanBtn = document.getElementById('scanBtn');
+            const stopScanBtn = document.getElementById('stopScanBtn');
+            const lookupBtn = document.getElementById('lookupBtn');
+            const barcodeInput = document.getElementById('barcode');
+            const barcodeCamera = document.getElementById('barcodeCamera');
+            const barcodeStatus = document.getElementById('barcodeStatus');
+            const video = document.getElementById('barcode-video');
+            
+            // 掃描按鈕
+            if (scanBtn) {
+                scanBtn.addEventListener('click', async () => {
+                    if (scanning) return;
+                    
+                    try {
+                        scanning = true;
+                        scanBtn.disabled = true;
+                        barcodeCamera.classList.add('active');
+                        barcodeStatus.className = 'barcode-status';
+                        barcodeStatus.textContent = '正在啟動攝像頭...';
+                        barcodeStatus.style.display = 'block';
+                        
+                        const result = await codeReader.decodeFromVideoDevice(null, 'barcode-video', (result, err) => {
+                            if (result) {
+                                barcodeInput.value = result.text;
+                                barcodeStatus.textContent = '✓ 掃描成功：' + result.text;
+                                barcodeStatus.className = 'barcode-status success';
+                                stopScan();
+                            }
+                            if (err && !(err instanceof ZXing.NotFoundException)) {
+                                console.error(err);
+                            }
+                        });
+                    } catch (error) {
+                        barcodeStatus.textContent = '✗ 無法啟動攝像頭：' + error.message;
+                        barcodeStatus.className = 'barcode-status error';
+                        stopScan();
+                    }
+                });
+            }
+            
+            // 停止掃描
+            if (stopScanBtn) {
+                stopScanBtn.addEventListener('click', () => {
+                    stopScan();
+                });
+            }
+            
+            function stopScan() {
+                scanning = false;
+                if (scanBtn) scanBtn.disabled = false;
+                codeReader.reset();
+                barcodeCamera.classList.remove('active');
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                    video.srcObject = null;
+                }
+            }
+            
+            // 查詢按鈕
+            if (lookupBtn) {
+                lookupBtn.addEventListener('click', async () => {
+                    const barcode = barcodeInput.value.trim();
+                    if (barcode) {
+                        lookupBarcode(barcode);
+                    } else {
+                        barcodeStatus.textContent = '請先輸入或掃描條碼';
+                        barcodeStatus.className = 'barcode-status error';
+                        barcodeStatus.style.display = 'block';
+                    }
+                });
+            }
+            
+            // 查詢條碼資訊
+            async function lookupBarcode(barcode) {
+                try {
+                    barcodeStatus.textContent = '正在查詢...';
+                    barcodeStatus.className = 'barcode-status';
+                    barcodeStatus.style.display = 'block';
+                    
+                    const response = await fetch(`/api/barcode/${encodeURIComponent(barcode)}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.part) {
+                        barcodeStatus.textContent = '✓ 找到料件資訊：' + data.part.part_number + ' - ' + data.part.part_name;
+                        barcodeStatus.className = 'barcode-status success';
+                    } else {
+                        barcodeStatus.textContent = 'ℹ 未找到對應料件';
+                        barcodeStatus.className = 'barcode-status';
+                    }
+                } catch (error) {
+                    barcodeStatus.textContent = '✗ 查詢失敗：' + error.message;
+                    barcodeStatus.className = 'barcode-status error';
+                }
+            }
+            
+            // 條碼輸入框按 Enter 時自動查詢
+            if (barcodeInput) {
+                barcodeInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (lookupBtn) lookupBtn.click();
+                    }
+                });
+            }
+            
+            // 類型選擇處理
+            const categorySelect = document.getElementById('category_id');
+            const newCategoryInput = document.getElementById('new_category_name');
+            
+            if (categorySelect && newCategoryInput) {
+                categorySelect.addEventListener('change', () => {
+                    if (categorySelect.value === '__new__') {
+                        // 顯示新類型輸入框
+                        newCategoryInput.style.display = 'block';
+                        newCategoryInput.required = true;
+                        newCategoryInput.focus();
+                    } else {
+                        // 隱藏新類型輸入框
+                        newCategoryInput.style.display = 'none';
+                        newCategoryInput.required = false;
+                        newCategoryInput.value = '';
+                    }
+                });
+            }
+            
+            // 單位選擇處理
+            const unitSelect = document.getElementById('unit');
+            const newUnitInput = document.getElementById('new_unit_name');
+            
+            if (unitSelect && newUnitInput) {
+                unitSelect.addEventListener('change', () => {
+                    if (unitSelect.value === '__new__') {
+                        // 顯示新單位輸入框
+                        newUnitInput.style.display = 'block';
+                        newUnitInput.required = true;
+                        newUnitInput.focus();
+                    } else {
+                        // 隱藏新單位輸入框
+                        newUnitInput.style.display = 'none';
+                        newUnitInput.required = false;
+                        newUnitInput.value = '';
+                    }
+                });
+            }
+            
+            // 表單提交時，如果選擇了新增類型或單位，確保輸入了名稱
+            const partForm = document.getElementById('partForm');
+            if (partForm) {
+                partForm.addEventListener('submit', (e) => {
+                    if (categorySelect && categorySelect.value === '__new__') {
+                        const newCategoryName = newCategoryInput ? newCategoryInput.value.trim() : '';
+                        if (!newCategoryName) {
+                            e.preventDefault();
+                            alert('請輸入新類型名稱');
+                            if (newCategoryInput) newCategoryInput.focus();
+                            return false;
+                        }
+                    }
+                    
+                    if (unitSelect && unitSelect.value === '__new__') {
+                        const newUnitName = newUnitInput ? newUnitInput.value.trim() : '';
+                        if (!newUnitName) {
+                            e.preventDefault();
+                            alert('請輸入新單位名稱');
+                            if (newUnitInput) newUnitInput.focus();
+                            return false;
+                        }
+                    }
+                });
+            }
+        </script>
+    </div>
+</body>
+</html>
+

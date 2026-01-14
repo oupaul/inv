@@ -1,0 +1,36 @@
+<script>
+    // 手機版導航欄優化：按鈕式交互體驗
+    (function() {
+        if (window.innerWidth <= 768) {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('nav a[href]');
+            
+            // 標記當前頁面
+            navLinks.forEach(link => {
+                const linkPath = new URL(link.href).pathname;
+                if (linkPath === currentPath || 
+                    (linkPath !== '/' && currentPath.startsWith(linkPath))) {
+                    link.classList.add('active');
+                    
+                    // 平滑滾動到當前連結
+                    setTimeout(() => {
+                        link.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 300);
+                }
+            });
+            
+            // 添加點擊反饋效果
+            navLinks.forEach(link => {
+                link.addEventListener('touchstart', function() {
+                    this.style.transform = 'scale(0.97)';
+                }, { passive: true });
+                
+                link.addEventListener('touchend', function() {
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                }, { passive: true });
+            });
+        }
+    })();
+</script>

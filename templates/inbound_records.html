@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}入庫記錄 - 庫存管理系統{% endblock %}
+
+{% block content %}
+<h1>📝 入庫記錄</h1>
+
+{% if records %}
+<table>
+    <thead>
+        <tr>
+            <th>入庫日期</th>
+            <th>料號</th>
+            <th>料件名稱</th>
+            <th>入庫數量</th>
+            <th>單位</th>
+            <th>備註</th>
+            <th>記錄時間</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in records %}
+        <tr>
+            <td>{{ record['inbound_date'] }}</td>
+            <td>{{ record['part_number'] }}</td>
+            <td>{{ record['part_name'] }}</td>
+            <td style="font-weight: bold; color: #4CAF50;">{{ record['quantity'] }}</td>
+            <td>{{ record['unit'] }}</td>
+            <td>{{ record['note'] or '-' }}</td>
+            <td style="font-size: 12px; color: #999;">{{ record['created_at'] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p style="margin-top: 10px; color: #999; font-size: 14px;">顯示最近 100 筆記錄</p>
+{% else %}
+<div class="empty-state">
+    <p>目前沒有任何入庫記錄</p>
+    <p><a href="/inbound">點擊這裡進行入庫</a></p>
+</div>
+{% endif %}
+{% endblock %}
+

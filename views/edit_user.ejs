@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>編輯用戶 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        input[type="password"],
+        input[type="email"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        input[type="checkbox"] {
+            width: auto;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>✏️ 編輯用戶</h1>
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="username">帳號 *</label>
+                <input type="text" id="username" name="username" required value="<%= user.username %>">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">新密碼</label>
+                <input type="password" id="password" name="password" placeholder="留空則不修改密碼">
+                <small style="color: #666; display: block; margin-top: 5px;">如不需要修改密碼，請留空</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="full_name">姓名</label>
+                <input type="text" id="full_name" name="full_name" value="<%= user.full_name || '' %>" placeholder="請輸入姓名（選填）">
+            </div>
+            
+            <div class="form-group">
+                <label for="email">電子郵件</label>
+                <input type="email" id="email" name="email" value="<%= user.email || '' %>" placeholder="請輸入電子郵件（選填）">
+            </div>
+            
+            <div class="form-group">
+                <label for="role">角色 *</label>
+                <select id="role" name="role" required>
+                    <% if (roles && roles.length > 0) { %>
+                        <% roles.forEach(function(role) { %>
+                        <option value="<%= role.role_name %>" <%= user.role === role.role_name ? 'selected' : '' %>>
+                            <%= role.display_name %> 
+                            <% if (role.is_system) { %>(系統)<% } %>
+                        </option>
+                        <% }); %>
+                    <% } else { %>
+                        <option value="user" <%= user.role === 'user' ? 'selected' : '' %>>一般使用者</option>
+                        <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>管理員</option>
+                    <% } %>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="is_active" name="is_active" value="1" <%= user.is_active ? 'checked' : '' %>>
+                    <label for="is_active" style="font-weight: normal; margin: 0;">啟用帳號</label>
+                </div>
+            </div>
+            
+            <button type="submit">更新用戶</button>
+            <a href="/users" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+        </form>
+    </div>
+</body>
+</html>
+

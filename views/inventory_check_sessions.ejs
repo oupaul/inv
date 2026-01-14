@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>盤點事件管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .session-actions {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .btn-create {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-create:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        
+        .session-status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .session-status-badge.in_progress {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .session-status-badge.completed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .session-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .session-item.completed {
+            border-left-color: #28a745;
+        }
+        
+        .session-info {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        .session-info h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .session-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .session-actions-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-view {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-complete {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .create-session-form {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .form-group-inline {
+            flex: 1;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <h1>📋 盤點事件管理</h1>
+        
+        <div class="create-session-form">
+            <h2 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 18px;">➕ 創建新盤點事件</h2>
+            <form method="POST" action="/inventory/check/sessions/create" id="createSessionForm">
+                <div class="form-row">
+                    <div class="form-group-inline">
+                        <label for="session_date">盤點日期 *</label>
+                        <input type="date" id="session_date" name="session_date" required value="<%= new Date().toISOString().split('T')[0] %>">
+                        <small style="color: #666; margin-top: 5px; display: block;">
+                            💡 建議使用月底日期（如：2024-01-31）
+                        </small>
+                    </div>
+                    <div class="form-group-inline">
+                        <label for="session_name">盤點事件名稱</label>
+                        <input type="text" id="session_name" name="session_name" placeholder="例如：2024年1月盤點">
+                        <small style="color: #666; margin-top: 5px; display: block;">
+                            💡 可選填，預設使用日期作為名稱
+                        </small>
+                    </div>
+                    <div class="form-group-inline">
+                        <label for="note">備註</label>
+                        <input type="text" id="note" name="note" placeholder="可選填">
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn-create">創建盤點事件</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <% if (sessions && sessions.length > 0) { %>
+        <div style="margin-top: 30px;">
+            <h2 style="margin-bottom: 20px; color: #333; font-size: 20px;">盤點事件列表</h2>
+            
+            <% sessions.forEach(function(session) { %>
+            <div class="session-item <%= session.status === 'completed' ? 'completed' : '' %>">
+                <div class="session-info">
+                    <h3>
+                        <%= session.session_name || session.session_date %> 
+                        <span class="session-status-badge <%= session.status === 'completed' ? 'completed' : 'in_progress' %>">
+                            <%= session.status === 'completed' ? '✓ 已完成' : '🔄 進行中' %>
+                        </span>
+                    </h3>
+                    <div class="session-meta">
+                        <div><strong>盤點日期：</strong><%= session.session_date %></div>
+                        <div><strong>盤點料件數：</strong><%= session.item_count || 0 %> 項</div>
+                        <div><strong>差異項數：</strong><span style="color: <%= session.difference_count > 0 ? '#dc3545' : '#28a745' %>;"><%= session.difference_count || 0 %> 項</span></div>
+                        <div><strong>創建人：</strong><%= session.created_by || '-' %></div>
+                        <% if (session.completed_at) { %>
+                        <div><strong>完成時間：</strong><%= new Date(session.completed_at).toLocaleString('zh-TW') %></div>
+                        <% } %>
+                    </div>
+                    <% if (session.note) { %>
+                    <div style="margin-top: 10px; color: #666; font-size: 13px;">
+                        <strong>備註：</strong><%= session.note %>
+                    </div>
+                    <% } %>
+                </div>
+                <div class="session-actions-buttons">
+                    <a href="/inventory/check?session_date=<%= session.session_date %>" class="btn-view">📝 進行盤點</a>
+                    <a href="/inventory/check/differences?session_id=<%= session.id %>" class="btn-view">📊 查看差異</a>
+                    <% if (session.status !== 'completed') { %>
+                    <form method="POST" action="/inventory/check/sessions/<%= session.id %>/complete" style="display: inline;" onsubmit="return confirm('確定要完成此盤點事件嗎？完成後將無法再添加盤點記錄。')">
+                        <button type="submit" class="btn-complete">✓ 完成盤點</button>
+                    </form>
+                    <% } %>
+                </div>
+            </div>
+            <% }); %>
+        </div>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有任何盤點事件</p>
+            <p>請點擊上方「創建盤點事件」按鈕開始新的盤點作業</p>
+        </div>
+        <% } %>
+    </div>
+    
+    <script>
+        // 自動填充盤點事件名稱
+        const sessionDateInput = document.getElementById('session_date');
+        const sessionNameInput = document.getElementById('session_name');
+        
+        if (sessionDateInput && sessionNameInput) {
+            sessionDateInput.addEventListener('change', function() {
+                if (!sessionNameInput.value || sessionNameInput.value.trim() === '') {
+                    const date = new Date(this.value);
+                    const year = date.getFullYear();
+                    const month = date.getMonth() + 1;
+                    sessionNameInput.value = `${year}年${month}月盤點`;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+

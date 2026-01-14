@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}新增料件 - 庫存管理系統{% endblock %}
+
+{% block content %}
+<h1>➕ 新增料件</h1>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="part_number">料號 *</label>
+        <input type="text" id="part_number" name="part_number" required placeholder="例如：A001">
+    </div>
+    
+    <div class="form-group">
+        <label for="part_name">料件名稱 *</label>
+        <input type="text" id="part_name" name="part_name" required placeholder="例如：螺絲">
+    </div>
+    
+    <div class="form-group">
+        <label for="specification">規格</label>
+        <input type="text" id="specification" name="specification" placeholder="例如：M8x20mm">
+    </div>
+    
+    <div class="form-group">
+        <label for="unit">單位 *</label>
+        <select id="unit" name="unit" required>
+            <option value="個">個</option>
+            <option value="支">支</option>
+            <option value="片">片</option>
+            <option value="組">組</option>
+            <option value="箱">箱</option>
+            <option value="包">包</option>
+            <option value="kg">kg</option>
+            <option value="公升">公升</option>
+        </select>
+    </div>
+    
+    <button type="submit">新增料件</button>
+    <a href="/parts" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
+</form>
+{% endblock %}
+

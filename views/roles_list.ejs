@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card.success {
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        
+        .stat-card .stat-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-summary {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .stat-card {
+                padding: 16px;
+            }
+            
+            .stat-card .stat-icon {
+                font-size: 28px;
+            }
+            
+            .stat-card .stat-value {
+                font-size: 28px;
+            }
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .role-badge.system {
+            background-color: #667eea;
+            color: white;
+        }
+        
+        .role-badge.custom {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .permissions-list {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .permission-item {
+            display: inline-block;
+            margin: 2px 4px;
+            padding: 2px 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <h1>🎭 角色管理</h1>
+        
+        <div class="stats-summary">
+            <div class="stat-card">
+                <div class="stat-icon">🎭</div>
+                <div class="stat-value"><%= roles ? roles.length : 0 %></div>
+                <div class="stat-label">總角色數</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔒</div>
+                <div class="stat-value"><%= roles ? roles.filter(r => r.is_system).length : 0 %></div>
+                <div class="stat-label">系統角色</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon">✨</div>
+                <div class="stat-value"><%= roles ? roles.filter(r => !r.is_system).length : 0 %></div>
+                <div class="stat-label">自訂角色</div>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <a href="/roles/add" class="btn btn-primary">➕ 新增角色</a>
+        </div>
+        
+        <% if (roles && roles.length > 0) { %>
+        <table>
+            <thead>
+                <tr>
+                    <th>角色名稱</th>
+                    <th>顯示名稱</th>
+                    <th>說明</th>
+                    <th>權限</th>
+                    <th>類型</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% roles.forEach(function(role) { %>
+                <tr>
+                    <td><code><%= role.role_name %></code></td>
+                    <td><strong><%= role.display_name %></strong></td>
+                    <td><%= role.description || '-' %></td>
+                    <td>
+                        <div class="permissions-list">
+                            <% 
+                            try {
+                                const perms = JSON.parse(role.permissions || '{}');
+                                let count = 0;
+                                for (let key in perms) {
+                                    if (Array.isArray(perms[key])) {
+                                        count += perms[key].length;
+                                    }
+                                }
+                            %>
+                            <%= count %> 個權限
+                            <% } catch(e) { %>
+                            -
+                            <% } %>
+                        </div>
+                    </td>
+                    <td>
+                        <% if (role.is_system) { %>
+                        <span class="role-badge system">系統角色</span>
+                        <% } else { %>
+                        <span class="role-badge custom">自訂角色</span>
+                        <% } %>
+                    </td>
+                    <td class="action-cell">
+                        <a href="/roles/edit/<%= role.id %>" class="btn btn-primary">✏️ 編輯</a>
+                        <% if (!role.is_system) { %>
+                        <form method="POST" action="/roles/delete/<%= role.id %>" style="display: inline;" onsubmit="return confirm('確定要刪除此角色嗎？');">
+                            <button type="submit" class="btn btn-danger">🗑️ 刪除</button>
+                        </form>
+                        <% } %>
+                    </td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有角色資料</p>
+        </div>
+        <% } %>
+    </div>
+    
+    <%- include('_common-nav-script') %>
+</body>
+</html>

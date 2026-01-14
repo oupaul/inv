@@ -1,0 +1,267 @@
+// ==========================================
+// 庫存管理系統 - 完美手機版腳本
+// ==========================================
+
+(function() {
+    'use strict';
+    
+    const MOBILE_WIDTH = 768;
+    
+    // ========== 工具函數 ==========
+    function isMobile() {
+        return window.innerWidth <= MOBILE_WIDTH;
+    }
+    
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+    
+    // ========== 導航欄管理 ==========
+    class Navigation {
+        constructor() {
+            this.navWrapper = document.querySelector('.nav-wrapper');
+            this.toggle = null;
+            this.title = null;
+            this.isOpen = false;
+            
+            if (this.navWrapper) {
+                this.init();
+            }
+        }
+        
+        init() {
+            if (isMobile()) {
+                this.createMobileNav();
+            }
+            
+            window.addEventListener('resize', debounce(() => {
+                if (isMobile()) {
+                    this.createMobileNav();
+                } else {
+                    this.removeMobileNav();
+                }
+            }, 250));
+        }
+        
+        createMobileNav() {
+            if (document.querySelector('.nav-toggle')) return;
+            
+            // 創建漢堡按鈕
+            this.toggle = document.createElement('button');
+            this.toggle.className = 'nav-toggle';
+            this.toggle.innerHTML = '☰';
+            this.toggle.setAttribute('aria-label', '切換選單');
+            this.toggle.type = 'button';
+            
+            // 創建標題
+            this.title = document.createElement('div');
+            this.title.className = 'nav-title';
+            this.title.textContent = '庫存管理系統';
+            
+            // 插入元素
+            this.navWrapper.insertBefore(this.title, this.navWrapper.firstChild);
+            this.navWrapper.insertBefore(this.toggle, this.navWrapper.firstChild);
+            
+            // 綁定事件
+            this.toggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleMenu();
+            });
+            
+            // 點擊連結後關閉選單
+            const links = this.navWrapper.querySelectorAll('a');
+            links.forEach(link => {
+                link.addEventListener('click', () => {
+                    if (isMobile()) {
+                        this.closeMenu();
+                    }
+                });
+            });
+            
+            // 點擊外部關閉
+            document.addEventListener('click', (e) => {
+                if (this.isOpen && !this.navWrapper.contains(e.target)) {
+                    this.closeMenu();
+                }
+            });
+        }
+        
+        removeMobileNav() {
+            if (this.toggle) {
+                this.toggle.remove();
+                this.toggle = null;
+            }
+            if (this.title) {
+                this.title.remove();
+                this.title = null;
+            }
+            this.navWrapper.classList.remove('nav-menu-open');
+            this.isOpen = false;
+        }
+        
+        toggleMenu() {
+            this.isOpen = !this.isOpen;
+            this.navWrapper.classList.toggle('nav-menu-open');
+            this.toggle.innerHTML = this.isOpen ? '✕' : '☰';
+        }
+        
+        closeMenu() {
+            this.isOpen = false;
+            this.navWrapper.classList.remove('nav-menu-open');
+            if (this.toggle) {
+                this.toggle.innerHTML = '☰';
+            }
+        }
+    }
+    
+    // ========== 表格轉換器 ==========
+    class TableConverter {
+        constructor() {
+            this.tables = [];
+            this.init();
+        }
+        
+        init() {
+            if (isMobile()) {
+                this.convertAllTables();
+            }
+            
+            window.addEventListener('resize', debounce(() => {
+                if (isMobile()) {
+                    this.convertAllTables();
+                } else {
+                    this.restoreAllTables();
+                }
+            }, 250));
+        }
+        
+        convertAllTables() {
+            const tables = document.querySelectorAll('table:not(.no-mobile-convert)');
+            tables.forEach(table => {
+                if (table.dataset.converted === 'true') return;
+                this.convertTable(table);
+            });
+        }
+        
+        convertTable(table) {
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            
+            const rows = tbody.querySelectorAll('tr');
+            if (rows.length === 0) return;
+            
+            // 獲取表頭
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+            
+            // 創建手機版容器
+            const container = document.createElement('div');
+            container.className = 'table-mobile-container';
+            container.dataset.tableId = table.id || 'table-' + Date.now();
+            
+            // 轉換每一行
+            rows.forEach(row => {
+                const card = this.createCard(row, headers);
+                if (card) {
+                    container.appendChild(card);
+                }
+            });
+            
+            // 插入DOM
+            table.style.display = 'none';
+            table.dataset.converted = 'true';
+            table.parentNode.insertBefore(container, table.nextSibling);
+            
+            this.tables.push({
+                table: table,
+                container: container
+            });
+        }
+        
+        createCard(row, headers) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length === 0) return null;
+            
+            const card = document.createElement('div');
+            card.className = 'table-mobile-card';
+            
+            // 標題（第一列）
+            if (cells[0]) {
+                const header = document.createElement('div');
+                header.className = 'table-mobile-card-header';
+                
+                const title = document.createElement('div');
+                title.className = 'table-mobile-card-title';
+                title.innerHTML = cells[0].innerHTML;
+                
+                header.appendChild(title);
+                card.appendChild(header);
+            }
+            
+            // 其他欄位
+            cells.forEach((cell, index) => {
+                if (index === 0) return; // 跳過標題
+                
+                const row = document.createElement('div');
+                row.className = 'table-mobile-card-row';
+                
+                const label = document.createElement('div');
+                label.className = 'table-mobile-card-label';
+                label.textContent = headers[index] || `欄位 ${index}`;
+                
+                const value = document.createElement('div');
+                value.className = 'table-mobile-card-value';
+                value.innerHTML = cell.innerHTML;
+                
+                // 保留原始樣式
+                const style = cell.getAttribute('style');
+                if (style) {
+                    if (style.includes('color')) {
+                        const colorMatch = style.match(/color:\s*([^;]+)/);
+                        if (colorMatch) {
+                            value.style.color = colorMatch[1].trim();
+                        }
+                    }
+                    if (style.includes('font-weight')) {
+                        value.style.fontWeight = '700';
+                    }
+                }
+                
+                row.appendChild(label);
+                row.appendChild(value);
+                card.appendChild(row);
+            });
+            
+            return card;
+        }
+        
+        restoreAllTables() {
+            this.tables.forEach(({table, container}) => {
+                table.style.display = 'table';
+                table.dataset.converted = 'false';
+                if (container && container.parentNode) {
+                    container.remove();
+                }
+            });
+            this.tables = [];
+        }
+    }
+    
+    // ========== 初始化 ==========
+    function init() {
+        new Navigation();
+        new TableConverter();
+    }
+    
+    // 啟動
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    
+})();

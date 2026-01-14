@@ -1,0 +1,515 @@
+// ===========================================
+// 庫存管理系統 - 手機版優化腳本
+// ===========================================
+
+(function() {
+    'use strict';
+    
+    // ========== 常數定義 ==========
+    const MOBILE_BREAKPOINT = 768;
+    const DEBOUNCE_DELAY = 250;
+    
+    // ========== 工具函數 ==========
+    
+    /**
+     * 防抖函數
+     */
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    /**
+     * 檢查是否為手機裝置
+     */
+    function isMobile() {
+        return window.innerWidth <= MOBILE_BREAKPOINT;
+    }
+    
+    /**
+     * 安全地獲取元素
+     */
+    function getElement(selector, context = document) {
+        return context.querySelector(selector);
+    }
+    
+    /**
+     * 安全地獲取多個元素
+     */
+    function getElements(selector, context = document) {
+        return Array.from(context.querySelectorAll(selector));
+    }
+    
+    // ========== 導航欄管理 ==========
+    
+    class NavigationManager {
+        constructor() {
+            this.navWrapper = getElement('.nav-wrapper');
+            this.toggle = null;
+            this.title = null;
+            this.isMenuOpen = false;
+            
+            if (this.navWrapper) {
+                this.init();
+            }
+        }
+        
+        init() {
+            if (isMobile()) {
+                this.createMobileNav();
+            }
+            
+            // 監聽視窗大小變化
+            window.addEventListener('resize', debounce(() => {
+                if (isMobile()) {
+                    this.createMobileNav();
+                } else {
+                    this.removeMobileNav();
+                }
+            }, DEBOUNCE_DELAY));
+        }
+        
+        createMobileNav() {
+            // 檢查是否已經創建
+            if (getElement('.nav-toggle')) return;
+            
+            // 創建漢堡按鈕
+            this.toggle = document.createElement('button');
+            this.toggle.className = 'nav-toggle';
+            this.toggle.setAttribute('aria-label', '切換選單');
+            this.toggle.setAttribute('aria-expanded', 'false');
+            this.toggle.textContent = '☰';
+            this.toggle.type = 'button';
+            
+            // 創建標題
+            this.title = document.createElement('span');
+            this.title.className = 'nav-title';
+            this.title.textContent = '庫存管理系統';
+            
+            // 插入到導航欄
+            const firstElement = this.navWrapper.firstElementChild;
+            if (firstElement) {
+                this.navWrapper.insertBefore(this.title, firstElement);
+                this.navWrapper.insertBefore(this.toggle, this.title);
+            }
+            
+            // 綁定點擊事件
+            this.toggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleMenu();
+            });
+            
+            // 點擊選單項目後關閉選單
+            const navLinks = getElements('nav a', this.navWrapper);
+            navLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    if (isMobile()) {
+                        this.closeMenu();
+                    }
+                });
+            });
+            
+            // 點擊外部區域關閉選單
+            document.addEventListener('click', (e) => {
+                if (this.isMenuOpen && 
+                    !this.navWrapper.contains(e.target) && 
+                    e.target !== this.toggle) {
+                    this.closeMenu();
+                }
+            });
+        }
+        
+        removeMobileNav() {
+            if (this.toggle) {
+                this.toggle.remove();
+                this.toggle = null;
+            }
+            if (this.title) {
+                this.title.remove();
+                this.title = null;
+            }
+            this.navWrapper.classList.remove('nav-menu-open');
+            this.isMenuOpen = false;
+        }
+        
+        toggleMenu() {
+            this.isMenuOpen = !this.isMenuOpen;
+            this.navWrapper.classList.toggle('nav-menu-open');
+            
+            if (this.toggle) {
+                this.toggle.textContent = this.isMenuOpen ? '✕' : '☰';
+                this.toggle.setAttribute('aria-expanded', this.isMenuOpen.toString());
+            }
+        }
+        
+        closeMenu() {
+            this.isMenuOpen = false;
+            this.navWrapper.classList.remove('nav-menu-open');
+            
+            if (this.toggle) {
+                this.toggle.textContent = '☰';
+                this.toggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+    }
+    
+    // ========== 表格轉換管理 ==========
+    
+    class TableConverter {
+        constructor() {
+            this.tables = [];
+            this.convertedTables = new Set();
+            this.init();
+        }
+        
+        init() {
+            if (isMobile()) {
+                this.convertAllTables();
+            }
+            
+            // 監聽視窗大小變化
+            window.addEventListener('resize', debounce(() => {
+                if (isMobile()) {
+                    this.convertAllTables();
+                } else {
+                    this.restoreAllTables();
+                }
+            }, DEBOUNCE_DELAY));
+        }
+        
+        convertAllTables() {
+            const tables = getElements('table:not(.no-mobile-convert)');
+            tables.forEach(table => this.convertTable(table));
+        }
+        
+        restoreAllTables() {
+            this.convertedTables.forEach(tableId => {
+                const table = document.getElementById(tableId);
+                if (table) {
+                    this.restoreTable(table);
+                }
+            });
+            this.convertedTables.clear();
+        }
+        
+        convertTable(table) {
+            // 檢查是否已轉換
+            if (table.dataset.mobileConverted === 'true') return;
+            
+            const tbody = getElement('tbody', table);
+            if (!tbody) return;
+            
+            const rows = getElements('tr', tbody);
+            if (rows.length === 0) return;
+            
+            // 獲取表頭
+            const thead = getElement('thead', table);
+            const headers = thead ? getElements('th', thead) : [];
+            const headerTexts = headers.map(th => th.textContent.trim());
+            
+            // 創建手機版容器
+            const mobileContainer = document.createElement('div');
+            mobileContainer.className = 'table-mobile-container';
+            const tableId = table.id || `table-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            table.id = tableId;
+            mobileContainer.dataset.tableId = tableId;
+            
+            // 轉換每一行
+            rows.forEach((row, rowIndex) => {
+                const card = this.createCardFromRow(row, headerTexts);
+                if (card) {
+                    mobileContainer.appendChild(card);
+                }
+            });
+            
+            // 隱藏原表格，顯示手機版
+            table.style.display = 'none';
+            table.dataset.mobileConverted = 'true';
+            table.parentNode.insertBefore(mobileContainer, table.nextSibling);
+            this.convertedTables.add(tableId);
+        }
+        
+        createCardFromRow(row, headerTexts) {
+            const cells = getElements('td', row);
+            if (cells.length === 0) return null;
+            
+            const card = document.createElement('div');
+            card.className = 'table-mobile-card';
+            
+            // 檢測並標記交易類型
+            this.detectTransactionType(cells, card);
+            
+            // 創建卡片標題（第一列）
+            if (cells.length > 0 && headerTexts.length > 0) {
+                const titleCell = cells[0];
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'table-mobile-card-header';
+                
+                const titleSpan = document.createElement('div');
+                titleSpan.className = 'table-mobile-card-title';
+                
+                // 保留HTML結構
+                let titleHTML = titleCell.innerHTML;
+                titleHTML = titleHTML.replace(/style="[^"]*"/g, '');
+                titleSpan.innerHTML = titleHTML;
+                
+                titleDiv.appendChild(titleSpan);
+                card.appendChild(titleDiv);
+            }
+            
+            // 收集所有操作按鈕
+            const actionButtons = this.collectActionButtons(cells);
+            
+            // 創建所有欄位（跳過第一列）
+            cells.forEach((cell, cellIndex) => {
+                if (cellIndex === 0) return; // 第一列已作為標題
+                
+                const isActionCell = cell.classList.contains('action-cell') || 
+                                   cell.querySelector('button, a.btn, .btn');
+                
+                if (!isActionCell) {
+                    const rowDiv = this.createFieldRow(cell, headerTexts[cellIndex], cellIndex);
+                    if (rowDiv) {
+                        card.appendChild(rowDiv);
+                    }
+                }
+            });
+            
+            // 添加操作按鈕區域
+            if (actionButtons.length > 0) {
+                const actionsDiv = this.createActionsSection(actionButtons);
+                card.appendChild(actionsDiv);
+            }
+            
+            return card;
+        }
+        
+        createFieldRow(cell, headerText, index) {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'table-mobile-card-row';
+            
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'table-mobile-card-label';
+            labelDiv.textContent = headerText || `欄位 ${index + 1}`;
+            
+            const valueDiv = document.createElement('div');
+            valueDiv.className = 'table-mobile-card-value';
+            
+            // 複製單元格內容，但移除操作按鈕
+            const cellClone = cell.cloneNode(true);
+            const buttons = getElements('button, a.btn, .btn-adjust', cellClone);
+            buttons.forEach(btn => btn.remove());
+            
+            // 保留原始樣式資訊
+            const originalStyle = cell.getAttribute('style') || '';
+            
+            // 處理顏色標記
+            if (originalStyle.includes('color')) {
+                if (originalStyle.includes('#28a745') || originalStyle.includes('green')) {
+                    valueDiv.style.color = '#28a745';
+                    valueDiv.style.fontWeight = '600';
+                } else if (originalStyle.includes('#dc3545') || originalStyle.includes('red')) {
+                    valueDiv.style.color = '#dc3545';
+                    valueDiv.style.fontWeight = '600';
+                }
+            }
+            
+            // 處理粗體
+            if (originalStyle.includes('font-weight') && 
+                (originalStyle.includes('bold') || originalStyle.includes('700') || originalStyle.includes('600'))) {
+                valueDiv.style.fontWeight = '700';
+            }
+            
+            valueDiv.innerHTML = cellClone.innerHTML || '-';
+            
+            rowDiv.appendChild(labelDiv);
+            rowDiv.appendChild(valueDiv);
+            
+            return rowDiv;
+        }
+        
+        detectTransactionType(cells, card) {
+            cells.forEach(cell => {
+                const cellHTML = cell.innerHTML || '';
+                
+                // 檢測類型標記
+                if (cellHTML.includes('type-badge')) {
+                    if (cellHTML.includes('inbound') || cellHTML.includes('入庫')) {
+                        card.setAttribute('data-transaction-type', 'inbound');
+                    } else if (cellHTML.includes('outbound') || cellHTML.includes('出庫')) {
+                        card.setAttribute('data-transaction-type', 'outbound');
+                    } else if (cellHTML.includes('return') || cellHTML.includes('歸還')) {
+                        card.setAttribute('data-transaction-type', 'return');
+                    } else if (cellHTML.includes('loan') || cellHTML.includes('借測')) {
+                        card.setAttribute('data-transaction-type', 'loan');
+                    }
+                }
+                
+                // 檢測數量顏色
+                const cellStyle = cell.getAttribute('style') || '';
+                const cellText = cell.textContent.trim();
+                
+                if ((cellStyle.includes('font-weight: bold') && cellStyle.includes('color')) || 
+                    cellText.match(/^[+\-]?\d+$/)) {
+                    if (cellStyle.includes('#28a745') || (cellStyle.includes('green') && cellText.startsWith('+'))) {
+                        card.setAttribute('data-quantity-type', 'positive');
+                    } else if (cellStyle.includes('#dc3545') || (cellStyle.includes('red') && cellText.startsWith('-'))) {
+                        card.setAttribute('data-quantity-type', 'negative');
+                    }
+                }
+            });
+        }
+        
+        collectActionButtons(cells) {
+            const actionButtons = [];
+            
+            cells.forEach(cell => {
+                const isActionCell = cell.classList.contains('action-cell') || 
+                                   cell.querySelector('button, a.btn, .btn');
+                
+                if (isActionCell) {
+                    const buttons = getElements('button, a[onclick], a.btn, .btn-adjust', cell);
+                    buttons.forEach(btn => {
+                        const btnText = btn.textContent.trim();
+                        const btnOnClick = btn.getAttribute('onclick') || '';
+                        const btnId = btn.id || '';
+                        
+                        // 避免重複
+                        if (!actionButtons.find(b => 
+                            b.text === btnText && 
+                            b.onclick === btnOnClick && 
+                            b.id === btnId
+                        )) {
+                            actionButtons.push({
+                                element: btn,
+                                text: btnText,
+                                onclick: btnOnClick,
+                                id: btnId,
+                                html: btn.outerHTML
+                            });
+                        }
+                    });
+                }
+            });
+            
+            return actionButtons;
+        }
+        
+        createActionsSection(actionButtons) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'table-mobile-card-actions';
+            
+            actionButtons.forEach(btnData => {
+                const btnWrapper = document.createElement('div');
+                btnWrapper.innerHTML = btnData.html;
+                const btnClone = btnWrapper.firstElementChild;
+                
+                if (btnClone) {
+                    // 確保按鈕樣式正確
+                    if (!btnClone.classList.contains('btn')) {
+                        btnClone.classList.add('btn');
+                    }
+                    if (btnClone.classList.contains('btn-adjust')) {
+                        btnClone.classList.add('btn-edit');
+                    }
+                    
+                    actionsDiv.appendChild(btnClone);
+                }
+            });
+            
+            return actionsDiv;
+        }
+        
+        restoreTable(table) {
+            if (table.dataset.mobileConverted !== 'true') return;
+            
+            table.style.display = 'table';
+            table.dataset.mobileConverted = 'false';
+            
+            const mobileContainer = table.parentNode.querySelector(
+                `.table-mobile-container[data-table-id="${table.id}"]`
+            );
+            
+            if (mobileContainer) {
+                mobileContainer.remove();
+            }
+        }
+    }
+    
+    // ========== 表單增強 ==========
+    
+    class FormEnhancer {
+        constructor() {
+            this.init();
+        }
+        
+        init() {
+            // 自動聚焦第一個輸入框（桌面版）
+            if (!isMobile()) {
+                const firstInput = getElement('input:not([type="hidden"]), select, textarea');
+                if (firstInput) {
+                    firstInput.focus();
+                }
+            }
+            
+            // 數字輸入框防止滾輪改變值
+            const numberInputs = getElements('input[type="number"]');
+            numberInputs.forEach(input => {
+                input.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                });
+            });
+            
+            // 日期輸入框設定今天為預設值
+            const dateInputs = getElements('input[type="date"]');
+            dateInputs.forEach(input => {
+                if (!input.value) {
+                    const today = new Date().toISOString().split('T')[0];
+                    input.value = today;
+                }
+            });
+        }
+    }
+    
+    // ========== 頁面檢測 ==========
+    
+    function detectPageType() {
+        const path = window.location.pathname;
+        
+        if (path === '/' || path === '/index') {
+            document.body.classList.add('index-page');
+        }
+    }
+    
+    // ========== 初始化 ==========
+    
+    function init() {
+        // 檢測頁面類型
+        detectPageType();
+        
+        // 初始化各個模組
+        new NavigationManager();
+        new TableConverter();
+        new FormEnhancer();
+        
+        // 添加載入完成類別
+        document.body.classList.add('page-loaded');
+    }
+    
+    // ========== 啟動 ==========
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    
+})();

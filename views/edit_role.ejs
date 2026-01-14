@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>編輯角色 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        .permissions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .permission-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .permission-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .permission-item {
+            margin: 8px 0;
+        }
+        
+        .permission-item label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .permission-item input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        .system-role-warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+    
+    <div class="container">
+        <h1>✏️ 編輯角色</h1>
+        
+        <% if (role.is_system) { %>
+        <div class="system-role-warning">
+            <strong>⚠️ 系統角色</strong><br>
+            此為系統預設角色，部分欄位無法修改。請謹慎調整權限設定。
+        </div>
+        <% } %>
+        
+        <form method="POST" action="/roles/edit/<%= role.id %>">
+            <div class="form-group">
+                <label for="role_name">角色名稱</label>
+                <input type="text" id="role_name" name="role_name" value="<%= role.role_name %>" 
+                       <%= role.is_system ? 'readonly' : 'required pattern="[a-z_]+"' %>
+                       title="只能使用小寫英文字母和底線">
+            </div>
+            
+            <div class="form-group">
+                <label for="display_name">顯示名稱 *</label>
+                <input type="text" id="display_name" name="display_name" 
+                       value="<%= role.display_name %>" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">說明</label>
+                <textarea id="description" name="description" rows="3"><%= role.description || '' %></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>權限設定</label>
+                <div class="permissions-grid">
+                    <%
+                    let currentPerms = {};
+                    try {
+                        currentPerms = JSON.parse(role.permissions || '{}');
+                    } catch(e) {
+                        currentPerms = {};
+                    }
+                    
+                    function hasPermission(module, action) {
+                        return currentPerms[module] && currentPerms[module].includes(action);
+                    }
+                    %>
+                    
+                    <!-- 使用者管理權限 -->
+                    <div class="permission-group">
+                        <h3>👥 使用者管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:view"
+                                       <%= hasPermission('users', 'view') ? 'checked' : '' %>>
+                                查看使用者
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:create"
+                                       <%= hasPermission('users', 'create') ? 'checked' : '' %>>
+                                新增使用者
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:edit"
+                                       <%= hasPermission('users', 'edit') ? 'checked' : '' %>>
+                                編輯使用者
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="users:delete"
+                                       <%= hasPermission('users', 'delete') ? 'checked' : '' %>>
+                                刪除使用者
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 料件管理權限 -->
+                    <div class="permission-group">
+                        <h3>📦 料件管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:view"
+                                       <%= hasPermission('parts', 'view') ? 'checked' : '' %>>
+                                查看料件
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:create"
+                                       <%= hasPermission('parts', 'create') ? 'checked' : '' %>>
+                                新增料件
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:edit"
+                                       <%= hasPermission('parts', 'edit') ? 'checked' : '' %>>
+                                編輯料件
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="parts:delete"
+                                       <%= hasPermission('parts', 'delete') ? 'checked' : '' %>>
+                                刪除料件
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 庫存管理權限 -->
+                    <div class="permission-group">
+                        <h3>📊 庫存管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:view"
+                                       <%= hasPermission('inventory', 'view') ? 'checked' : '' %>>
+                                查看庫存
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:inbound"
+                                       <%= hasPermission('inventory', 'inbound') ? 'checked' : '' %>>
+                                料件入庫
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:outbound"
+                                       <%= hasPermission('inventory', 'outbound') ? 'checked' : '' %>>
+                                料件出庫
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="inventory:check"
+                                       <%= hasPermission('inventory', 'check') ? 'checked' : '' %>>
+                                庫存盤點
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 系統管理權限 -->
+                    <div class="permission-group">
+                        <h3>⚙️ 系統管理</h3>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:backup"
+                                       <%= hasPermission('system', 'backup') ? 'checked' : '' %>>
+                                備份管理
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:health"
+                                       <%= hasPermission('system', 'health') ? 'checked' : '' %>>
+                                系統健康
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:roles"
+                                       <%= hasPermission('system', 'roles') ? 'checked' : '' %>>
+                                角色管理
+                            </label>
+                        </div>
+                        <div class="permission-item">
+                            <label>
+                                <input type="checkbox" name="permissions[]" value="system:logs"
+                                       <%= hasPermission('system', 'logs') ? 'checked' : '' %>>
+                                操作記錄
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions" style="display: flex; gap: 10px; margin-top: 30px;">
+                <button type="submit" class="btn btn-primary">✅ 儲存變更</button>
+                <a href="/roles" class="btn btn-secondary">❌ 取消</a>
+            </div>
+        </form>
+    </div>
+    
+    <%- include('_common-nav-script') %>
+</body>
+</html>

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>庫存管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+        
+        /* 儀表板專用樣式 */
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card.warning {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+        }
+        
+        .stat-card.danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+        
+        .stat-card.success {
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        
+        .stat-card .stat-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* 手機版儀表板優化 */
+        @media (max-width: 768px) {
+            .dashboard-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin-bottom: 16px;
+            }
+            
+            .stat-card {
+                padding: 16px;
+                border-radius: 8px;
+            }
+            
+            .stat-card .stat-icon {
+                font-size: 28px;
+                margin-bottom: 8px;
+            }
+            
+            .stat-card .stat-value {
+                font-size: 28px;
+                margin-bottom: 4px;
+            }
+            
+            .stat-card .stat-label {
+                font-size: 13px;
+            }
+            
+            /* 儀表板模式：隱藏搜索和表格，顯示概覽 */
+            body.index-page.dashboard-mode .search-section,
+            body.index-page.dashboard-mode #inventoryTable,
+            body.index-page.dashboard-mode .table-mobile-container,
+            body.index-page.dashboard-mode .inventory-list-section {
+                display: none;
+            }
+            
+            /* 切換按鈕 */
+            .view-toggle {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 16px;
+            }
+            
+            .view-toggle button {
+                flex: 1;
+                min-height: 44px;
+                padding: 8px;
+                background: white;
+                color: #667eea;
+                border: 2px solid #667eea;
+                border-radius: 8px;
+                font-weight: 600;
+                transition: all 0.2s;
+            }
+            
+            .view-toggle button.active {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            
+            /* 快速操作區 - 顯示所有功能 */
+            .quick-actions {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin-bottom: 24px;
+            }
+            
+            .quick-action-btn {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 88px;
+                padding: 12px 8px;
+                background: white;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                text-decoration: none;
+                color: #333;
+                font-weight: 600;
+                transition: all 0.2s;
+                gap: 6px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+            
+            .quick-action-btn:active {
+                transform: scale(0.95);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            }
+            
+            .quick-action-btn .action-icon {
+                font-size: 28px;
+                line-height: 1;
+            }
+            
+            .quick-action-btn .action-label {
+                font-size: 14px;
+                text-align: center;
+                line-height: 1.3;
+            }
+            
+            .quick-action-btn.logout-btn {
+                background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+                color: white;
+                border-color: #dc3545;
+            }
+            
+            .quick-action-btn.login-btn {
+                background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+                color: white;
+                border-color: #007bff;
+            }
+        }
+        
+        /* 桌面版 */
+        @media (min-width: 769px) {
+            .view-toggle,
+            .quick-actions {
+                display: none;
+            }
+            
+            .dashboard-stats {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            /* 桌面版顯示導航 */
+            nav {
+                display: block !important;
+                visibility: visible !important;
+                height: auto !important;
+                width: auto !important;
+                position: static !important;
+                left: auto !important;
+            }
+        }
+        
+        /* 手機版隱藏首頁導航 */
+        @media (max-width: 768px) {
+            body.index-page nav {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                overflow: hidden !important;
+            }
+        }
+        
+        /* 通知面板樣式 */
+        .notification-panel {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 5px solid #ffc107;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .notification-panel.urgent {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border-left-color: #dc3545;
+        }
+        
+        .notification-panel h2 {
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .notification-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .notification-item {
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .notification-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .notification-actions {
+            margin-top: 15px;
+            text-align: right;
+        }
+        
+        .notification-actions a {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 8px 16px;
+            background: white;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        
+        .notification-actions a:hover {
+            background: #f8f9fa;
+        }
+        
+        /* 手機版通知面板 */
+        @media (max-width: 768px) {
+            .notification-panel {
+                padding: var(--mobile-padding);
+                margin-bottom: var(--mobile-spacing-block);
+            }
+            
+            .notification-panel h2 {
+                font-size: var(--mobile-font-subtitle);
+                margin-bottom: var(--mobile-spacing-inline);
+            }
+            
+            .notification-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--mobile-spacing-inline);
+            }
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        table {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="index-page">
+    <nav>
+        <div class="nav-wrapper">
+            <!-- 主要功能 -->
+            <div class="nav-group">
+                <div class="nav-group-title">主要功能</div>
+                <a href="/" class="active">📊 庫存查詢</a>
+                <a href="/parts">📦 料件管理</a>
+                <a href="/inbound">📥 料件入庫</a>
+                <a href="/outbound">📤 料件出庫</a>
+                <a href="/inventory/check">🔍 庫存盤點</a>
+            </div>
+            <!-- 記錄查詢 -->
+            <div class="nav-group">
+                <div class="nav-group-title">記錄查詢</div>
+                <a href="/transaction/records">📝 出入庫記錄</a>
+                <a href="/loans">📋 借出中料件</a>
+                <a href="/inventory/check/records">📝 盤點記錄</a>
+            </div>
+            <!-- 系統管理 -->
+            <div class="nav-group">
+                <div class="nav-group-title">系統管理</div>
+                <a href="/categories">🏷️ 類型管理</a>
+                <a href="/units">📏 單位管理</a>
+                <a href="/users">👥 人員管理</a>
+                <a href="/import">📋 Excel匯入</a>
+            </div>
+            <!-- 系統工具（管理員） -->
+            <% if (user && user.role === 'admin') { %>
+            <div class="nav-group">
+                <div class="nav-group-title">系統工具</div>
+                <a href="/backup">💾 備份管理</a>
+                <a href="/health">🏥 系統健康</a>
+            </div>
+            <% } %>
+            <!-- 認證 -->
+            <div class="nav-group auth-group">
+                <% if (user) { %>
+                <a href="/logout" class="auth-link logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">🚪 登出 (<%= user.username %>)</a>
+                <% } else { %>
+                <a href="/login" class="auth-link login">🔐 登入</a>
+                <% } %>
+            </div>
+        </div>
+    </nav>
+    <form id="logoutForm" method="POST" action="/logout" style="display: none;"></form>
+    
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(function(msg) { %>
+                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
+                <% }); %>
+            </div>
+        <% } %>
+        
+        <!-- 到期通知面板 -->
+        <div id="notification-panel" style="display: none;"></div>
+        
+        <h1>📊 庫存儀表板</h1>
+        
+        <!-- 手機版視圖切換 -->
+        <div class="view-toggle">
+            <button type="button" class="active" onclick="switchView('dashboard')">📊 儀表板</button>
+            <button type="button" onclick="switchView('list')">📋 列表</button>
+        </div>
+        
+        <!-- 儀表板統計卡片 -->
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-value" id="total-parts"><%= inventory ? inventory.length : 0 %></div>
+                <div class="stat-label">總料件數</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-value" id="total-stock"><%
+                    let totalStock = 0;
+                    if (inventory) {
+                        inventory.forEach(item => totalStock += item.total_quantity || 0);
+                    }
+                %><%= totalStock %></div>
+                <div class="stat-label">總庫存量</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-icon">📤</div>
+                <div class="stat-value" id="loaned-stock"><%
+                    let loanedStock = 0;
+                    if (inventory) {
+                        inventory.forEach(item => loanedStock += item.loaned_quantity || 0);
+                    }
+                %><%= loanedStock %></div>
+                <div class="stat-label">借出中</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💚</div>
+                <div class="stat-value" id="available-stock"><%= totalStock - loanedStock %></div>
+                <div class="stat-label">可用庫存</div>
+            </div>
+        </div>
+        
+        <!-- 手機版快速操作 -->
+        <div class="quick-actions">
+            <a href="/parts" class="quick-action-btn">
+                <div class="action-icon">📦</div>
+                <div class="action-label">料件管理</div>
+            </a>
+            <a href="/inbound" class="quick-action-btn">
+                <div class="action-icon">📥</div>
+                <div class="action-label">料件入庫</div>
+            </a>
+            <a href="/outbound" class="quick-action-btn">
+                <div class="action-icon">📤</div>
+                <div class="action-label">料件出庫</div>
+            </a>
+            <a href="/inventory/check" class="quick-action-btn">
+                <div class="action-icon">🔍</div>
+                <div class="action-label">庫存盤點</div>
+            </a>
+            <a href="/transaction/records" class="quick-action-btn">
+                <div class="action-icon">📝</div>
+                <div class="action-label">出入庫記錄</div>
+            </a>
+            <a href="/loans" class="quick-action-btn">
+                <div class="action-icon">📋</div>
+                <div class="action-label">借出中料件</div>
+            </a>
+            <a href="/categories" class="quick-action-btn">
+                <div class="action-icon">🏷️</div>
+                <div class="action-label">類型管理</div>
+            </a>
+            <a href="/units" class="quick-action-btn">
+                <div class="action-icon">📏</div>
+                <div class="action-label">單位管理</div>
+            </a>
+            <a href="/users" class="quick-action-btn">
+                <div class="action-icon">👥</div>
+                <div class="action-label">人員管理</div>
+            </a>
+            <a href="/import" class="quick-action-btn">
+                <div class="action-icon">📋</div>
+                <div class="action-label">Excel匯入</div>
+            </a>
+            <% if (user && user.role === 'admin') { %>
+            <a href="/roles" class="quick-action-btn">
+                <div class="action-icon">🎭</div>
+                <div class="action-label">角色管理</div>
+            </a>
+            <a href="/activity-logs" class="quick-action-btn">
+                <div class="action-icon">📋</div>
+                <div class="action-label">操作記錄</div>
+            </a>
+            <a href="/backup" class="quick-action-btn">
+                <div class="action-icon">💾</div>
+                <div class="action-label">備份管理</div>
+            </a>
+            <a href="/health" class="quick-action-btn">
+                <div class="action-icon">🏥</div>
+                <div class="action-label">系統健康</div>
+            </a>
+            <% } %>
+            <% if (user) { %>
+            <a href="/change-password" class="quick-action-btn">
+                <div class="action-icon">🔑</div>
+                <div class="action-label">修改密碼</div>
+            </a>
+            <a href="/logout" class="quick-action-btn logout-btn" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">
+                <div class="action-icon">🚪</div>
+                <div class="action-label">登出 (<%= user.username %>)</div>
+            </a>
+            <% } else { %>
+            <a href="/login" class="quick-action-btn login-btn">
+                <div class="action-icon">🔐</div>
+                <div class="action-label">登入</div>
+            </a>
+            <% } %>
+        </div>
+        
+        <!-- 列表視圖區域 -->
+        <div class="inventory-list-section">
+            <div class="search-section">
+                <form method="GET" action="/" id="searchForm">
+                    <div class="form-group">
+                        <label for="search">搜尋（料號/名稱/條碼）</label>
+                        <input type="text" id="search" name="search" value="<%= search || '' %>" placeholder="輸入料號、名稱或條碼">
+                    </div>
+                    <div class="form-group">
+                        <label for="category_id">類型篩選</label>
+                        <select id="category_id" name="category_id">
+                            <option value="">全部類型</option>
+                            <% if (categories && categories.length > 0) { %>
+                                <% categories.forEach(function(category) { %>
+                                <option value="<%= category.id %>" <%= category_id == category.id ? 'selected' : '' %>>
+                                    <%= category.name %>
+                                </option>
+                                <% }); %>
+                            <% } %>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">🔍 搜尋</button>
+                        <% if (search || category_id) { %>
+                        <a href="/" class="btn btn-secondary">清除</a>
+                        <% } %>
+                    </div>
+                </form>
+                <div class="form-group">
+                    <a href="/export/inventory" class="btn btn-primary">📥 匯出Excel</a>
+                </div>
+            </div>
+
+            <% if (inventory && inventory.length > 0) { %>
+            <table id="inventoryTable">
+                <thead>
+                    <tr>
+                        <th>料號</th>
+                        <th>料件名稱</th>
+                        <th>類型</th>
+                        <th>規格</th>
+                        <th>條碼</th>
+                        <th>庫存數量</th>
+                        <th>借出中</th>
+                        <th>可用數量</th>
+                        <th>單位</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% inventory.forEach(function(item) { 
+                        const availableQty = item.total_quantity - (item.loaned_quantity || 0);
+                    %>
+                    <tr>
+                        <td><%= item.part_number %></td>
+                        <td><%= item.part_name %></td>
+                        <td><%= item.category_name || '-' %></td>
+                        <td><%= item.specification || '-' %></td>
+                        <td><%= item.barcode || '-' %></td>
+                        <td style="font-weight: bold; color: <%= item.total_quantity > 0 ? '#667eea' : '#999' %>;">
+                            <%= item.total_quantity %>
+                        </td>
+                        <td style="color: <%= item.loaned_quantity > 0 ? '#ffc107' : '#999' %>;">
+                            <%= item.loaned_quantity || 0 %>
+                        </td>
+                        <td style="font-weight: bold; color: <%= availableQty > 0 ? '#28a745' : '#999' %>;">
+                            <%= availableQty %>
+                        </td>
+                        <td><%= item.unit %></td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+            <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= inventory.length %> 筆記錄</p>
+            <% } else { %>
+            <div class="empty-state">
+                <p>目前沒有任何料件資料</p>
+                <p>請先前往<a href="/parts/add">料件管理</a>新增料件</p>
+            </div>
+            <% } %>
+        </div>
+    </div>
+    
+    <script>
+        // 視圖切換功能（手機版）
+        function switchView(view) {
+            const body = document.body;
+            const buttons = document.querySelectorAll('.view-toggle button');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (view === 'dashboard') {
+                body.classList.add('dashboard-mode');
+            } else {
+                body.classList.remove('dashboard-mode');
+            }
+            
+            // 保存用戶偏好
+            localStorage.setItem('inventoryView', view);
+        }
+        
+        // 載入用戶偏好的視圖
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedView = localStorage.getItem('inventoryView') || 'dashboard';
+            if (savedView === 'list' && window.innerWidth <= 768) {
+                document.body.classList.remove('dashboard-mode');
+                const buttons = document.querySelectorAll('.view-toggle button');
+                buttons[0].classList.remove('active');
+                buttons[1].classList.add('active');
+            } else if (window.innerWidth <= 768) {
+                document.body.classList.add('dashboard-mode');
+            }
+        });
+        
+        // 載入並顯示到期通知
+        async function loadLoanNotifications() {
+            try {
+                const response = await fetch('/api/loan-notifications');
+                const data = await response.json();
+                
+                if (data.success && data.notifications && data.notifications.length > 0) {
+                    const panel = document.getElementById('notification-panel');
+                    const stats = data.stats;
+                    
+                    // 判斷是否為緊急通知（有過期或今日到期）
+                    const isUrgent = stats.overdue > 0 || stats.due_today > 0;
+                    
+                    let html = `
+                        <div class="notification-panel ${isUrgent ? 'urgent' : ''}">
+                            <h2>
+                                ${isUrgent ? '⚠️ 借測到期通知（緊急）' : '⏰ 借測到期通知'}
+                                ${stats.total > 0 ? `<span style="background-color: ${isUrgent ? '#dc3545' : '#ffc107'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px; margin-left: 10px;">${stats.total}</span>` : ''}
+                            </h2>
+                            <ul class="notification-list">
+                    `;
+                    
+                    data.notifications.forEach(function(notification) {
+                        const statusClass = notification.due_status === 'overdue' ? 'overdue' : 
+                                          notification.due_status === 'due_today' ? 'due-today' : 'due-soon';
+                        const statusText = notification.due_status === 'overdue' ? '已過期' : 
+                                         notification.due_status === 'due_today' ? '今日到期' : '即將到期';
+                        const daysText = notification.days_until_due !== null ? 
+                            (notification.days_until_due < 0 ? 
+                                `已過期 ${Math.abs(Math.floor(notification.days_until_due))} 天` : 
+                                notification.days_until_due === 0 ? 
+                                    '今日到期' : 
+                                    `剩餘 ${Math.floor(notification.days_until_due)} 天`) : '';
+                        
+                        html += `
+                            <li class="notification-item ${statusClass}">
+                                <div>
+                                    <strong>${notification.part_name}</strong> (${notification.part_number})
+                                    <br>
+                                    <small>借出日期：${notification.outbound_date} | 到期日期：${notification.loan_due_date}</small>
+                                    <br>
+                                    <small>${daysText}</small>
+                                </div>
+                                <span class="status-badge ${statusClass}">${statusText}</span>
+                            </li>
+                        `;
+                    });
+                    
+                    html += `
+                            </ul>
+                            <div class="notification-actions">
+                                <a href="/loans">查看所有借測記錄 →</a>
+                            </div>
+                        </div>
+                    `;
+                    
+                    panel.innerHTML = html;
+                    panel.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('載入通知失敗:', error);
+            }
+        }
+        
+        // 頁面載入時載入通知
+        loadLoanNotifications();
+        
+        // 每5分鐘自動重新載入通知
+        setInterval(loadLoanNotifications, 5 * 60 * 1000);
+    </script>
+    
+    <script>
+        <%- include('_common-mobile-script') %>
+        <%- include('_common-nav-script') %>
+    </script>
+</body>
+</html>
