@@ -154,6 +154,15 @@ function initDB() {
         }
     }
     
+    // 為現有資料庫添加 is_active 欄位（如果不存在）
+    if (!columnExists('parts', 'is_active')) {
+        try {
+            db.exec(`ALTER TABLE parts ADD COLUMN is_active INTEGER DEFAULT 1`);
+        } catch (e) {
+            console.error('添加 is_active 欄位失敗:', e.message);
+        }
+    }
+    
     // 入庫記錄表
     db.exec(`
         CREATE TABLE IF NOT EXISTS inbound_records (
@@ -621,6 +630,11 @@ function requireAdmin(req, res, next) {
     if (req.session.user && req.session.user.role === 'admin') {
         next();
     } else {
+        // 如果是 API 請求，返回 JSON 錯誤
+        if (req.path.startsWith('/api/') || req.path.startsWith('/parts/toggle-status/') || req.path.startsWith('/parts/batch-delete')) {
+            return res.status(403).json({ success: false, error: '需要管理員權限' });
+        }
+        // 否則重定向到首頁
         flash(req, 'error', '需要管理員權限');
         res.redirect('/');
     }
@@ -838,6 +852,9 @@ app.get('/', requireAuth, (req, res) => {
         params.push(category_id);
     }
     
+    // 添加 is_active 條件
+    whereConditions.push(`COALESCE(p.is_active, 1) = 1`);
+    
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
     
     const stmt = db.prepare(`
@@ -849,6 +866,7 @@ app.get('/', requireAuth, (req, res) => {
             p.unit,
             p.barcode,
             c.name as category_name,
+            COALESCE(p.is_active, 1) as is_active,
             COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0) - 
             COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0) as total_quantity,
             COALESCE((
@@ -1100,7 +1118,8 @@ app.get('/parts', (req, res) => {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
     
     const stmt = db.prepare(`
-        SELECT p.*, c.name as category_name 
+        SELECT p.*, c.name as category_name,
+               COALESCE(p.is_active, 1) as is_active
         FROM parts p 
         LEFT JOIN categories c ON p.category_id = c.id 
         ${whereClause}
@@ -1303,6 +1322,146 @@ app.post('/parts/edit/:id', (req, res) => {
     }
 });
 
+// 批量刪除料件（需要管理員權限）
+app.post('/parts/batch-delete', requireAuth, requireAdmin, (req, res) => {
+    const { part_ids } = req.body;
+    
+    if (!part_ids || !Array.isArray(part_ids) || part_ids.length === 0) {
+        return res.json({ success: false, error: '請選擇要刪除的料件' });
+    }
+    
+    const results = {
+        deleted: 0,
+        deactivated: 0,
+        failed: 0,
+        details: []
+    };
+    
+    try {
+        part_ids.forEach(partId => {
+            try {
+                const partIdInt = parseInt(partId);
+                
+                // 獲取料件資訊
+                const partStmt = db.prepare('SELECT part_number, part_name FROM parts WHERE id = ?');
+                const part = partStmt.get(partIdInt);
+                
+                if (!part) {
+                    results.failed++;
+                    results.details.push(`料件 ID ${partId}：找不到料件`);
+                    return;
+                }
+                
+                // 檢查是否有庫存
+                const stockStmt = db.prepare(`
+                    SELECT 
+                        COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = ? AND (is_return = 0 OR is_return IS NULL)), 0) - 
+                        COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = ? AND (is_loan = 0 OR is_loan IS NULL)), 0) - 
+                        COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = ? AND is_loan = 1), 0) + 
+                        COALESCE((
+                            SELECT SUM(i.quantity) 
+                            FROM inbound_records i
+                            JOIN outbound_records o ON i.return_outbound_id = o.id
+                            WHERE o.part_id = ? AND o.is_loan = 1 AND i.is_return = 1
+                        ), 0) as current_stock
+                `);
+                const stock = stockStmt.get(partIdInt, partIdInt, partIdInt, partIdInt);
+                const currentStock = stock ? (stock.current_stock || 0) : 0;
+                
+                // 檢查是否有進出入庫紀錄
+                const inboundStmt = db.prepare('SELECT COUNT(*) as count FROM inbound_records WHERE part_id = ?');
+                const inboundCount = inboundStmt.get(partIdInt).count;
+                
+                const outboundStmt = db.prepare('SELECT COUNT(*) as count FROM outbound_records WHERE part_id = ?');
+                const outboundCount = outboundStmt.get(partIdInt).count;
+                
+                // 檢查是否有盤點紀錄
+                const checkStmt = db.prepare('SELECT COUNT(*) as count FROM inventory_checks WHERE part_id = ?');
+                const checkCount = checkStmt.get(partIdInt).count;
+                
+                const hasRecords = inboundCount > 0 || outboundCount > 0 || checkCount > 0;
+                const hasStock = currentStock > 0;
+                
+                if (hasStock || hasRecords) {
+                    // 有庫存或紀錄，改為停用
+                    const deactivateStmt = db.prepare('UPDATE parts SET is_active = 0 WHERE id = ?');
+                    deactivateStmt.run(partIdInt);
+                    
+                    results.deactivated++;
+                    let reason = [];
+                    if (hasStock) reason.push(`庫存：${currentStock}`);
+                    if (inboundCount > 0) reason.push(`入庫紀錄：${inboundCount}筆`);
+                    if (outboundCount > 0) reason.push(`出庫紀錄：${outboundCount}筆`);
+                    if (checkCount > 0) reason.push(`盤點紀錄：${checkCount}筆`);
+                    
+                    results.details.push(`${part.part_number} - ${part.part_name}：已停用（${reason.join('，')}）`);
+                    logActivity(req, 'update', `停用料件：${part.part_number} - ${part.part_name}（有庫存或紀錄）`, 'part', partIdInt);
+                } else {
+                    // 沒有庫存和紀錄，可以刪除
+                    const deleteStmt = db.prepare('DELETE FROM parts WHERE id = ?');
+                    deleteStmt.run(partIdInt);
+                    
+                    results.deleted++;
+                    results.details.push(`${part.part_number} - ${part.part_name}：已刪除`);
+                    logActivity(req, 'delete', `刪除料件：${part.part_number} - ${part.part_name}`, 'part', partIdInt);
+                }
+            } catch (error) {
+                results.failed++;
+                results.details.push(`料件 ID ${partId}：處理失敗 - ${error.message}`);
+                console.error(`批量刪除料件 ${partId} 失敗:`, error);
+            }
+        });
+        
+        res.json({
+            success: true,
+            deleted: results.deleted,
+            deactivated: results.deactivated,
+            failed: results.failed,
+            details: results.details
+        });
+    } catch (error) {
+        console.error('批量刪除料件錯誤:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// 切換料件狀態（啟用/停用）- 僅管理員
+app.post('/parts/toggle-status/:id', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        const partIdInt = parseInt(id);
+        if (isNaN(partIdInt)) {
+            return res.json({ success: false, error: '無效的料件ID' });
+        }
+        
+        // 獲取當前狀態
+        const partStmt = db.prepare('SELECT id, part_number, part_name, COALESCE(is_active, 1) as is_active FROM parts WHERE id = ?');
+        const part = partStmt.get(partIdInt);
+        
+        if (!part) {
+            return res.json({ success: false, error: '料件不存在' });
+        }
+        
+        // 切換狀態
+        const newStatus = part.is_active === 0 ? 1 : 0;
+        const updateStmt = db.prepare('UPDATE parts SET is_active = ? WHERE id = ?');
+        updateStmt.run(newStatus, partIdInt);
+        
+        const action = newStatus === 1 ? '啟用' : '停用';
+        logActivity(req, 'update', `${action}料件：${part.part_number} - ${part.part_name}`, 'part', partIdInt);
+        
+        res.json({ 
+            success: true, 
+            is_active: newStatus,
+            message: `料件已${action}`
+        });
+    } catch (error) {
+        console.error('切換料件狀態錯誤:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // 條碼查詢 API
 app.get('/api/barcode/:barcode', (req, res) => {
     const { barcode } = req.params;
@@ -1324,9 +1483,11 @@ app.get('/api/barcode/:barcode', (req, res) => {
 // 入庫頁面
 app.get('/inbound', (req, res) => {
     const stmt = db.prepare(`
-        SELECT p.*, c.name as category_name 
+        SELECT p.*, c.name as category_name,
+               COALESCE(p.is_active, 1) as is_active
         FROM parts p 
         LEFT JOIN categories c ON p.category_id = c.id 
+        WHERE COALESCE(p.is_active, 1) = 1
         ORDER BY p.part_number
     `);
     const parts = stmt.all();
@@ -1529,6 +1690,7 @@ app.get('/outbound', (req, res) => {
             p.*, 
             c.name as category_name, 
             c.id as category_id,
+            COALESCE(p.is_active, 1) as is_active,
             -- 可出庫數量 = 總入庫（非歸還）- 非借測出庫 - 借測出庫總數 + 已歸還的借測數量
             COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0) - 
             COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0) - 
@@ -1541,7 +1703,8 @@ app.get('/outbound', (req, res) => {
             ), 0) as current_stock
         FROM parts p 
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE (
+        WHERE COALESCE(p.is_active, 1) = 1
+          AND (
             COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0) - 
             COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0) - 
             COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND is_loan = 1), 0) + 
@@ -1897,10 +2060,12 @@ app.get('/inventory/check', requireAuth, (req, res) => {
                 p.unit,
                 p.barcode,
                 c.name as category_name,
+                COALESCE(p.is_active, 1) as is_active,
                 COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0) - 
                 COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0) as system_quantity
             FROM parts p
             LEFT JOIN categories c ON p.category_id = c.id
+            WHERE COALESCE(p.is_active, 1) = 1
             ORDER BY p.part_number
         `);
         const parts = partsStmt.all();
@@ -2125,7 +2290,7 @@ app.post('/inventory/check/batch', requireAuth, (req, res) => {
         
         transaction();
         
-        logActivity(req, 'import', `匯入料件：成功 ${successCount} 筆，跳過 ${skipCount} 筆`, 'import', null);
+        logActivity(req, 'update', `批量盤點：成功 ${successCount} 項${errorCount > 0 ? `，失敗 ${errorCount} 項` : ''}${shouldAutoAdjust && adjustedCount > 0 ? `，已自動調整 ${adjustedCount} 項` : ''}`, 'inventory_check', currentSessionId);
         
         // 返回成功訊息
         if (errorCount === 0) {
@@ -2994,10 +3159,29 @@ app.post('/import', upload.single('excelFile'), async (req, res) => {
 
 // 用戶管理 - 列表（需要管理員權限）
 app.get('/users', requireAuth, requireAdmin, (req, res) => {
-    const stmt = db.prepare('SELECT id, username, full_name, email, role, is_active, created_at FROM users ORDER BY created_at DESC');
+    // 查詢使用者並關聯角色顯示名稱
+    const stmt = db.prepare(`
+        SELECT 
+            u.id, 
+            u.username, 
+            u.full_name, 
+            u.email, 
+            u.role, 
+            u.is_active, 
+            u.created_at,
+            COALESCE(r.display_name, u.role) as role_display_name
+        FROM users u
+        LEFT JOIN roles r ON u.role = r.role_name
+        ORDER BY u.created_at DESC
+    `);
     const users = stmt.all();
+    
+    // 讀取所有角色供前端使用
+    const rolesStmt = db.prepare('SELECT * FROM roles ORDER BY is_system DESC, display_name');
+    const roles = rolesStmt.all();
+    
     logActivity(req, 'view', '查看使用者列表', 'users', null);
-    res.render('users_list', { users, title: PAGE_TITLE });
+    res.render('users_list', { users, roles, title: PAGE_TITLE });
 });
 
 // 用戶管理 - 新增頁面
@@ -3083,6 +3267,22 @@ app.post('/users/edit/:id', requireAuth, requireAdmin, async (req, res) => {
     const { username, password, full_name, email, role, is_active } = req.body;
     
     try {
+        // 驗證角色是否存在
+        if (role) {
+            const roleCheckStmt = db.prepare('SELECT role_name FROM roles WHERE role_name = ?');
+            const roleExists = roleCheckStmt.get(role);
+            if (!roleExists) {
+                flash(req, 'error', `角色 "${role}" 不存在！`);
+                return res.redirect(`/users/edit/${id}`);
+            }
+        }
+        
+        // 確保 role 值不為空
+        const finalRole = role && role.trim() !== '' ? role.trim() : 'user';
+        
+        // 處理 is_active（checkbox 未勾選時不會提交，需要特別處理）
+        const isActiveValue = (is_active === '1' || is_active === 1 || is_active === true) ? 1 : 0;
+        
         if (password && password.trim() !== '') {
             // 如果有提供新密碼，則更新密碼
             const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -3091,7 +3291,7 @@ app.post('/users/edit/:id', requireAuth, requireAdmin, async (req, res) => {
                 SET username = ?, password_hash = ?, full_name = ?, email = ?, role = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `);
-            stmt.run(username, passwordHash, full_name || null, email || null, role || 'user', is_active ? 1 : 0, id);
+            stmt.run(username, passwordHash, full_name || null, email || null, finalRole, isActiveValue, id);
         } else {
             // 不更新密碼
             const stmt = db.prepare(`
@@ -3099,13 +3299,14 @@ app.post('/users/edit/:id', requireAuth, requireAdmin, async (req, res) => {
                 SET username = ?, full_name = ?, email = ?, role = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `);
-            stmt.run(username, full_name || null, email || null, role || 'user', is_active ? 1 : 0, id);
+            stmt.run(username, full_name || null, email || null, finalRole, isActiveValue, id);
         }
         
-        logActivity(req, 'update', `編輯使用者：${username}`, 'user', parseInt(id));
+        logActivity(req, 'update', `編輯使用者：${username}（角色：${finalRole}）`, 'user', parseInt(id));
         flash(req, 'success', '用戶更新成功！');
         res.redirect('/users');
     } catch (error) {
+        console.error('更新使用者錯誤:', error);
         if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             flash(req, 'error', '帳號已存在！');
         } else {

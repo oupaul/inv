@@ -228,6 +228,11 @@
             color: white;
         }
         
+        .badge-manager {
+            background-color: #ffc107;
+            color: #333;
+        }
+        
         .badge-user {
             background-color: #6c757d;
             color: white;
@@ -283,8 +288,19 @@
                     <td><%= user.full_name || '-' %></td>
                     <td><%= user.email || '-' %></td>
                     <td>
-                        <span class="badge <%= user.role === 'admin' ? 'badge-admin' : 'badge-user' %>">
-                            <%= user.role === 'admin' ? '管理員' : '一般用戶' %>
+                        <%
+                        // 根據角色決定 badge 樣式
+                        let badgeClass = 'badge-user';
+                        if (user.role === 'admin') {
+                            badgeClass = 'badge-admin';
+                        } else if (user.role === 'manager') {
+                            badgeClass = 'badge-manager';
+                        }
+                        // 使用 role_display_name 如果存在，否則使用預設顯示
+                        let roleDisplay = user.role_display_name || (user.role === 'admin' ? '管理員' : user.role === 'manager' ? '管理人員' : '一般用戶');
+                        %>
+                        <span class="badge <%= badgeClass %>">
+                            <%= roleDisplay %>
                         </span>
                     </td>
                     <td>
