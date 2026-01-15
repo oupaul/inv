@@ -139,6 +139,49 @@
         .progress-fill.danger {
             background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
         }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            transition: all 0.3s;
+            color: white;
+        }
+        
+        .btn-small:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -286,6 +329,25 @@
             <% } %>
         </div>
         
+        <!-- 系統設定 -->
+        <div class="health-section">
+            <h2>⚙️ 系統設定</h2>
+            <div class="table-counts">
+                <div class="table-count-item">
+                    <span class="health-label">強制登出時間</span>
+                    <span class="health-value">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="forceLogoutDisplay">
+                                <%= typeof forceLogoutMinutes !== 'undefined' ? forceLogoutMinutes : 480 %> 分鐘 
+                                (<%= typeof forceLogoutMinutes !== 'undefined' ? (forceLogoutMinutes / 60).toFixed(1) : 8 %> 小時)
+                            </span>
+                            <button type="button" class="btn-small btn-download" onclick="showForceLogoutModal()" style="background-color: #28a745;">✏️ 修改</button>
+                        </div>
+                    </span>
+                </div>
+            </div>
+        </div>
+        
         <!-- 資料表記錄統計 -->
         <% if (health.database.tables && health.database.tables.length > 0) { %>
         <div class="health-section">
@@ -307,11 +369,107 @@
         </div>
     </div>
     
+    <!-- 強制登出時間設定模態框 -->
+    <div id="forceLogoutModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <h2 style="margin-top: 0;">⏰ 設定強制登出時間</h2>
+            <div class="form-group">
+                <label for="forceLogoutMinutes">登出時間（分鐘）</label>
+                <input type="number" id="forceLogoutMinutes" min="1" max="10080" value="<%= typeof forceLogoutMinutes !== 'undefined' ? forceLogoutMinutes : 480 %>" required>
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    請輸入 1 到 10080 之間的數字（10080 分鐘 = 7 天）<br>
+                    當前設定：<span id="currentMinutesDisplay"><%= typeof forceLogoutMinutes !== 'undefined' ? forceLogoutMinutes : 480 %></span> 分鐘 
+                    (<span id="currentHoursDisplay"><%= typeof forceLogoutMinutes !== 'undefined' ? (forceLogoutMinutes / 60).toFixed(1) : 8 %></span> 小時)
+                </small>
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button type="button" class="btn btn-primary" onclick="saveForceLogoutSetting()">💾 保存設定</button>
+                <button type="button" class="btn btn-secondary" onclick="closeForceLogoutModal()">取消</button>
+            </div>
+            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; font-size: 13px; color: #666;">
+                <strong>📝 說明：</strong><br>
+                設定使用者登入後多少分鐘會被強制登出。系統會自動檢查所有使用者的登入時間，超過設定時間的使用者將被自動登出。
+            </div>
+        </div>
+    </div>
+    
     <script>
         // 自動刷新（每30秒）
         setTimeout(function() {
             location.reload();
         }, 30000);
+        
+        // 強制登出時間設定
+        function showForceLogoutModal() {
+            document.getElementById('forceLogoutModal').style.display = 'flex';
+            // 載入當前設定
+            fetch('/api/settings/force-logout')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('forceLogoutMinutes').value = data.forceLogoutMinutes;
+                        updateMinutesDisplay(data.forceLogoutMinutes);
+                    }
+                })
+                .catch(err => console.error('載入設定失敗:', err));
+        }
+        
+        function closeForceLogoutModal() {
+            document.getElementById('forceLogoutModal').style.display = 'none';
+        }
+        
+        function updateMinutesDisplay(minutes) {
+            const hours = (minutes / 60).toFixed(1);
+            document.getElementById('currentMinutesDisplay').textContent = minutes;
+            document.getElementById('currentHoursDisplay').textContent = hours;
+        }
+        
+        document.getElementById('forceLogoutMinutes')?.addEventListener('input', function(e) {
+            const minutes = parseInt(e.target.value);
+            if (!isNaN(minutes) && minutes >= 1 && minutes <= 10080) {
+                updateMinutesDisplay(minutes);
+            }
+        });
+        
+        function saveForceLogoutSetting() {
+            const minutes = parseInt(document.getElementById('forceLogoutMinutes').value);
+            
+            if (isNaN(minutes) || minutes < 1 || minutes > 10080) {
+                alert('請輸入 1 到 10080 之間的有效數字');
+                return;
+            }
+            
+            fetch('/api/settings/force-logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ minutes: minutes })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('設定已保存成功！');
+                    // 更新顯示
+                    const hours = (minutes / 60).toFixed(1);
+                    document.getElementById('forceLogoutDisplay').textContent = minutes + ' 分鐘 (' + hours + ' 小時)';
+                    closeForceLogoutModal();
+                    // 重新載入頁面以更新顯示
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    alert('保存失敗：' + (data.error || '未知錯誤'));
+                }
+            })
+            .catch(err => {
+                console.error('保存設定失敗:', err);
+                alert('保存設定時發生錯誤，請稍後再試');
+            });
+        }
+        
+        // 點擊模態框外部關閉
+        document.getElementById('forceLogoutModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeForceLogoutModal();
+        });
     </script>
 </body>
 </html>

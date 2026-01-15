@@ -406,6 +406,28 @@ function initDB() {
         )
     `);
     
+    // 系統設定表
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS system_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            setting_key TEXT UNIQUE NOT NULL,
+            setting_value TEXT,
+            description TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    
+    // 插入預設系統設定（如果不存在）
+    const checkSetting = db.prepare('SELECT COUNT(*) as count FROM system_settings WHERE setting_key = ?');
+    const forceLogoutSetting = checkSetting.get('force_logout_minutes');
+    if (!forceLogoutSetting || forceLogoutSetting.count === 0) {
+        const insertSetting = db.prepare(`
+            INSERT INTO system_settings (setting_key, setting_value, description)
+            VALUES (?, ?, ?)
+        `);
+        insertSetting.run('force_logout_minutes', '480', '強制使用者登出時間（分鐘），預設 8 小時（480 分鐘）');
+    }
+    
     // 插入預設角色
     const checkRoles = db.prepare('SELECT COUNT(*) as count FROM roles');
     const rolesCount = checkRoles.get();
@@ -552,9 +574,41 @@ function logActivity(req, actionType, actionDetail, targetType = null, targetId 
     }
 }
 
+// 獲取系統設定
+function getSystemSetting(key, defaultValue = null) {
+    try {
+        const stmt = db.prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?');
+        const result = stmt.get(key);
+        return result ? result.setting_value : defaultValue;
+    } catch (error) {
+        console.error('讀取系統設定失敗:', error);
+        return defaultValue;
+    }
+}
+
 // 認證中介軟體（可選，用於保護特定路由）
 function requireAuth(req, res, next) {
     if (req.session.user) {
+        // 檢查強制登出時間
+        const forceLogoutMinutes = parseInt(getSystemSetting('force_logout_minutes', '480'));
+        const loginTime = req.session.user.loginTime || Date.now();
+        const currentTime = Date.now();
+        const sessionDuration = (currentTime - loginTime) / 1000 / 60; // 分鐘
+        
+        if (sessionDuration > forceLogoutMinutes) {
+            // 記錄強制登出操作
+            logActivity(req, 'logout', `使用者 ${req.session.user.username} 因超過強制登出時間而登出`, 'user', req.session.user.id);
+            
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('強制登出錯誤:', err);
+                }
+                flash(req, 'warning', `您的登入時間已超過 ${forceLogoutMinutes} 分鐘，系統已自動登出。請重新登入。`);
+                res.redirect('/login');
+            });
+            return;
+        }
+        
         next();
     } else {
         flash(req, 'error', '請先登入');
@@ -606,13 +660,14 @@ app.post('/login', async (req, res) => {
             return res.redirect('/login');
         }
         
-        // 設置 session
+        // 設置 session（包含登入時間）
         req.session.user = {
             id: user.id,
             username: user.username,
             full_name: user.full_name,
             email: user.email,
-            role: user.role
+            role: user.role,
+            loginTime: Date.now() // 記錄登入時間戳
         };
         
         // 記錄登入操作
@@ -740,6 +795,26 @@ app.use((req, res, next) => {
     if (!req.session.user) {
         flash(req, 'error', '請先登入才能訪問此頁面');
         return res.redirect('/login');
+    }
+    
+    // 檢查強制登出時間
+    const forceLogoutMinutes = parseInt(getSystemSetting('force_logout_minutes', '480'));
+    const loginTime = req.session.user.loginTime || Date.now();
+    const currentTime = Date.now();
+    const sessionDuration = (currentTime - loginTime) / 1000 / 60; // 分鐘
+    
+    if (sessionDuration > forceLogoutMinutes) {
+        // 記錄強制登出操作
+        logActivity(req, 'logout', `使用者 ${req.session.user.username} 因超過強制登出時間而登出`, 'user', req.session.user.id);
+        
+        req.session.destroy((err) => {
+            if (err) {
+                console.error('強制登出錯誤:', err);
+            }
+            flash(req, 'warning', `您的登入時間已超過 ${forceLogoutMinutes} 分鐘，系統已自動登出。請重新登入。`);
+            res.redirect('/login');
+        });
+        return;
     }
     
     next();
@@ -3551,10 +3626,14 @@ app.get('/health', requireAuth, requireAdmin, (req, res) => {
         // Windows 或其他平台可能無法獲取磁碟資訊，忽略錯誤
     }
     
+    // 讀取強制登出時間設定
+    const forceLogoutMinutes = getSystemSetting('force_logout_minutes', '480');
+    
     res.render('health', { 
         health: healthInfo, 
         user: req.session.user, 
-        title: PAGE_TITLE 
+        title: PAGE_TITLE,
+        forceLogoutMinutes: parseInt(forceLogoutMinutes)
     });
 });
 
@@ -3587,6 +3666,47 @@ app.get('/api/health', requireAuth, requireAdmin, (req, res) => {
         
         res.json({ success: true, health: healthInfo });
     } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// API: 獲取強制登出時間設定
+app.get('/api/settings/force-logout', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const forceLogoutMinutes = getSystemSetting('force_logout_minutes', '480');
+        res.json({ success: true, forceLogoutMinutes: parseInt(forceLogoutMinutes) });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// API: 保存強制登出時間設定
+app.post('/api/settings/force-logout', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const { minutes } = req.body;
+        
+        // 驗證輸入
+        const minutesInt = parseInt(minutes);
+        if (isNaN(minutesInt) || minutesInt < 1 || minutesInt > 10080) { // 1分鐘到7天（10080分鐘）
+            return res.json({ success: false, error: '請輸入 1 到 10080 之間的有效數字（分鐘）' });
+        }
+        
+        // 更新或插入設定
+        const upsertStmt = db.prepare(`
+            INSERT INTO system_settings (setting_key, setting_value, description, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(setting_key) DO UPDATE SET
+                setting_value = excluded.setting_value,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+        upsertStmt.run('force_logout_minutes', minutesInt.toString(), '強制使用者登出時間（分鐘）');
+        
+        // 記錄操作
+        logActivity(req, 'update', `修改強制登出時間設定為 ${minutesInt} 分鐘`, 'system', null);
+        
+        res.json({ success: true, message: '設定已保存', forceLogoutMinutes: minutesInt });
+    } catch (error) {
+        console.error('保存強制登出時間設定失敗:', error);
         res.json({ success: false, error: error.message });
     }
 });
