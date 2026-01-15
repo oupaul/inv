@@ -338,6 +338,7 @@
                         <input type="text" id="barcode" name="barcode" value="<%= part.barcode || '' %>" placeholder="掃描或輸入條碼">
                         <button type="button" id="scanBtn" class="btn" style="background-color: #007bff;">📷 掃描</button>
                         <button type="button" id="lookupBtn" class="btn" style="background-color: #28a745;">🔍 查詢</button>
+                        <button type="button" id="clearBtn" class="btn" style="background-color: #6c757d;">🗑️ 清除</button>
                     </div>
                     <div class="barcode-camera" id="barcodeCamera">
                         <video id="barcode-video" autoplay playsinline></video>
@@ -478,6 +479,45 @@
                         barcodeStatus.className = 'barcode-status error';
                         barcodeStatus.style.display = 'block';
                     }
+                });
+            }
+            
+            // 清除按鈕
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    // 清空條碼輸入框
+                    barcodeInput.value = '';
+                    // 清除狀態顯示
+                    if (barcodeStatus) {
+                        barcodeStatus.style.display = 'none';
+                        barcodeStatus.textContent = '';
+                        barcodeStatus.className = 'barcode-status';
+                    }
+                    // 清除所有表單欄位（料號、料件名稱、規格、類型、單位）
+                    const partNumberInput = document.getElementById('part_number');
+                    const partNameInput = document.getElementById('part_name');
+                    const specificationInput = document.getElementById('specification');
+                    const categorySelect = document.getElementById('category_id');
+                    const unitSelect = document.getElementById('unit');
+                    const newCategoryInput = document.getElementById('new_category_name');
+                    const newUnitInput = document.getElementById('new_unit_name');
+                    
+                    if (partNumberInput) partNumberInput.value = '';
+                    if (partNameInput) partNameInput.value = '';
+                    if (specificationInput) specificationInput.value = '';
+                    if (categorySelect) categorySelect.value = '';
+                    if (unitSelect) unitSelect.value = '';
+                    if (newCategoryInput) {
+                        newCategoryInput.value = '';
+                        newCategoryInput.style.display = 'none';
+                    }
+                    if (newUnitInput) {
+                        newUnitInput.value = '';
+                        newUnitInput.style.display = 'none';
+                    }
+                    // 重新聚焦到條碼輸入框
+                    barcodeInput.focus();
                 });
             }
             

@@ -682,6 +682,7 @@
                         <input type="text" id="barcode" placeholder="掃描條碼或輸入料號後按 Enter" style="font-size: 16px; padding: 12px; flex: 1; border: 2px solid #e0e0e0; border-radius: 6px;" autofocus>
                         <button type="button" id="scanBtn" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); padding: 12px 20px; white-space: nowrap; min-width: 80px;">📷 掃描</button>
                         <button type="button" id="lookupBtn" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%); padding: 12px 20px; white-space: nowrap; min-width: 80px;">🔍 查詢</button>
+                        <button type="button" id="clearBtn" class="btn" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); padding: 12px 20px; white-space: nowrap; min-width: 80px;">🗑️ 清除</button>
                     </div>
                         <div class="barcode-camera" id="barcodeCamera">
                             <video id="barcode-video" autoplay playsinline></video>
@@ -718,7 +719,7 @@
                     </div>
                     <div class="form-group" style="margin-top: 15px;">
                         <label for="quick_quantity">盤點數量 *</label>
-                        <input type="number" id="quick_quantity" min="1" step="1" value="1" style="width: 100%; padding: 10px; font-size: 16px;" placeholder="數量">
+                        <input type="number" id="quick_quantity" min="0" step="1" value="1" style="width: 100%; padding: 10px; font-size: 16px;" placeholder="數量">
                     </div>
                     <button type="button" id="addToCartBtn" class="btn" style="width: 100%; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-top: 10px; padding: 12px; font-size: 16px; font-weight: 600;">
                         ➕ 加入盤點清單
@@ -974,9 +975,9 @@
                 return;
             }
             
-            const quantity = parseInt(quickQuantityInput.value) || 1;
-            if (quantity <= 0) {
-                alert('數量必須大於 0！');
+            const quantity = parseInt(quickQuantityInput.value);
+            if (isNaN(quantity) || quantity < 0) {
+                alert('數量不能為負數！');
                 // 重新聚焦到數量輸入框
                 setTimeout(() => quickQuantityInput.focus(), 100);
                 return;
@@ -1071,7 +1072,7 @@
                                     <input type="number" 
                                            class="cart-item-qty-input"
                                            value="${item.quantity}" 
-                                           min="1" 
+                                           min="0" 
                                            step="1"
                                            onchange="updateCartItemQuantity(${index}, this.value)"
                                            onblur="updateCartItemQuantity(${index}, this.value)">
@@ -1105,7 +1106,7 @@
                                 <td style="padding: 10px; text-align: center;">
                                     <input type="number" 
                                            value="${item.quantity}" 
-                                           min="1" 
+                                           min="0" 
                                            step="1" 
                                            style="width: 80px; padding: 5px; text-align: center; border: 1px solid #ddd; border-radius: 4px;"
                                            onchange="updateCartItemQuantity(${index}, this.value)"
@@ -1141,10 +1142,10 @@
         
         // 更新購物車項目數量
         window.updateCartItemQuantity = function(index, newQuantity) {
-            const quantity = parseInt(newQuantity) || 1;
-            if (quantity <= 0) {
-                alert('數量必須大於 0！');
-                checkCart[index].quantity = 1;
+            const quantity = parseInt(newQuantity);
+            if (isNaN(quantity) || quantity < 0) {
+                alert('數量不能為負數！');
+                checkCart[index].quantity = checkCart[index].quantity || 0;
                 updateCartDisplay();
                 return;
             }
@@ -1285,6 +1286,42 @@
             const barcode = barcodeInput.value.trim();
             lookupByBarcode(barcode);
         });
+        
+        // 清除按鈕
+        const clearBtn = document.getElementById('clearBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                // 清空條碼輸入框
+                barcodeInput.value = '';
+                // 清除狀態顯示
+                if (barcodeStatus) {
+                    barcodeStatus.style.display = 'none';
+                    barcodeStatus.textContent = '';
+                    barcodeStatus.className = 'barcode-status';
+                }
+                // 清除料件資訊顯示區域
+                if (partInfo) {
+                    partInfo.classList.add('hidden');
+                    // 清除料件資訊內容
+                    const infoPartNumber = document.getElementById('infoPartNumber');
+                    const infoPartName = document.getElementById('infoPartName');
+                    const previousQuantity = document.getElementById('previousQuantity');
+                    if (infoPartNumber) infoPartNumber.textContent = '-';
+                    if (infoPartName) infoPartName.textContent = '-';
+                    if (previousQuantity) previousQuantity.textContent = '-';
+                }
+                // 清除快速選擇料件下拉選單
+                if (quickPartSelect) {
+                    quickPartSelect.value = '';
+                }
+                // 清除快速數量輸入
+                if (quickQuantityInput) {
+                    quickQuantityInput.value = '1';
+                }
+                // 重新聚焦到條碼輸入框
+                barcodeInput.focus();
+            });
+        }
     </script>
 </body>
 </html>

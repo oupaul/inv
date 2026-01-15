@@ -279,6 +279,7 @@
                         <input type="text" id="barcode-input" placeholder="掃描或輸入條碼" style="flex: 1; min-width: 200px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
                         <button type="button" id="barcode-scan" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">📷 掃描</button>
                         <button type="button" id="barcode-lookup" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🔍 查詢</button>
+                        <button type="button" id="barcode-clear" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🗑️ 清除</button>
                     </div>
                     <div id="barcode-camera" style="display: none; margin-top: 10px;">
                         <video id="barcode-video" autoplay playsinline style="width: 100%; max-width: 640px; border: 2px solid #667eea; border-radius: 6px;"></video>
@@ -357,6 +358,7 @@
         const barcodeInput = document.getElementById('barcode-input');
         const barcodeScan = document.getElementById('barcode-scan');
         const barcodeLookup = document.getElementById('barcode-lookup');
+        const barcodeClear = document.getElementById('barcode-clear');
         const barcodeStatus = document.getElementById('barcode-status');
         const barcodeCamera = document.getElementById('barcode-camera');
         const video = document.getElementById('barcode-video');
@@ -471,6 +473,34 @@
                 e.preventDefault();
                 lookupBarcode(barcodeInput.value.trim());
             }
+        });
+        
+        // 清除按鈕
+        barcodeClear.addEventListener('click', () => {
+            // 清空條碼輸入框
+            barcodeInput.value = '';
+            // 清除狀態顯示
+            barcodeStatus.style.display = 'none';
+            barcodeStatus.textContent = '';
+            // 重置料件選擇
+            partSelect.value = '';
+            partSelect.dispatchEvent(new Event('change'));
+            // 清除數量輸入
+            const quantityInput = document.getElementById('quantity');
+            if (quantityInput) {
+                quantityInput.value = '';
+            }
+            // 清除歸還相關區塊
+            const returnSection = document.getElementById('return-section');
+            if (returnSection) {
+                returnSection.style.display = 'none';
+            }
+            const isReturnCheckbox = document.getElementById('is_return');
+            if (isReturnCheckbox) {
+                isReturnCheckbox.checked = false;
+            }
+            // 重新聚焦到條碼輸入框
+            barcodeInput.focus();
         });
         
         // 料件選擇改變時，查詢是否有未歸還的借測記錄

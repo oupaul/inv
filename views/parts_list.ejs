@@ -245,6 +245,9 @@
                 <a href="/parts/add" class="btn">➕ 新增料件</a>
                 <a href="/export/parts" class="btn">📥 匯出Excel</a>
                 <a href="/import" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">📤 Excel匯入</a>
+                <% if (user && user.role === 'admin') { %>
+                <button type="button" id="batchDeleteBtn" class="btn" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); display: none;">🗑️ 批量刪除</button>
+                <% } %>
             </div>
         </div>
 
@@ -252,28 +255,55 @@
         <table>
             <thead>
                 <tr>
+                    <% if (user && user.role === 'admin') { %>
+                    <th style="width: 50px;">
+                        <input type="checkbox" id="selectAll" style="width: 18px; height: 18px; cursor: pointer;">
+                    </th>
+                    <% } %>
                     <th>料號</th>
                     <th>料件名稱</th>
                     <th>類型</th>
                     <th>規格</th>
                     <th>條碼</th>
                     <th>單位</th>
+                    <th>狀態</th>
                     <th>建立時間</th>
                     <th>操作</th>
                 </tr>
             </thead>
             <tbody>
                 <% parts.forEach(function(part) { %>
-                <tr>
+                <tr data-part-id="<%= part.id %>" <%= part.is_active === 0 ? 'style="opacity: 0.6; background-color: #f8f9fa;"' : '' %>>
+                    <% if (user && user.role === 'admin') { %>
+                    <td>
+                        <input type="checkbox" class="part-checkbox" value="<%= part.id %>" style="width: 18px; height: 18px; cursor: pointer;">
+                    </td>
+                    <% } %>
                     <td><%= part.part_number %></td>
                     <td><%= part.part_name %></td>
                     <td><%= part.category_name || '-' %></td>
                     <td><%= part.specification || '-' %></td>
                     <td><%= part.barcode || '-' %></td>
                     <td><%= part.unit %></td>
+                    <td>
+                        <% if (part.is_active === 0) { %>
+                            <span style="color: #dc3545; font-weight: 600;">已停用</span>
+                        <% } else { %>
+                            <span style="color: #28a745; font-weight: 600;">正常</span>
+                        <% } %>
+                    </td>
                     <td><%= part.created_at %></td>
                     <td>
-                        <a href="/parts/edit/<%= part.id %>" class="btn btn-edit" style="padding: 6px 12px; font-size: 12px;">編輯</a>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <a href="/parts/edit/<%= part.id %>" class="btn btn-edit" style="padding: 6px 12px; font-size: 12px;">編輯</a>
+                            <% if (user && user.role === 'admin') { %>
+                                <% if (part.is_active === 0) { %>
+                                    <button type="button" class="btn btn-activate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>" style="padding: 6px 12px; font-size: 12px; background: linear-gradient(135deg, #28a745 0%, #218838 100%); border: none; color: white; border-radius: 6px; cursor: pointer; font-weight: 600;">啟用</button>
+                                <% } else { %>
+                                    <button type="button" class="btn btn-deactivate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>" style="padding: 6px 12px; font-size: 12px; background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); border: none; color: #333; border-radius: 6px; cursor: pointer; font-weight: 600;">停用</button>
+                                <% } %>
+                            <% } %>
+                        </div>
                     </td>
                 </tr>
                 <% }); %>
@@ -293,8 +323,237 @@
     </div>
     <script>
         <%- include('_common-mobile-script') %>
-        <%- include('_common-nav-script') %>
     </script>
+    <%- include('_common-nav-script') %>
+    
+    <% if (user && user.role === 'admin') { %>
+    <script>
+        // 批量刪除功能 - 等待 DOM 載入完成
+        document.addEventListener('DOMContentLoaded', function() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const partCheckboxes = document.querySelectorAll('.part-checkbox');
+            const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+            
+            // 如果沒有料件，直接返回
+            if (!partCheckboxes || partCheckboxes.length === 0) {
+                return;
+            }
+            
+            // 全選/取消全選
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function() {
+                    partCheckboxes.forEach(checkbox => {
+                        checkbox.checked = this.checked;
+                    });
+                    updateBatchDeleteButton();
+                });
+            }
+            
+            // 單個勾選框改變時
+            partCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateSelectAllState();
+                    updateBatchDeleteButton();
+                });
+            });
+            
+            // 更新全選狀態
+            function updateSelectAllState() {
+                if (selectAllCheckbox && partCheckboxes.length > 0) {
+                    const allChecked = Array.from(partCheckboxes).every(cb => cb.checked);
+                    const someChecked = Array.from(partCheckboxes).some(cb => cb.checked);
+                    selectAllCheckbox.checked = allChecked;
+                    selectAllCheckbox.indeterminate = someChecked && !allChecked;
+                }
+            }
+            
+            // 更新批量刪除按鈕顯示
+            function updateBatchDeleteButton() {
+                const checkedCount = Array.from(partCheckboxes).filter(cb => cb.checked).length;
+                if (batchDeleteBtn) {
+                    if (checkedCount > 0) {
+                        batchDeleteBtn.style.display = 'inline-block';
+                        batchDeleteBtn.textContent = '🗑️ 批量刪除 (' + checkedCount + ')';
+                    } else {
+                        batchDeleteBtn.style.display = 'none';
+                    }
+                }
+            }
+            
+            // 批量刪除按鈕點擊
+            if (batchDeleteBtn) {
+                batchDeleteBtn.addEventListener('click', function() {
+                    const checkedIds = Array.from(partCheckboxes)
+                        .filter(function(cb) { return cb.checked; })
+                        .map(function(cb) { return cb.value; });
+                    
+                    if (checkedIds.length === 0) {
+                        alert('請至少選擇一個料件');
+                        return;
+                    }
+                    
+                    if (!confirm('確定要刪除 ' + checkedIds.length + ' 個料件嗎？\n\n系統會自動檢查：\n- 有庫存的料件將改為停用\n- 有進出入庫紀錄的料件將改為停用\n- 只有完全沒有紀錄的料件才會真正刪除')) {
+                        return;
+                    }
+                    
+                    // 禁用按鈕，防止重複點擊
+                    batchDeleteBtn.disabled = true;
+                    const originalText = batchDeleteBtn.textContent;
+                    batchDeleteBtn.textContent = '處理中...';
+                    
+                    // 發送批量刪除請求
+                    fetch('/parts/batch-delete', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ part_ids: checkedIds })
+                    })
+                    .then(function(res) {
+                        if (!res.ok) {
+                            throw new Error('HTTP error! status: ' + res.status);
+                        }
+                        return res.json();
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            var message = '處理完成！\n\n';
+                            if (data.deleted > 0) {
+                                message += '✓ 已刪除：' + data.deleted + ' 個料件\n';
+                            }
+                            if (data.deactivated > 0) {
+                                message += '⚠ 已停用：' + data.deactivated + ' 個料件（有庫存或紀錄）\n';
+                            }
+                            if (data.failed > 0) {
+                                message += '✗ 處理失敗：' + data.failed + ' 個料件\n';
+                            }
+                            if (data.details && data.details.length > 0 && data.details.length <= 10) {
+                                message += '\n詳細資訊：\n' + data.details.join('\n');
+                            } else if (data.details && data.details.length > 10) {
+                                message += '\n詳細資訊（前10項）：\n' + data.details.slice(0, 10).join('\n') + '\n... 還有 ' + (data.details.length - 10) + ' 項';
+                            }
+                            alert(message);
+                            location.reload();
+                        } else {
+                            alert('批量刪除失敗：' + (data.error || '未知錯誤'));
+                            batchDeleteBtn.disabled = false;
+                            batchDeleteBtn.textContent = originalText;
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('批量刪除錯誤:', err);
+                        alert('批量刪除時發生錯誤，請稍後再試');
+                        batchDeleteBtn.disabled = false;
+                        batchDeleteBtn.textContent = originalText;
+                    });
+                });
+            }
+            
+            // 初始化：更新按鈕狀態
+            updateBatchDeleteButton();
+            
+            // 啟用/停用按鈕功能
+            const activateButtons = document.querySelectorAll('.btn-activate');
+            const deactivateButtons = document.querySelectorAll('.btn-deactivate');
+            
+            // 處理啟用按鈕
+            activateButtons.forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const partId = this.getAttribute('data-part-id');
+                    const partName = this.getAttribute('data-part-name');
+                    
+                    if (!confirm('確定要啟用料件「' + partName + '」嗎？')) {
+                        return;
+                    }
+                    
+                    // 禁用按鈕，防止重複點擊
+                    this.disabled = true;
+                    const originalText = this.textContent;
+                    this.textContent = '處理中...';
+                    
+                    fetch('/parts/toggle-status/' + partId, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(function(res) {
+                        return res.json().then(function(data) {
+                            if (!res.ok) {
+                                throw new Error(data.error || 'HTTP error! status: ' + res.status);
+                            }
+                            return data;
+                        });
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            alert('料件已啟用');
+                            location.reload();
+                        } else {
+                            alert('啟用失敗：' + (data.error || '未知錯誤'));
+                            btn.disabled = false;
+                            btn.textContent = originalText;
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('啟用料件錯誤:', err);
+                        alert('啟用料件時發生錯誤：' + (err.message || '請稍後再試'));
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    });
+                });
+            });
+            
+            // 處理停用按鈕
+            deactivateButtons.forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const partId = this.getAttribute('data-part-id');
+                    const partName = this.getAttribute('data-part-name');
+                    
+                    if (!confirm('確定要停用料件「' + partName + '」嗎？\n\n停用後該料件將不會在庫存查詢中顯示，但所有紀錄都會保留。')) {
+                        return;
+                    }
+                    
+                    // 禁用按鈕，防止重複點擊
+                    this.disabled = true;
+                    const originalText = this.textContent;
+                    this.textContent = '處理中...';
+                    
+                    fetch('/parts/toggle-status/' + partId, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(function(res) {
+                        return res.json().then(function(data) {
+                            if (!res.ok) {
+                                throw new Error(data.error || 'HTTP error! status: ' + res.status);
+                            }
+                            return data;
+                        });
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            alert('料件已停用');
+                            location.reload();
+                        } else {
+                            alert('停用失敗：' + (data.error || '未知錯誤'));
+                            btn.disabled = false;
+                            btn.textContent = originalText;
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('停用料件錯誤:', err);
+                        alert('停用料件時發生錯誤：' + (err.message || '請稍後再試'));
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    });
+                });
+            });
+        });
+    </script>
+    <% } %>
 </body>
 </html>
 

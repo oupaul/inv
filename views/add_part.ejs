@@ -447,6 +447,7 @@
                             <input type="text" id="barcode" name="barcode" placeholder="掃描或輸入條碼">
                             <button type="button" id="scanBtn" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">📷 掃描</button>
                             <button type="button" id="lookupBtn" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">🔍 查詢</button>
+                            <button type="button" id="clearBtn" class="btn" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);">🗑️ 清除</button>
                         </div>
                         <div class="barcode-camera" id="barcodeCamera">
                             <video id="barcode-video" autoplay playsinline></video>
@@ -650,6 +651,47 @@
                     barcodeStatus.style.display = 'block';
                 }
             });
+            
+            // 清除按鈕
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    // 保存當前條碼值（清除前）
+                    const currentBarcode = barcodeInput.value.trim();
+                    // 清空條碼輸入框
+                    barcodeInput.value = '';
+                    // 清除狀態顯示
+                    if (barcodeStatus) {
+                        barcodeStatus.style.display = 'none';
+                        barcodeStatus.textContent = '';
+                        barcodeStatus.className = 'barcode-status';
+                    }
+                    // 清除所有表單欄位
+                    const partNumberInput = document.getElementById('part_number');
+                    const partNameInput = document.getElementById('part_name');
+                    const specificationInput = document.getElementById('specification');
+                    const categorySelect = document.getElementById('category_id');
+                    const unitSelect = document.getElementById('unit');
+                    const newCategoryInput = document.getElementById('new_category_name');
+                    const newUnitInput = document.getElementById('new_unit_name');
+                    
+                    if (partNumberInput) partNumberInput.value = '';
+                    if (partNameInput) partNameInput.value = '';
+                    if (specificationInput) specificationInput.value = '';
+                    if (categorySelect) categorySelect.value = '';
+                    if (unitSelect) unitSelect.value = '';
+                    if (newCategoryInput) {
+                        newCategoryInput.value = '';
+                        newCategoryInput.style.display = 'none';
+                    }
+                    if (newUnitInput) {
+                        newUnitInput.value = '';
+                        newUnitInput.style.display = 'none';
+                    }
+                    // 重新聚焦到條碼輸入框
+                    barcodeInput.focus();
+                });
+            }
             
             // 查詢條碼資訊（用於參考，如果找到現有料件可以選擇是否複製）
             async function lookupBarcodeForReference(barcode) {
