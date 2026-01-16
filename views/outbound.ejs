@@ -370,6 +370,26 @@
                 <textarea id="note" name="note" placeholder="請輸入備註（選填）"></textarea>
             </div>
             
+            <!-- 發票信息（僅非借測時顯示） -->
+            <div class="form-group" id="invoice-fields" style="padding: 15px; background-color: #f0f8ff; border-radius: 6px; border: 2px solid #b3d9ff;">
+                <h3 style="margin-top: 0; margin-bottom: 15px; color: #0066cc; font-size: 16px;">🧾 發票信息（選填）</h3>
+                
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="has_invoice" name="has_invoice" style="width: auto; margin: 0;">
+                        <span style="font-weight: 600; color: #0066cc;">已開立發票</span>
+                    </label>
+                </div>
+                
+                <div class="form-group" id="invoice-number-group" style="margin-bottom: 0; display: none;">
+                    <label for="invoice_number">發票號碼</label>
+                    <input type="text" id="invoice_number" name="invoice_number" placeholder="請輸入發票號碼">
+                    <small style="color: #666; margin-top: 5px; display: block;">
+                        💡 提示：如有開立發票，請輸入發票號碼以便追蹤。
+                    </small>
+                </div>
+            </div>
+            
             <button type="submit" id="submitBtn">確認出庫</button>
             <a href="/" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
         </form>
@@ -469,6 +489,10 @@
         
         // 借測勾選事件處理
         const loanDueDateRequired = document.getElementById('loan-due-date-required');
+        const hasInvoiceCheckbox = document.getElementById('has_invoice');
+        const invoiceFields = document.getElementById('invoice-fields');
+        const invoiceNumberGroup = document.getElementById('invoice-number-group');
+        const invoiceNumberInput = document.getElementById('invoice_number');
         
         if (isLoanCheckbox) {
             // 確保初始狀態：未勾選時，到期日期不是必填的
@@ -482,6 +506,10 @@
             isLoanCheckbox.addEventListener('change', function() {
                 if (this.checked) {
                     loanFields.style.display = 'block';
+                    // 借測時隱藏發票欄位
+                    if (invoiceFields) {
+                        invoiceFields.style.display = 'none';
+                    }
                     // 設置到期日期為必填
                     if (loanDueDate) {
                         loanDueDate.required = true;
@@ -499,6 +527,10 @@
                     }
                 } else {
                     loanFields.style.display = 'none';
+                    // 非借測時顯示發票欄位
+                    if (invoiceFields) {
+                        invoiceFields.style.display = 'block';
+                    }
                     if (loanDueDate) {
                         loanDueDate.required = false;
                         loanDueDate.value = '';
@@ -509,6 +541,57 @@
                     }
                 }
             });
+            
+            // 初始狀態：如果是借測，隱藏發票欄位；否則顯示
+            if (invoiceFields) {
+                if (isLoanCheckbox.checked) {
+                    invoiceFields.style.display = 'none';
+                } else {
+                    invoiceFields.style.display = 'block';
+                }
+            }
+        }
+        
+        // 發票勾選事件處理
+        if (hasInvoiceCheckbox && invoiceNumberGroup) {
+            hasInvoiceCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    invoiceNumberGroup.style.display = 'block';
+                } else {
+                    invoiceNumberGroup.style.display = 'none';
+                    if (invoiceNumberInput) {
+                        invoiceNumberInput.value = '';
+                    }
+                }
+            });
+            
+            // 初始狀態
+            if (hasInvoiceCheckbox.checked) {
+                invoiceNumberGroup.style.display = 'block';
+            } else {
+                invoiceNumberGroup.style.display = 'none';
+            }
+        }
+        
+        // 發票勾選事件處理
+        if (hasInvoiceCheckbox && invoiceNumberGroup) {
+            hasInvoiceCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    invoiceNumberGroup.style.display = 'block';
+                } else {
+                    invoiceNumberGroup.style.display = 'none';
+                    if (invoiceNumberInput) {
+                        invoiceNumberInput.value = '';
+                    }
+                }
+            });
+            
+            // 初始狀態
+            if (hasInvoiceCheckbox.checked) {
+                invoiceNumberGroup.style.display = 'block';
+            } else {
+                invoiceNumberGroup.style.display = 'none';
+            }
             
             // 出庫日期改變時，更新到期日期相關設定（如果已勾選借測）
             if (outboundDate && loanDueDate) {

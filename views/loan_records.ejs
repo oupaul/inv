@@ -371,6 +371,7 @@
                     <th>單位</th>
                     <th>狀態</th>
                     <th>備註</th>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -435,6 +436,15 @@
                         <% } %>
                     </td>
                     <td><%= record.loan_note || '-' %></td>
+                    <td>
+                        <button class="btn-convert-outbound" 
+                                data-id="<%= record.id %>" 
+                                data-part-name="<%= record.part_name %>"
+                                data-remaining="<%= record.remaining_quantity %>"
+                                style="background-color: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.3s;">
+                            📤 轉出貨
+                        </button>
+                    </td>
                 </tr>
                 <% }); %>
             </tbody>
@@ -448,7 +458,61 @@
     </div>
     <script>
         <%- include('_common-mobile-script') %>
-        <%- include('_common-nav-script') %>
+    </script>
+    <%- include('_common-nav-script') %>
+    
+    <script>
+        // 轉出貨功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const convertButtons = document.querySelectorAll('.btn-convert-outbound');
+            
+            convertButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const recordId = this.getAttribute('data-id');
+                    const partName = this.getAttribute('data-part-name');
+                    const remaining = this.getAttribute('data-remaining');
+                    
+                    if (!confirm('確定要將此借測記錄轉為正常出貨嗎？\n\n料件：' + partName + '\n未歸還數量：' + remaining + '\n\n轉換後，此記錄將不再視為借測，會影響庫存計算。')) {
+                        return;
+                    }
+                    
+                    // 禁用按鈕，防止重複點擊
+                    this.disabled = true;
+                    const originalText = this.textContent;
+                    this.textContent = '處理中...';
+                    
+                    // 發送轉換請求
+                    fetch('/api/loans/convert-to-outbound/' + recordId, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(function(res) {
+                        if (!res.ok) {
+                            throw new Error('HTTP error! status: ' + res.status);
+                        }
+                        return res.json();
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            alert('轉換成功！');
+                            location.reload();
+                        } else {
+                            alert('轉換失敗：' + (data.error || '未知錯誤'));
+                            button.disabled = false;
+                            button.textContent = originalText;
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('轉換錯誤:', err);
+                        alert('轉換時發生錯誤，請稍後再試');
+                        button.disabled = false;
+                        button.textContent = originalText;
+                    });
+                });
+            });
+        });
     </script>
 </body>
 </html>

@@ -725,6 +725,7 @@
                     <div class="search-buttons">
                         <button type="submit">🔍 搜尋</button>
                         <a href="/transaction/records" class="btn btn-clear">清除</a>
+                        <a href="/export/transaction-records?search=<%= encodeURIComponent(search || '') %>&type=<%= encodeURIComponent(type || '') %>&date_from=<%= encodeURIComponent(date_from || '') %>&date_to=<%= encodeURIComponent(date_to || '') %>" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">📊 匯出報表</a>
                     </div>
                 </div>
             </form>
@@ -745,6 +746,7 @@
                     <th>單位</th>
                     <th>操作人員</th>
                     <th>備註</th>
+                    <th>特殊標記</th>
                     <th>記錄時間</th>
                 </tr>
             </thead>
@@ -757,6 +759,9 @@
                             <span class="type-badge inbound">📥 入庫</span>
                         <% } else if (record.type === 'outbound') { %>
                             <span class="type-badge outbound">📤 出庫</span>
+                            <% if (record.converted_from_loan) { %>
+                                <br><small style="color: #ffc107; font-weight: 600;">🔄 借測轉出</small>
+                            <% } %>
                         <% } else if (record.type === 'return') { %>
                             <span class="type-badge return">🔄 歸還</span>
                         <% } else if (record.type === 'loan') { %>
@@ -771,6 +776,21 @@
                     <td><%= record.unit %></td>
                     <td style="color: #667eea; font-weight: 500;"><%= record.created_by || '系統' %></td>
                     <td><%= record.note || '-' %></td>
+                    <td>
+                        <% if (record.type === 'outbound' && record.has_invoice) { %>
+                            <span style="color: #28a745; font-weight: 600; font-size: 12px;">✅ 已開發票</span>
+                            <% if (record.invoice_number) { %>
+                                <br><small style="color: #666; font-size: 11px;">📄 <%= record.invoice_number %></small>
+                            <% } %>
+                            <% if (record.outbound_id) { %>
+                                <br><button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="<%= record.has_invoice %>" data-invoice-number="<%= record.invoice_number || '' %>" style="background-color: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px;">編輯</button>
+                            <% } %>
+                        <% } else if (record.type === 'outbound' && !record.has_invoice && record.outbound_id) { %>
+                            <button class="btn-add-invoice" data-id="<%= record.outbound_id %>" style="background-color: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">添加發票</button>
+                        <% } else { %>
+                            -
+                        <% } %>
+                    </td>
                     <td style="font-size: 12px; color: #999;"><%= record.created_at %></td>
                 </tr>
                 <% }); %>
@@ -786,7 +806,228 @@
     </div>
     <script>
         <%- include('_common-mobile-script') %>
-        <%- include('_common-nav-script') %>
+    </script>
+    <%- include('_common-nav-script') %>
+    
+    <script>
+        // 增強出入庫記錄的手機版顯示
+        (function() {
+            function enhanceTransactionCards() {
+                const container = document.querySelector('#transactionTable + .table-mobile-container');
+                if (!container) return;
+                
+                const cards = container.querySelectorAll('.table-mobile-card');
+                cards.forEach(function(card) {
+                    // 獲取類型 badge
+                    const typeBadge = card.querySelector('.type-badge');
+                    if (typeBadge) {
+                        let transactionType = '';
+                        if (typeBadge.classList.contains('inbound')) {
+                            transactionType = 'inbound';
+                        } else if (typeBadge.classList.contains('outbound')) {
+                            transactionType = 'outbound';
+                        } else if (typeBadge.classList.contains('return')) {
+                            transactionType = 'return';
+                        } else if (typeBadge.classList.contains('loan')) {
+                            transactionType = 'loan';
+                        }
+                        
+                        if (transactionType) {
+                            card.setAttribute('data-transaction-type', transactionType);
+                        }
+                    }
+                    
+                    // 檢查數量類型（正數或負數）
+                    const quantityValue = card.querySelector('.table-mobile-card-row:nth-child(5) .table-mobile-card-value');
+                    if (quantityValue) {
+                        const quantityText = quantityValue.textContent || '';
+                        if (quantityText.startsWith('-')) {
+                            card.setAttribute('data-quantity-type', 'negative');
+                        } else {
+                            card.setAttribute('data-quantity-type', 'positive');
+                        }
+                    }
+                });
+            }
+            
+            // 等待表格轉換完成後增強卡片
+            function waitForTableConversion() {
+                const checkInterval = setInterval(function() {
+                    const container = document.querySelector('#transactionTable + .table-mobile-container');
+                    if (container && container.children.length > 0) {
+                        clearInterval(checkInterval);
+                        enhanceTransactionCards();
+                    }
+                }, 100);
+                
+                // 最多等待3秒
+                setTimeout(function() {
+                    clearInterval(checkInterval);
+                }, 3000);
+            }
+            
+            if (window.innerWidth <= 768) {
+                waitForTableConversion();
+            }
+            
+            // 窗口大小改變時重新處理
+            let resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    if (window.innerWidth <= 768) {
+                        waitForTableConversion();
+                    }
+                }, 300);
+            });
+        })();
+        
+        // 編輯發票信息功能
+        (function() {
+            function showInvoiceModal(recordId, hasInvoice, invoiceNumber) {
+                // 檢查模態框是否已存在
+                let modal = document.getElementById('invoiceModal');
+                
+                if (!modal) {
+                    // 創建模態框
+                    const modalHtml = `
+                        <div id="invoiceModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+                            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative;">
+                                <h2 style="margin-top: 0; margin-bottom: 20px; color: #333;">🧾 發票信息</h2>
+                                <input type="hidden" id="invoiceRecordId" value="">
+                                <div style="margin-bottom: 20px;">
+                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600;">
+                                        <input type="checkbox" id="modalHasInvoice" style="width: auto;">
+                                        <span>已開立發票</span>
+                                    </label>
+                                </div>
+                                <div id="modalInvoiceNumberGroup" style="margin-bottom: 20px; display: none;">
+                                    <label for="modalInvoiceNumber" style="display: block; margin-bottom: 8px; font-weight: 600;">發票號碼</label>
+                                    <input type="text" id="modalInvoiceNumber" placeholder="請輸入發票號碼" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                                </div>
+                                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                    <button id="modalInvoiceCancel" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600;">取消</button>
+                                    <button id="modalInvoiceSave" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600;">儲存</button>
+                                </div>
+                                <button id="modalInvoiceClose" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    modal = document.getElementById('invoiceModal');
+                    
+                    // 綁定事件
+                    const modalHasInvoice = document.getElementById('modalHasInvoice');
+                    const modalInvoiceNumberGroup = document.getElementById('modalInvoiceNumberGroup');
+                    const modalInvoiceNumber = document.getElementById('modalInvoiceNumber');
+                    const modalCloseBtn = document.getElementById('modalInvoiceClose');
+                    const modalSaveBtn = document.getElementById('modalInvoiceSave');
+                    const modalCancelBtn = document.getElementById('modalInvoiceCancel');
+                    
+                    // 發票勾選事件
+                    modalHasInvoice.addEventListener('change', function() {
+                        modalInvoiceNumberGroup.style.display = this.checked ? 'block' : 'none';
+                        if (!this.checked) {
+                            modalInvoiceNumber.value = '';
+                        }
+                    });
+                    
+                    // 關閉按鈕
+                    modalCloseBtn.addEventListener('click', function() {
+                        modal.style.display = 'none';
+                    });
+                    
+                    modalCancelBtn.addEventListener('click', function() {
+                        modal.style.display = 'none';
+                    });
+                    
+                    // 儲存按鈕
+                    modalSaveBtn.addEventListener('click', function() {
+                        const recordId = document.getElementById('invoiceRecordId').value;
+                        const hasInvoice = modalHasInvoice.checked;
+                        const invoiceNumber = modalInvoiceNumber.value.trim();
+                        
+                        if (hasInvoice && !invoiceNumber) {
+                            alert('請輸入發票號碼');
+                            return;
+                        }
+                        
+                        saveInvoiceInfo(recordId, hasInvoice, invoiceNumber, modalSaveBtn);
+                    });
+                    
+                    // 點擊外部關閉
+                    modal.addEventListener('click', function(e) {
+                        if (e.target === modal) {
+                            modal.style.display = 'none';
+                        }
+                    });
+                }
+                
+                // 設置值
+                document.getElementById('invoiceRecordId').value = recordId;
+                document.getElementById('modalHasInvoice').checked = hasInvoice;
+                document.getElementById('modalInvoiceNumber').value = invoiceNumber;
+                document.getElementById('modalInvoiceNumberGroup').style.display = hasInvoice ? 'block' : 'none';
+                
+                // 顯示模態框
+                modal.style.display = 'flex';
+            }
+            
+            function saveInvoiceInfo(recordId, hasInvoice, invoiceNumber, saveBtn) {
+                const originalText = saveBtn.textContent;
+                saveBtn.disabled = true;
+                saveBtn.textContent = '處理中...';
+                
+                fetch('/api/outbound/' + recordId + '/invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        has_invoice: hasInvoice,
+                        invoice_number: invoiceNumber
+                    })
+                })
+                .then(function(res) {
+                    if (!res.ok) {
+                        throw new Error('HTTP error! status: ' + res.status);
+                    }
+                    return res.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        alert('發票信息已更新');
+                        location.reload();
+                    } else {
+                        alert('更新失敗：' + (data.error || '未知錯誤'));
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = originalText;
+                    }
+                })
+                .catch(function(err) {
+                    console.error('更新發票信息錯誤:', err);
+                    alert('更新時發生錯誤，請稍後再試');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalText;
+                });
+            }
+            
+            // 初始化事件監聽器
+            document.addEventListener('DOMContentLoaded', function() {
+                // 添加發票按鈕
+                document.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('btn-add-invoice')) {
+                        const recordId = e.target.getAttribute('data-id');
+                        showInvoiceModal(recordId, false, '');
+                    } else if (e.target.classList.contains('btn-edit-invoice')) {
+                        const recordId = e.target.getAttribute('data-id');
+                        const hasInvoice = e.target.getAttribute('data-has-invoice') === '1';
+                        const invoiceNumber = e.target.getAttribute('data-invoice-number') || '';
+                        showInvoiceModal(recordId, hasInvoice, invoiceNumber);
+                    }
+                });
+            });
+        })();
     </script>
 </body>
 </html>

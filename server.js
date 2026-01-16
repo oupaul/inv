@@ -255,6 +255,33 @@ function initDB() {
         }
     }
     
+    // 為現有資料庫添加 converted_from_loan 欄位（標記是否由借測轉換而來）
+    if (!columnExists('outbound_records', 'converted_from_loan')) {
+        try {
+            db.exec(`ALTER TABLE outbound_records ADD COLUMN converted_from_loan INTEGER DEFAULT 0`);
+        } catch (e) {
+            console.error('添加 converted_from_loan 欄位失敗:', e.message);
+        }
+    }
+    
+    // 為現有資料庫添加 has_invoice 欄位（標記是否有開立發票）
+    if (!columnExists('outbound_records', 'has_invoice')) {
+        try {
+            db.exec(`ALTER TABLE outbound_records ADD COLUMN has_invoice INTEGER DEFAULT 0`);
+        } catch (e) {
+            console.error('添加 has_invoice 欄位失敗:', e.message);
+        }
+    }
+    
+    // 為現有資料庫添加 invoice_number 欄位（發票號碼）
+    if (!columnExists('outbound_records', 'invoice_number')) {
+        try {
+            db.exec(`ALTER TABLE outbound_records ADD COLUMN invoice_number TEXT`);
+        } catch (e) {
+            console.error('添加 invoice_number 欄位失敗:', e.message);
+        }
+    }
+    
     // 盤點事件表（每個盤點事件代表一次完整的盤點作業）
     db.exec(`
         CREATE TABLE IF NOT EXISTS inventory_check_sessions (
@@ -1603,7 +1630,11 @@ app.get('/transaction/records', requireAuth, (req, res) => {
             p.unit,
             o.note,
             o.created_by,
-            o.created_at
+            o.created_at,
+            o.converted_from_loan,
+            o.has_invoice,
+            o.invoice_number,
+            o.id as outbound_id
         FROM outbound_records o
         JOIN parts p ON o.part_id = p.id
         WHERE 1=1
@@ -1771,19 +1802,34 @@ app.post('/outbound', (req, res) => {
         
         const createdBy = req.session.user ? (req.session.user.full_name || req.session.user.username) : '系統';
         
+        // 處理發票信息（僅非借測時）
+        let hasInvoice = 0;
+        let invoiceNumber = null;
+        
+        if (!isLoan) {
+            // 非借測時才處理發票信息
+            hasInvoice = (req.body.has_invoice === 'on' || req.body.has_invoice === 'true' || req.body.has_invoice === true) ? 1 : 0;
+            invoiceNumber = hasInvoice === 1 && req.body.invoice_number ? String(req.body.invoice_number).trim() : null;
+            if (invoiceNumber === '') {
+                invoiceNumber = null;
+            }
+        }
+        
         const stmt = db.prepare(`
-            INSERT INTO outbound_records (part_id, quantity, outbound_date, note, is_loan, loan_due_date, notification_sent, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO outbound_records (part_id, quantity, outbound_date, note, is_loan, loan_due_date, notification_sent, created_by, has_invoice, invoice_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const result = stmt.run(
-            part_id, 
-            qty, 
-            outbound_date, 
-            note || null, 
-            isLoan,
-            (isLoan && loan_due_date) ? loan_due_date : null,
+            parseInt(part_id), 
+            parseInt(qty), 
+            String(outbound_date), 
+            note ? String(note) : null, 
+            isLoan ? 1 : 0,
+            (isLoan && loan_due_date) ? String(loan_due_date) : null,
             0,  // 預設未發送通知
-            createdBy
+            String(createdBy),
+            hasInvoice,
+            invoiceNumber
         );
         
         const partStmt = db.prepare('SELECT part_number, part_name FROM parts WHERE id = ?');
@@ -1931,6 +1977,131 @@ app.get('/loans', requireAuth, (req, res) => {
     
     const records = stmt.all();
     res.render('loan_records', { records, user: req.session.user, title: PAGE_TITLE });
+});
+
+// API: 將借測記錄轉為正常出貨
+app.post('/api/loans/convert-to-outbound/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        // 檢查記錄是否存在且是借測記錄
+        const checkStmt = db.prepare(`
+            SELECT 
+                o.id,
+                o.part_id,
+                o.quantity as loaned_quantity,
+                o.is_loan,
+                p.part_number,
+                p.part_name,
+                COALESCE(SUM(i.quantity), 0) as returned_quantity,
+                o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity
+            FROM outbound_records o
+            JOIN parts p ON o.part_id = p.id
+            LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
+            WHERE o.id = ? AND o.is_loan = 1
+            GROUP BY o.id
+        `);
+        
+        const record = checkStmt.get(id);
+        
+        if (!record) {
+            return res.json({ 
+                success: false, 
+                error: '找不到該借測記錄或該記錄不是借測記錄' 
+            });
+        }
+        
+        // 檢查是否有未歸還的數量
+        if (record.remaining_quantity <= 0) {
+            return res.json({ 
+                success: false, 
+                error: '該借測記錄已全部歸還，無法轉為出貨' 
+            });
+        }
+        
+        // 將借測記錄轉為正常出貨，標記為借測轉換而來
+        const updateStmt = db.prepare(`
+            UPDATE outbound_records 
+            SET is_loan = 0, 
+                loan_due_date = NULL,
+                notification_sent = 0,
+                converted_from_loan = 1
+            WHERE id = ?
+        `);
+        
+        updateStmt.run(id);
+        
+        // 記錄活動
+        const partInfo = `${record.part_number} - ${record.part_name}`;
+        logActivity(req, 'outbound', `借測轉出貨：${partInfo}，數量：${record.loaned_quantity}（未歸還：${record.remaining_quantity}）`, 'outbound_record', id);
+        
+        res.json({ 
+            success: true, 
+            message: '轉換成功',
+            remaining_quantity: record.remaining_quantity
+        });
+    } catch (error) {
+        console.error('轉換借測記錄錯誤:', error);
+        res.json({ 
+            success: false, 
+            error: error.message || '轉換失敗' 
+        });
+    }
+});
+
+// API: 更新出庫記錄的發票信息
+app.post('/api/outbound/:id/invoice', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { has_invoice, invoice_number } = req.body;
+    
+    try {
+        const hasInvoice = has_invoice === true || has_invoice === 'true' || has_invoice === 1 ? 1 : 0;
+        const invoiceNumber = hasInvoice && invoice_number ? invoice_number.trim() : null;
+        
+        // 檢查記錄是否存在
+        const checkStmt = db.prepare('SELECT id, part_id FROM outbound_records WHERE id = ?');
+        const record = checkStmt.get(id);
+        
+        if (!record) {
+            return res.json({ 
+                success: false, 
+                error: '找不到該出庫記錄' 
+            });
+        }
+        
+        // 獲取料件信息
+        const partStmt = db.prepare('SELECT part_number, part_name FROM parts WHERE id = ?');
+        const part = partStmt.get(record.part_id);
+        const partInfo = part ? `${part.part_number} - ${part.part_name}` : `料件ID: ${record.part_id}`;
+        
+        // 更新發票信息
+        const updateStmt = db.prepare(`
+            UPDATE outbound_records 
+            SET has_invoice = ?, 
+                invoice_number = ?
+            WHERE id = ?
+        `);
+        
+        updateStmt.run(hasInvoice, invoiceNumber, id);
+        
+        // 記錄活動
+        const action = hasInvoice ? '添加發票信息' : '移除發票信息';
+        const detail = hasInvoice && invoiceNumber ? `${action}：${partInfo}，發票號碼：${invoiceNumber}` : `${action}：${partInfo}`;
+        logActivity(req, 'update', detail, 'outbound_record', id);
+        
+        res.json({ 
+            success: true, 
+            message: hasInvoice ? '發票信息已更新' : '發票信息已移除',
+            has_invoice: hasInvoice,
+            invoice_number: invoiceNumber
+        });
+    } catch (error) {
+        console.error('更新發票信息錯誤:', error);
+        res.json({ 
+            success: false, 
+            error: error.message || '更新失敗' 
+        });
+    }
 });
 
 // 盤點事件管理 - 列表頁面
@@ -2889,6 +3060,178 @@ app.get('/export/parts', async (req, res) => {
     res.send(buffer);
 });
 
+// Excel 匯出 - 出入庫記錄
+app.get('/export/transaction-records', requireAuth, async (req, res) => {
+    logActivity(req, 'export', '匯出出入庫記錄', 'export', null);
+    const { search, type, date_from, date_to } = req.query;
+    
+    let records = [];
+    
+    // 構建入庫記錄查詢
+    let inboundQuery = `
+        SELECT 
+            ir.inbound_date as '日期',
+            CASE 
+                WHEN ir.is_return = 1 THEN '歸還'
+                ELSE '入庫'
+            END as '類型',
+            p.part_number as '料號',
+            p.part_name as '料件名稱',
+            ir.quantity as '數量',
+            p.unit as '單位',
+            ir.note as '備註',
+            ir.created_by as '操作人員',
+            ir.created_at as '記錄時間',
+            '' as '借測轉換',
+            '' as '發票狀態',
+            '' as '發票號碼'
+        FROM inbound_records ir
+        JOIN parts p ON ir.part_id = p.id
+        WHERE 1=1
+    `;
+    let inboundParams = [];
+    
+    // 構建出庫記錄查詢
+    let outboundQuery = `
+        SELECT 
+            o.outbound_date as '日期',
+            CASE 
+                WHEN o.is_loan = 1 THEN '借測'
+                ELSE '出庫'
+            END as '類型',
+            p.part_number as '料號',
+            p.part_name as '料件名稱',
+            o.quantity as '數量',
+            p.unit as '單位',
+            o.note as '備註',
+            o.created_by as '操作人員',
+            o.created_at as '記錄時間',
+            CASE 
+                WHEN o.converted_from_loan = 1 THEN '是'
+                ELSE '否'
+            END as '借測轉換',
+            CASE 
+                WHEN o.has_invoice = 1 THEN '已開發票'
+                ELSE '未開發票'
+            END as '發票狀態',
+            COALESCE(o.invoice_number, '') as '發票號碼'
+        FROM outbound_records o
+        JOIN parts p ON o.part_id = p.id
+        WHERE 1=1
+    `;
+    let outboundParams = [];
+    
+    // 搜尋條件
+    if (search && search.trim()) {
+        const searchTerm = `%${search.trim()}%`;
+        inboundQuery += ` AND (p.part_number LIKE ? OR p.part_name LIKE ? OR p.barcode LIKE ?)`;
+        inboundParams.push(searchTerm, searchTerm, searchTerm);
+        outboundQuery += ` AND (p.part_number LIKE ? OR p.part_name LIKE ? OR p.barcode LIKE ?)`;
+        outboundParams.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    // 日期範圍
+    if (date_from) {
+        inboundQuery += ` AND ir.inbound_date >= ?`;
+        inboundParams.push(date_from);
+        outboundQuery += ` AND o.outbound_date >= ?`;
+        outboundParams.push(date_from);
+    }
+    if (date_to) {
+        inboundQuery += ` AND ir.inbound_date <= ?`;
+        inboundParams.push(date_to);
+        outboundQuery += ` AND o.outbound_date <= ?`;
+        outboundParams.push(date_to);
+    }
+    
+    // 類型條件
+    if (type === 'inbound') {
+        inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL)`;
+    } else if (type === 'outbound') {
+        outboundQuery += ` AND (o.is_loan = 0 OR o.is_loan IS NULL)`;
+    } else if (type === 'return') {
+        inboundQuery += ` AND ir.is_return = 1`;
+    } else if (type === 'loan') {
+        outboundQuery += ` AND o.is_loan = 1`;
+    }
+    
+    // 執行查詢
+    if (!type || type === 'inbound' || type === 'return') {
+        const inboundStmt = db.prepare(inboundQuery);
+        const inboundRecords = inboundStmt.all(...inboundParams);
+        records = records.concat(inboundRecords);
+    }
+    
+    if (!type || type === 'outbound' || type === 'loan') {
+        const outboundStmt = db.prepare(outboundQuery);
+        const outboundRecords = outboundStmt.all(...outboundParams);
+        records = records.concat(outboundRecords);
+    }
+    
+    // 排序
+    records.sort((a, b) => {
+        const dateCompare = new Date(b['日期']) - new Date(a['日期']);
+        if (dateCompare !== 0) return dateCompare;
+        return new Date(b['記錄時間']) - new Date(a['記錄時間']);
+    });
+    
+    // 限制數量
+    records = records.slice(0, 5000);
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('出入庫記錄');
+    
+    // 設定欄位標題
+    worksheet.columns = [
+        { header: '日期', key: '日期', width: 12 },
+        { header: '類型', key: '類型', width: 10 },
+        { header: '料號', key: '料號', width: 15 },
+        { header: '料件名稱', key: '料件名稱', width: 25 },
+        { header: '數量', key: '數量', width: 10 },
+        { header: '單位', key: '單位', width: 8 },
+        { header: '備註', key: '備註', width: 30 },
+        { header: '操作人員', key: '操作人員', width: 15 },
+        { header: '借測轉換', key: '借測轉換', width: 10 },
+        { header: '發票狀態', key: '發票狀態', width: 12 },
+        { header: '發票號碼', key: '發票號碼', width: 20 },
+        { header: '記錄時間', key: '記錄時間', width: 20 }
+    ];
+    
+    // 添加資料
+    records.forEach(row => {
+        worksheet.addRow(row);
+    });
+    
+    // 設定標題行樣式
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF667EEA' }
+    };
+    worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+    
+    // 設定資料行樣式
+    records.forEach((row, index) => {
+        const rowNum = index + 2;
+        // 根據類型設定數量欄位顏色
+        if (row['類型'] === '入庫' || row['類型'] === '歸還') {
+            worksheet.getRow(rowNum).getCell('數量').font = { color: { argb: 'FF28A745' } };
+        } else if (row['類型'] === '出庫' || row['類型'] === '借測') {
+            worksheet.getRow(rowNum).getCell('數量').font = { color: { argb: 'FFDC3545' } };
+        }
+    });
+    
+    // 生成檔名
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const filename = `出入庫記錄_${dateStr}.xlsx`;
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(buffer);
+});
+
 // Excel 匯出 - 庫存
 app.get('/export/inventory', async (req, res) => {
     logActivity(req, 'export', '匯出庫存資料', 'export', null);
@@ -3544,6 +3887,30 @@ app.get('/backup/schedule', requireAuth, requireAdmin, (req, res) => {
     }
 });
 
+// 備份管理 - 手動測試備份（不檢查時間，立即執行）
+app.post('/backup/test', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const scheduleFile = path.join(__dirname, 'backup-schedule.json');
+        if (!fs.existsSync(scheduleFile)) {
+            flash(req, 'error', '請先設定備份排程');
+            return res.redirect('/backup');
+        }
+        
+        const scheduleData = fs.readFileSync(scheduleFile, 'utf8');
+        const schedule = JSON.parse(scheduleData);
+        
+        // 強制執行備份（不檢查時間）
+        performScheduledBackup();
+        
+        logActivity(req, 'backup', '手動測試備份', 'backup', null);
+        flash(req, 'success', '測試備份已執行！請檢查備份目錄。');
+        res.redirect('/backup');
+    } catch (error) {
+        flash(req, 'error', `測試備份失敗：${error.message}`);
+        res.redirect('/backup');
+    }
+});
+
 // 備份管理 - 設定備份排程
 app.post('/backup/schedule', requireAuth, requireAdmin, (req, res) => {
     const { enabled, time, frequency, dayOfWeek, dayOfMonth, backupDir } = req.body;
@@ -3569,7 +3936,13 @@ app.post('/backup/schedule', requireAuth, requireAdmin, (req, res) => {
         fs.writeFileSync(scheduleFile, JSON.stringify(schedule, null, 2));
         
         logActivity(req, 'update', `設定備份排程：${schedule.enabled ? '啟用' : '停用'} - ${schedule.frequency} ${schedule.time}`, 'backup', null);
-        flash(req, 'success', '備份排程設定已保存！請在系統中設定 cron 任務以啟用自動備份。');
+        
+        if (schedule.enabled) {
+            flash(req, 'success', `備份排程設定已保存並啟用！系統將自動在 ${schedule.frequency === 'daily' ? '每天' : schedule.frequency === 'weekly' ? '每週' : '每月'} ${schedule.time} 執行備份。`);
+        } else {
+            flash(req, 'success', '備份排程已停用。');
+        }
+        
         res.redirect('/backup');
     } catch (error) {
         flash(req, 'error', `設定失敗：${error.message}`);
@@ -4173,10 +4546,139 @@ app.get('/activity-logs', requireAdmin, (req, res) => {
 });
 
 // 啟動伺服器
+// ==================== 備份排程功能 ====================
+let lastBackupCheck = null;
+let lastBackupDate = null;
+
+// 執行備份
+function performScheduledBackup() {
+    try {
+        const scheduleFile = path.join(__dirname, 'backup-schedule.json');
+        if (!fs.existsSync(scheduleFile)) {
+            return;
+        }
+        
+        const scheduleData = fs.readFileSync(scheduleFile, 'utf8');
+        const schedule = JSON.parse(scheduleData);
+        
+        if (!schedule.enabled) {
+            return;
+        }
+        
+        // 確保備份目錄存在
+        const backupDir = schedule.backupDir || BACKUP_DIR;
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+        
+        // 生成備份檔案名稱
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const backupFileName = `inventory_backup_${timestamp}.db`;
+        const backupPath = path.join(backupDir, backupFileName);
+        
+        // 複製資料庫檔案
+        const dbPath = path.join(__dirname, 'inventory.db');
+        if (fs.existsSync(dbPath)) {
+            // 執行 WAL checkpoint 以確保資料完整性（如果使用 WAL 模式）
+            try {
+                db.pragma('wal_checkpoint(TRUNCATE)');
+            } catch (pragmaError) {
+                // 如果失敗，繼續備份（可能不是 WAL 模式）
+            }
+            
+            // 複製資料庫檔案
+            fs.copyFileSync(dbPath, backupPath);
+            console.log(`✅ 自動備份完成：${backupFileName}`);
+            lastBackupDate = new Date();
+            
+            // 記錄活動（使用系統用戶）
+            try {
+                const stmt = db.prepare(`
+                    INSERT INTO activity_logs (username, action_type, action_detail, target_type, ip_address, created_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                `);
+                stmt.run('系統', 'backup', `自動備份：${backupFileName}`, 'backup', '127.0.0.1');
+            } catch (logError) {
+                console.error('記錄備份活動失敗:', logError);
+            }
+        }
+    } catch (error) {
+        console.error('自動備份失敗:', error);
+    }
+}
+
+// 檢查是否需要執行備份
+function checkBackupSchedule() {
+    try {
+        const scheduleFile = path.join(__dirname, 'backup-schedule.json');
+        if (!fs.existsSync(scheduleFile)) {
+            return;
+        }
+        
+        const scheduleData = fs.readFileSync(scheduleFile, 'utf8');
+        const schedule = JSON.parse(scheduleData);
+        
+        if (!schedule.enabled) {
+            return;
+        }
+        
+        const now = new Date();
+        const [scheduleHours, scheduleMinutes] = schedule.time.split(':').map(Number);
+        
+        // 根據頻率檢查是否需要備份
+        let shouldBackup = false;
+        
+        if (schedule.frequency === 'daily') {
+            // 每天執行
+            shouldBackup = true;
+        } else if (schedule.frequency === 'weekly') {
+            // 每週指定天執行
+            const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            shouldBackup = (dayOfWeek === parseInt(schedule.dayOfWeek || 0));
+        } else if (schedule.frequency === 'monthly') {
+            // 每月指定日期執行
+            const dayOfMonth = now.getDate();
+            shouldBackup = (dayOfMonth === parseInt(schedule.dayOfMonth || 1));
+        }
+        
+        if (!shouldBackup) {
+            return;
+        }
+        
+        // 檢查時間是否接近設定時間（允許5分鐘誤差）
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const scheduleMinutesTotal = scheduleHours * 60 + scheduleMinutes;
+        const timeDiff = Math.abs(currentMinutes - scheduleMinutesTotal);
+        
+        // 在設定時間的前後5分鐘內
+        if (timeDiff <= 5) {
+            // 檢查今天是否已執行過備份
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            if (!lastBackupDate || 
+                lastBackupDate < today || 
+                (lastBackupDate.getDate() !== now.getDate() || 
+                 lastBackupDate.getMonth() !== now.getMonth() || 
+                 lastBackupDate.getFullYear() !== now.getFullYear())) {
+                console.log(`⏰ 檢查備份排程：時間已到達 ${schedule.time}，開始執行備份...`);
+                performScheduledBackup();
+            }
+        }
+    } catch (error) {
+        console.error('檢查備份排程失敗:', error);
+    }
+}
+
+// 啟動備份排程檢查（每分鐘檢查一次）
+setInterval(checkBackupSchedule, 60 * 1000); // 每分鐘檢查一次
+
+// 伺服器啟動時立即檢查一次
+setTimeout(checkBackupSchedule, 10 * 1000); // 延遲10秒，確保資料庫已初始化
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 庫存管理系統已啟動！`);
     console.log(`📡 請訪問：http://localhost:${PORT}`);
     console.log(`🌐 區域網路訪問：http://[您的IP]:${PORT}`);
+    console.log(`⏰ 備份排程檢查已啟動（每分鐘檢查一次）`);
 });
 
 // 優雅關閉

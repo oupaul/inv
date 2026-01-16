@@ -125,12 +125,18 @@
                 <button type="submit" class="btn-backup">➕ 創建新備份</button>
             </form>
             <button type="button" class="btn-backup" onclick="showScheduleModal()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">⏰ 備份排程</button>
+            <form method="POST" action="/backup/test" style="display: inline;" onsubmit="return confirm('確定要立即執行測試備份嗎？這會忽略排程時間限制，立即執行備份。')">
+                <button type="submit" class="btn-backup" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);">🧪 測試備份</button>
+            </form>
         </div>
         
         <!-- 備份排程設定模態框 -->
         <div id="scheduleModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
             <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
                 <h2 style="margin-top: 0;">⏰ 備份排程設定</h2>
+                <div id="scheduleStatus" style="margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 14px;">
+                    載入中...
+                </div>
                 <form id="scheduleForm" method="POST" action="/backup/schedule">
                     <div class="form-group">
                         <label>
@@ -174,11 +180,16 @@
                         <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()">取消</button>
                     </div>
                 </form>
-                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; font-size: 13px; color: #666;">
+                <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-radius: 6px; font-size: 13px; color: #856404; border-left: 4px solid #ffc107;">
+                    <strong>💡 提示：</strong><br>
+                    設定完成後，系統會每分鐘自動檢查排程，在設定的時間自動執行備份。<br>
+                    您可以點擊「測試備份」按鈕立即執行一次備份來測試功能。
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 6px; font-size: 13px; color: #0066cc; border-left: 4px solid #007bff;">
                     <strong>📝 說明：</strong><br>
-                    設定完成後，請在系統中設定 cron 任務以啟用自動備份。<br>
-                    範例 cron 指令（每天凌晨 2 點）：<br>
-                    <code>0 2 * * * /path/to/backup.sh</code>
+                    ✅ 系統已內建自動備份功能，設定完成後會自動執行，<strong>無需額外設定 cron 任務</strong>。<br>
+                    ⏰ 系統會每分鐘檢查一次排程，在設定的時間自動執行備份。<br>
+                    ⚠️ 請確保伺服器持續運行，自動備份才會正常執行。
                 </div>
             </div>
         </div>
@@ -251,6 +262,20 @@
                         document.getElementById('scheduleDayOfMonth').value = s.dayOfMonth || 1;
                         document.getElementById('scheduleBackupDir').value = s.backupDir || '';
                         updateFrequencyFields();
+                        
+                        // 顯示排程狀態
+                        const statusDiv = document.getElementById('scheduleStatus');
+                        if (statusDiv) {
+                            if (s.enabled) {
+                                const frequencyText = s.frequency === 'daily' ? '每天' : 
+                                                    s.frequency === 'weekly' ? '每週' : '每月';
+                                statusDiv.innerHTML = `<strong>✅ 排程已啟用</strong><br>頻率：${frequencyText} ${s.time}`;
+                                statusDiv.style.color = '#28a745';
+                            } else {
+                                statusDiv.innerHTML = '<strong>⏸️ 排程已停用</strong>';
+                                statusDiv.style.color = '#6c757d';
+                            }
+                        }
                     }
                 })
                 .catch(err => console.error('載入排程設定失敗:', err));
