@@ -622,6 +622,21 @@ function getSystemSetting(key, defaultValue = null) {
     }
 }
 
+// 權限檢查函數
+function hasPermission(user, module, action) {
+    // admin 角色擁有所有權限
+    if (user && user.role === 'admin') {
+        return true;
+    }
+    
+    // 檢查用戶權限
+    if (user && user.permissions && user.permissions[module]) {
+        return user.permissions[module].includes(action);
+    }
+    
+    return false;
+}
+
 // 認證中介軟體（可選，用於保護特定路由）
 function requireAuth(req, res, next) {
     if (req.session.user) {
@@ -701,13 +716,29 @@ app.post('/login', async (req, res) => {
             return res.redirect('/login');
         }
         
-        // 設置 session（包含登入時間）
+        // 獲取用戶角色的權限
+        let userPermissions = {};
+        if (user.role) {
+            const roleStmt = db.prepare('SELECT permissions FROM roles WHERE role_name = ?');
+            const role = roleStmt.get(user.role);
+            if (role && role.permissions) {
+                try {
+                    userPermissions = JSON.parse(role.permissions);
+                } catch (e) {
+                    console.error('解析權限失敗:', e);
+                    userPermissions = {};
+                }
+            }
+        }
+        
+        // 設置 session（包含登入時間和權限）
         req.session.user = {
             id: user.id,
             username: user.username,
             full_name: user.full_name,
             email: user.email,
             role: user.role,
+            permissions: userPermissions,
             loginTime: Date.now() // 記錄登入時間戳
         };
         
@@ -1158,12 +1189,16 @@ app.get('/parts', (req, res) => {
     const categoriesStmt = db.prepare('SELECT * FROM categories ORDER BY name');
     const categories = categoriesStmt.all();
     
+    // 檢查用戶是否有刪除權限
+    const canDelete = hasPermission(req.session.user, 'parts', 'delete');
+    
     res.render('parts_list', { 
         parts, 
         categories,
         search: search || '',
         category_id: category_id || '',
         user: req.session.user,
+        canDelete: canDelete,
         title: PAGE_TITLE 
     });
 });
@@ -1349,8 +1384,12 @@ app.post('/parts/edit/:id', (req, res) => {
     }
 });
 
-// 批量刪除料件（需要管理員權限）
-app.post('/parts/batch-delete', requireAuth, requireAdmin, (req, res) => {
+// 批量刪除料件（需要刪除權限）
+app.post('/parts/batch-delete', requireAuth, (req, res) => {
+    // 檢查權限
+    if (!hasPermission(req.session.user, 'parts', 'delete')) {
+        return res.status(403).json({ success: false, error: '沒有刪除權限' });
+    }
     const { part_ids } = req.body;
     
     if (!part_ids || !Array.isArray(part_ids) || part_ids.length === 0) {
@@ -4508,19 +4547,32 @@ app.get('/activity-logs', requireAdmin, (req, res) => {
         }
         
         if (date_from && date_from.trim()) {
-            whereConditions.push('DATE(created_at) >= ?');
+            // 使用轉換為 CST 後的時間進行日期比較
+            whereConditions.push('DATE(datetime(created_at, \'+8 hours\')) >= ?');
             params.push(date_from.trim());
         }
         
         if (date_to && date_to.trim()) {
-            whereConditions.push('DATE(created_at) <= ?');
+            // 使用轉換為 CST 後的時間進行日期比較
+            whereConditions.push('DATE(datetime(created_at, \'+8 hours\')) <= ?');
             params.push(date_to.trim());
         }
         
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
         
         const stmt = db.prepare(`
-            SELECT * FROM activity_logs
+            SELECT 
+                id,
+                user_id,
+                username,
+                action_type,
+                action_detail,
+                target_type,
+                target_id,
+                ip_address,
+                user_agent,
+                datetime(created_at, '+8 hours') as created_at
+            FROM activity_logs
             ${whereClause}
             ORDER BY created_at DESC
             LIMIT 500

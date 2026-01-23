@@ -223,8 +223,8 @@
                             %>
                             <%= sizeText %>
                         </td>
-                        <td class="file-date"><%= new Date(backup.created).toLocaleString('zh-TW') %></td>
-                        <td class="file-date"><%= new Date(backup.modified).toLocaleString('zh-TW') %></td>
+                        <td class="file-date"><%= new Date(backup.created).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) %></td>
+                        <td class="file-date"><%= new Date(backup.modified).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) %></td>
                         <td>
                             <div class="backup-item-actions">
                                 <a href="/backup/download/<%= backup.filename %>" class="btn-small btn-download">⬇️ 下載</a>

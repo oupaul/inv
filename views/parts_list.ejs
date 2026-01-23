@@ -245,7 +245,7 @@
                 <a href="/parts/add" class="btn">➕ 新增料件</a>
                 <a href="/export/parts" class="btn">📥 匯出Excel</a>
                 <a href="/import" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">📤 Excel匯入</a>
-                <% if (user && user.role === 'admin') { %>
+                <% if (typeof canDelete !== 'undefined' && canDelete) { %>
                 <button type="button" id="batchDeleteBtn" class="btn" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); display: none;">🗑️ 批量刪除</button>
                 <% } %>
             </div>
@@ -255,7 +255,7 @@
         <table>
             <thead>
                 <tr>
-                    <% if (user && user.role === 'admin') { %>
+                    <% if (typeof canDelete !== 'undefined' && canDelete) { %>
                     <th style="width: 50px;">
                         <input type="checkbox" id="selectAll" style="width: 18px; height: 18px; cursor: pointer;">
                     </th>
@@ -274,7 +274,7 @@
             <tbody>
                 <% parts.forEach(function(part) { %>
                 <tr data-part-id="<%= part.id %>" <%= part.is_active === 0 ? 'style="opacity: 0.6; background-color: #f8f9fa;"' : '' %>>
-                    <% if (user && user.role === 'admin') { %>
+                    <% if (typeof canDelete !== 'undefined' && canDelete) { %>
                     <td>
                         <input type="checkbox" class="part-checkbox" value="<%= part.id %>" style="width: 18px; height: 18px; cursor: pointer;">
                     </td>
@@ -326,7 +326,7 @@
     </script>
     <%- include('_common-nav-script') %>
     
-    <% if (user && user.role === 'admin') { %>
+    <% if (typeof canDelete !== 'undefined' && canDelete) { %>
     <script>
         // 批量刪除功能 - 等待 DOM 載入完成
         document.addEventListener('DOMContentLoaded', function() {
