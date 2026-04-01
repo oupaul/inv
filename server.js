@@ -1157,8 +1157,13 @@ app.post('/units/delete/:id', (req, res) => {
 
 // 料件列表
 app.get('/parts', (req, res) => {
-    const { search, category_id } = req.query;
+    const { search, category_id, status, sort, order, page } = req.query;
     
+    const PAGE_SIZE = 50;
+    const currentPage = Math.max(1, parseInt(page) || 1);
+    const sortField = ['part_number', 'part_name', 'category_name', 'current_stock', 'created_at'].includes(sort) ? sort : 'part_number';
+    const sortOrder = order === 'desc' ? 'DESC' : 'ASC';
+
     let whereConditions = [];
     let params = [];
     
@@ -1172,33 +1177,96 @@ app.get('/parts', (req, res) => {
         whereConditions.push(`p.category_id = ?`);
         params.push(category_id);
     }
+
+    // 狀態篩選：預設只顯示啟用中
+    if (status === 'inactive') {
+        whereConditions.push(`COALESCE(p.is_active, 1) = 0`);
+    } else if (status === 'all') {
+        // 不過濾
+    } else {
+        // 預設：只顯示啟用中
+        whereConditions.push(`COALESCE(p.is_active, 1) = 1`);
+    }
     
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-    
-    const stmt = db.prepare(`
-        SELECT p.*, c.name as category_name,
-               COALESCE(p.is_active, 1) as is_active
+
+    // 主查詢（含庫存量計算）
+    const baseQuery = `
+        SELECT p.id, p.part_number, p.part_name, p.specification, p.unit, p.barcode, p.created_at,
+               c.name as category_name,
+               COALESCE(p.is_active, 1) as is_active,
+               (
+                   COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0)
+                   - COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0)
+                   - COALESCE((
+                       SELECT SUM(o2.quantity) - COALESCE((SELECT SUM(i2.quantity) FROM inbound_records i2 WHERE i2.return_outbound_id = o2.id AND i2.is_return = 1), 0)
+                       FROM outbound_records o2
+                       WHERE o2.part_id = p.id AND o2.is_loan = 1
+                   ), 0)
+               ) as current_stock
         FROM parts p 
         LEFT JOIN categories c ON p.category_id = c.id 
         ${whereClause}
-        ORDER BY p.part_number
-    `);
-    const parts = stmt.all(...params);
+    `;
+
+    // 計算總筆數（用於分頁）
+    const countStmt = db.prepare(`SELECT COUNT(*) as total FROM (${baseQuery}) as sub`);
+    const totalCount = countStmt.get(...params).total;
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    const offset = (currentPage - 1) * PAGE_SIZE;
+
+    // 排序與分頁
+    const stmt = db.prepare(`${baseQuery} ORDER BY ${sortField === 'category_name' ? 'c.name' : sortField === 'current_stock' ? 'current_stock' : `p.${sortField}`} ${sortOrder} LIMIT ? OFFSET ?`);
+    const parts = stmt.all(...params, PAGE_SIZE, offset);
     
+    // 統計摘要（不受分頁影響，但受搜尋/類型篩選影響，不受狀態篩選影響）
+    const summaryParams = [];
+    const summaryConditions = [];
+    if (search && search.trim()) {
+        summaryConditions.push(`(p.part_number LIKE ? OR p.part_name LIKE ? OR p.barcode LIKE ? OR p.specification LIKE ? OR c.name LIKE ?)`);
+        const s = `%${search.trim()}%`;
+        summaryParams.push(s, s, s, s, s);
+    }
+    if (category_id && category_id !== '') {
+        summaryConditions.push(`p.category_id = ?`);
+        summaryParams.push(category_id);
+    }
+    const summaryWhere = summaryConditions.length > 0 ? `WHERE ${summaryConditions.join(' AND ')}` : '';
+    const summaryStmt = db.prepare(`
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN COALESCE(p.is_active, 1) = 1 THEN 1 ELSE 0 END) as active_count,
+            SUM(CASE WHEN COALESCE(p.is_active, 1) = 0 THEN 1 ELSE 0 END) as inactive_count,
+            SUM(CASE WHEN COALESCE(p.is_active, 1) = 1 AND (
+                COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0)
+                - COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0)
+            ) <= 0 THEN 1 ELSE 0 END) as zero_stock_count
+        FROM parts p
+        LEFT JOIN categories c ON p.category_id = c.id
+        ${summaryWhere}
+    `);
+    const summary = summaryStmt.get(...summaryParams);
+
     // 獲取所有類型用於下拉選單
     const categoriesStmt = db.prepare('SELECT * FROM categories ORDER BY name');
     const categories = categoriesStmt.all();
     
-    // 檢查用戶是否有刪除權限
     const canDelete = hasPermission(req.session.user, 'parts', 'delete');
     
     res.render('parts_list', { 
         parts, 
         categories,
+        summary,
         search: search || '',
         category_id: category_id || '',
+        status: status || '',
+        sort: sortField,
+        order: sortOrder.toLowerCase(),
+        currentPage,
+        totalPages,
+        totalCount,
         user: req.session.user,
-        canDelete: canDelete,
+        canDelete,
         title: PAGE_TITLE 
     });
 });
@@ -1284,6 +1352,59 @@ app.post('/parts/add', (req, res) => {
             flash(req, 'error', `新增失敗：${error.message}`);
         }
         res.redirect('/parts/add');
+    }
+});
+
+// API：料件詳情（含庫存量與近期出入庫記錄，供 Modal 使用）
+app.get('/api/parts/:id/detail', requireAuth, (req, res) => {
+    const { id } = req.params;
+    try {
+        const partStmt = db.prepare(`
+            SELECT p.*, c.name as category_name,
+                COALESCE(p.is_active, 1) as is_active,
+                (
+                    COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0)
+                    - COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0)
+                    - COALESCE((
+                        SELECT SUM(o2.quantity) - COALESCE((SELECT SUM(i2.quantity) FROM inbound_records i2 WHERE i2.return_outbound_id = o2.id AND i2.is_return = 1), 0)
+                        FROM outbound_records o2
+                        WHERE o2.part_id = p.id AND o2.is_loan = 1
+                    ), 0)
+                ) as current_stock,
+                COALESCE((
+                    SELECT SUM(o2.quantity) - COALESCE((SELECT SUM(i2.quantity) FROM inbound_records i2 WHERE i2.return_outbound_id = o2.id AND i2.is_return = 1), 0)
+                    FROM outbound_records o2
+                    WHERE o2.part_id = p.id AND o2.is_loan = 1
+                ), 0) as loaned_quantity
+            FROM parts p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.id = ?
+        `);
+        const part = partStmt.get(id);
+        if (!part) return res.json({ success: false, error: '找不到料件' });
+
+        // 近期 10 筆出入庫記錄（合併入庫與出庫）
+        const recordsStmt = db.prepare(`
+            SELECT transaction_date, type, quantity, note, created_by FROM (
+                SELECT inbound_date as transaction_date,
+                    CASE WHEN is_return = 1 THEN 'return' ELSE 'inbound' END as type,
+                    quantity, note, created_by
+                FROM inbound_records WHERE part_id = ?
+                UNION ALL
+                SELECT outbound_date as transaction_date,
+                    CASE WHEN is_loan = 1 THEN 'loan' ELSE 'outbound' END as type,
+                    quantity, note, created_by
+                FROM outbound_records WHERE part_id = ?
+            ) combined
+            ORDER BY transaction_date DESC, rowid DESC
+            LIMIT 10
+        `);
+        const records = recordsStmt.all(id, id);
+
+        res.json({ success: true, part, records });
+    } catch (error) {
+        console.error('取得料件詳情失敗:', error);
+        res.json({ success: false, error: error.message });
     }
 });
 

@@ -6,301 +6,420 @@
     <title>料件管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
     <style>
         <%- include('_common-styles') %>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+
+        /* ── 統計卡片 ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 22px;
         }
-        
-        body {
-            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid #667eea;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        
-        nav {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 0;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }
-        
-        .nav-wrapper {
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 18px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            border-left: 4px solid #667eea;
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
-            padding: 12px 15px;
-            gap: 8px;
+            gap: 14px;
+            transition: transform 0.2s;
         }
-        
-        nav a {
-            color: white;
-            text-decoration: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            display: inline-block;
-            transition: all 0.3s;
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-        
-        nav a:hover {
-            background-color: rgba(255,255,255,0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        
-        nav a[href="/users"] {
-            background-color: rgba(255,255,255,0.15);
-            font-weight: 600;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-        
-        nav a[href="/users"]:hover {
-            background-color: rgba(255,255,255,0.25);
-        }
-        
-        nav .auth-link {
-            margin-left: auto;
-            background-color: rgba(255,255,255,0.2);
-            font-weight: 600;
-        }
-        
-        nav .auth-link.logout {
-            background-color: #dc3545;
-        }
-        
-        nav .auth-link.login {
-            background-color: #007bff;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card.active  { border-left-color: #28a745; }
+        .stat-card.inactive{ border-left-color: #6c757d; }
+        .stat-card.warning { border-left-color: #dc3545; }
+        .stat-icon { font-size: 28px; }
+        .stat-value { font-size: 26px; font-weight: 700; color: #333; line-height: 1; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 3px; }
+
+        /* ── 搜尋區 ── */
+        .search-section {
+            background: #f8f9fa;
+            padding: 18px 20px;
             border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 18px;
+            border: 1px solid #e0e0e0;
         }
-        
-        th, td {
-            padding: 14px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
+        .search-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
         }
-        
+        .search-field { flex: 1; min-width: 160px; }
+        .search-field label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 13px;
+        }
+        .search-field input,
+        .search-field select {
+            width: 100%;
+            padding: 9px 11px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        .search-field input:focus,
+        .search-field select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+        }
+        .action-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+            align-items: center;
+        }
+
+        /* ── 表格 ── */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 780px; }
+        th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid #eee; }
         th {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            font-size: 13px;
             font-weight: 600;
-            font-size: 14px;
+            white-space: nowrap;
         }
-        
-        tr:hover {
-            background-color: #f8f9fa;
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { background: linear-gradient(135deg, #5a6fd6 0%, #6a3f94 100%); }
+        th .sort-icon { margin-left: 5px; opacity: 0.6; font-size: 11px; }
+        th.sort-asc .sort-icon::after  { content: '▲'; opacity: 1; }
+        th.sort-desc .sort-icon::after { content: '▼'; opacity: 1; }
+        th .sort-icon::after { content: '⇅'; }
+        tr:hover { background: #f8f9fb; }
+        tr.inactive-row { opacity: 0.55; background: #fafafa; }
+        td.stock-cell { font-weight: 700; }
+        td.stock-zero { color: #dc3545; }
+        td.stock-low  { color: #fd7e14; }
+        td.stock-ok   { color: #28a745; }
+        .part-name-link {
+            color: #495057;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
         }
-        
-        .flash-messages {
-            margin-bottom: 20px;
+        .part-name-link:hover { color: #667eea; text-decoration: underline; }
+
+        /* ── 分頁 ── */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        
-        .flash {
-            padding: 15px 20px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        .pagination-info { color: #888; font-size: 13px; }
+        .pagination-btns { display: flex; gap: 6px; }
+        .page-btn {
+            padding: 6px 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 5px;
+            background: white;
+            color: #444;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
         }
-        
-        .flash.success {
-            background-color: #d4edda;
-            color: #155724;
-            border-left: 4px solid #28a745;
+        .page-btn:hover { background: #667eea; color: white; border-color: #667eea; }
+        .page-btn.active { background: #667eea; color: white; border-color: #667eea; font-weight: 700; }
+        .page-btn:disabled, .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
-        
-        .flash.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid #dc3545;
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
         }
-        
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-        
-        .empty-state p {
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        
-        .btn {
+        .modal-header {
+            padding: 18px 22px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 12px 24px;
-            text-decoration: none;
-            border-radius: 6px;
-            display: inline-block;
-            margin-bottom: 20px;
+        }
+        .modal-header h3 { margin: 0; font-size: 16px; }
+        .modal-close {
+            background: none; border: none; color: white;
+            font-size: 22px; cursor: pointer; line-height: 1;
+        }
+        .modal-body { padding: 18px 22px; overflow-y: auto; }
+        .modal-info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .modal-info-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px 14px;
+        }
+        .modal-info-item .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+        .modal-info-item .value { font-size: 18px; font-weight: 700; color: #333; }
+        .modal-info-item.highlight .value { color: #667eea; }
+        .modal-records-title {
             font-weight: 600;
-            transition: all 0.3s;
+            color: #444;
+            margin: 16px 0 8px;
+            font-size: 14px;
         }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        .modal-records-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .modal-records-table th {
+            background: #f0f0f0;
+            color: #555;
+            padding: 8px 10px;
+            font-weight: 600;
         }
-        
-        .btn-edit {
-            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        .modal-records-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+        .type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
         }
-        
+        .type-inbound  { background: #d4edda; color: #155724; }
+        .type-return   { background: #cce5ff; color: #004085; }
+        .type-outbound { background: #f8d7da; color: #721c24; }
+        .type-loan     { background: #fff3cd; color: #856404; }
+        .modal-empty { text-align: center; padding: 30px; color: #aaa; }
+
+        /* ── 狀態徽章 ── */
+        .status-badge {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-active   { background: #d4edda; color: #155724; }
+        .status-inactive { background: #e2e3e5; color: #495057; }
+
+        /* ── 操作按鈕 ── */
+        .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .btn-sm {
+            padding: 5px 11px;
+            font-size: 12px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        .btn-edit    { background: linear-gradient(135deg, #28a745, #218838); color: white; }
+        .btn-activate  { background: linear-gradient(135deg, #28a745, #218838); color: white; }
+        .btn-deactivate{ background: linear-gradient(135deg, #ffc107, #e0a800); color: #333; }
+
         @media (max-width: 768px) {
-            .nav-wrapper {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            nav a {
-                width: 100%;
-                text-align: center;
-                margin-bottom: 5px;
-            }
-            
-            nav .auth-link {
-                margin-left: 0;
-            }
-            
-            .container {
-                padding: 20px;
-            }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .search-row { flex-direction: column; }
+            .modal-info-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
 <body>
     <a href="/" class="back-to-home">← 返回主頁</a>
     <%- include('_common-nav') %>
-    
+
     <div class="container">
         <% if (messages && messages.length > 0) { %>
-            <div class="flash-messages">
-                <% messages.forEach(function(msg) { %>
-                    <div class="flash <%= msg.category %>"><%= msg.message %></div>
-                <% }); %>
-            </div>
+        <div class="flash-messages">
+            <% messages.forEach(function(msg) { %>
+            <div class="flash <%= msg.category %>"><%= msg.message %></div>
+            <% }); %>
+        </div>
         <% } %>
-        
+
         <h1>📋 料件管理</h1>
 
-        <div class="search-section" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #e0e0e0;">
-            <form method="GET" action="/parts" id="searchForm" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                <div style="flex: 1; min-width: 200px;">
-                    <label for="search" style="display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 14px;">搜尋（料號/名稱/條碼/規格）</label>
-                    <input type="text" id="search" name="search" value="<%= search || '' %>" placeholder="輸入料號、名稱、條碼或規格" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+        <!-- 統計卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div>
+                    <div class="stat-value"><%= summary ? summary.total : 0 %></div>
+                    <div class="stat-label">全部料件</div>
                 </div>
-                <div style="flex: 1; min-width: 200px;">
-                    <label for="category_id" style="display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 14px;">類型篩選</label>
-                    <select id="category_id" name="category_id" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
-                        <option value="">全部類型</option>
-                        <% if (categories && categories.length > 0) { %>
-                            <% categories.forEach(function(category) { %>
-                            <option value="<%= category.id %>" <%= category_id == category.id ? 'selected' : '' %>>
-                                <%= category.name %>
-                            </option>
-                            <% }); %>
-                        <% } %>
-                    </select>
+            </div>
+            <div class="stat-card active">
+                <div class="stat-icon">✅</div>
+                <div>
+                    <div class="stat-value"><%= summary ? summary.active_count : 0 %></div>
+                    <div class="stat-label">啟用中</div>
                 </div>
-                <div style="display: flex; gap: 10px; align-items: flex-end;">
-                    <button type="submit" class="btn" style="white-space: nowrap; min-width: 80px;">🔍 搜尋</button>
-                    <% if (search || category_id) { %>
-                    <a href="/parts" class="btn btn-secondary" style="white-space: nowrap; min-width: 70px;">清除</a>
-                    <% } %>
+            </div>
+            <div class="stat-card inactive">
+                <div class="stat-icon">⏸️</div>
+                <div>
+                    <div class="stat-value"><%= summary ? summary.inactive_count : 0 %></div>
+                    <div class="stat-label">已停用</div>
                 </div>
-            </form>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
-                <a href="/parts/add" class="btn">➕ 新增料件</a>
-                <a href="/export/parts" class="btn">📥 匯出Excel</a>
-                <a href="/import" class="btn" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">📤 Excel匯入</a>
-                <% if (typeof canDelete !== 'undefined' && canDelete) { %>
-                <button type="button" id="batchDeleteBtn" class="btn" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); display: none;">🗑️ 批量刪除</button>
-                <% } %>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-icon">🔴</div>
+                <div>
+                    <div class="stat-value"><%= summary ? summary.zero_stock_count : 0 %></div>
+                    <div class="stat-label">零庫存</div>
+                </div>
             </div>
         </div>
 
+        <!-- 搜尋篩選區 -->
+        <div class="search-section">
+            <form method="GET" action="/parts" id="searchForm">
+                <div class="search-row">
+                    <div class="search-field" style="flex: 2;">
+                        <label for="search">搜尋（料號 / 名稱 / 條碼 / 規格）</label>
+                        <input type="text" id="search" name="search" value="<%= search || '' %>" placeholder="輸入關鍵字…">
+                    </div>
+                    <div class="search-field">
+                        <label for="category_id">類型</label>
+                        <select id="category_id" name="category_id">
+                            <option value="">全部類型</option>
+                            <% if (categories && categories.length > 0) { %>
+                            <% categories.forEach(function(cat) { %>
+                            <option value="<%= cat.id %>" <%= category_id == cat.id ? 'selected' : '' %>><%= cat.name %></option>
+                            <% }); %>
+                            <% } %>
+                        </select>
+                    </div>
+                    <div class="search-field">
+                        <label for="status">狀態</label>
+                        <select id="status" name="status">
+                            <option value=""     <%= (!status || status === '')        ? 'selected' : '' %>>啟用中</option>
+                            <option value="inactive" <%= status === 'inactive' ? 'selected' : '' %>>已停用</option>
+                            <option value="all"      <%= status === 'all'      ? 'selected' : '' %>>全部顯示</option>
+                        </select>
+                    </div>
+                    <!-- 保留排序參數 -->
+                    <input type="hidden" name="sort"  value="<%= sort %>">
+                    <input type="hidden" name="order" value="<%= order %>">
+                    <div style="display:flex; gap:8px; align-items:flex-end;">
+                        <button type="submit" class="btn" style="margin:0; padding:9px 18px;">🔍 搜尋</button>
+                        <a href="/parts" class="btn btn-secondary" style="margin:0; padding:9px 14px;">清除</a>
+                    </div>
+                </div>
+                <div class="action-row">
+                    <a href="/parts/add" class="btn" style="margin:0;">➕ 新增料件</a>
+                    <a href="/export/parts" class="btn" style="margin:0;">📥 匯出 Excel</a>
+                    <a href="/import" class="btn" style="margin:0; background: linear-gradient(135deg,#007bff,#0056b3);">📤 Excel 匯入</a>
+                    <% if (typeof canDelete !== 'undefined' && canDelete) { %>
+                    <button type="button" id="batchDeleteBtn" class="btn" style="margin:0; background: linear-gradient(135deg,#dc3545,#c82333); display:none;">🗑️ 批量刪除</button>
+                    <% } %>
+                </div>
+            </form>
+        </div>
+
+        <!-- 結果資訊 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; color:#666;">
+            <span>共 <strong><%= totalCount %></strong> 筆，顯示第 <%= (currentPage-1)*50+1 %>–<%= Math.min(currentPage*50, totalCount) %> 筆</span>
+            <span>第 <%= currentPage %> / <%= totalPages %> 頁</span>
+        </div>
+
         <% if (parts && parts.length > 0) { %>
+        <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
                     <% if (typeof canDelete !== 'undefined' && canDelete) { %>
-                    <th style="width: 50px;">
-                        <input type="checkbox" id="selectAll" style="width: 18px; height: 18px; cursor: pointer;">
+                    <th style="width:40px;">
+                        <input type="checkbox" id="selectAll" style="width:16px;height:16px;cursor:pointer;">
                     </th>
                     <% } %>
-                    <th>料號</th>
-                    <th>料件名稱</th>
-                    <th>類型</th>
+                    <%
+                    function sortLink(field, label) {
+                        const isActive = sort === field;
+                        const nextOrder = (isActive && order === 'asc') ? 'desc' : 'asc';
+                        const cls = isActive ? 'sort-' + order : '';
+                        const params = new URLSearchParams({ search: search||'', category_id: category_id||'', status: status||'', sort: field, order: nextOrder, page: 1 });
+                    %>
+                    <th class="sortable <%= cls %>" onclick="window.location='/parts?<%= params.toString() %>'">
+                        <%= label %><span class="sort-icon"></span>
+                    </th>
+                    <% } %>
+                    <%= sortLink('part_number', '料號') %>
+                    <%= sortLink('part_name',   '料件名稱') %>
+                    <%= sortLink('category_name','類型') %>
                     <th>規格</th>
                     <th>條碼</th>
                     <th>單位</th>
+                    <%= sortLink('current_stock','目前庫存') %>
                     <th>狀態</th>
-                    <th>建立時間</th>
+                    <%= sortLink('created_at',  '建立時間') %>
                     <th>操作</th>
                 </tr>
             </thead>
             <tbody>
                 <% parts.forEach(function(part) { %>
-                <tr data-part-id="<%= part.id %>" <%= part.is_active === 0 ? 'style="opacity: 0.6; background-color: #f8f9fa;"' : '' %>>
+                <tr class="<%= part.is_active === 0 ? 'inactive-row' : '' %>" data-part-id="<%= part.id %>">
                     <% if (typeof canDelete !== 'undefined' && canDelete) { %>
-                    <td>
-                        <input type="checkbox" class="part-checkbox" value="<%= part.id %>" style="width: 18px; height: 18px; cursor: pointer;">
-                    </td>
+                    <td><input type="checkbox" class="part-checkbox" value="<%= part.id %>" style="width:16px;height:16px;cursor:pointer;"></td>
                     <% } %>
-                    <td><%= part.part_number %></td>
-                    <td><%= part.part_name %></td>
+                    <td><code style="font-size:12px;"><%= part.part_number %></code></td>
+                    <td>
+                        <a class="part-name-link" onclick="openPartModal(<%= part.id %>)"><%= part.part_name %></a>
+                    </td>
                     <td><%= part.category_name || '-' %></td>
-                    <td><%= part.specification || '-' %></td>
-                    <td><%= part.barcode || '-' %></td>
+                    <td style="font-size:12px; color:#666;"><%= part.specification || '-' %></td>
+                    <td style="font-size:12px; color:#888;"><%= part.barcode || '-' %></td>
                     <td><%= part.unit %></td>
+                    <td class="stock-cell <%= part.current_stock <= 0 ? 'stock-zero' : part.current_stock <= 5 ? 'stock-low' : 'stock-ok' %>">
+                        <%= part.current_stock %>
+                    </td>
                     <td>
                         <% if (part.is_active === 0) { %>
-                            <span style="color: #dc3545; font-weight: 600;">已停用</span>
+                        <span class="status-badge status-inactive">已停用</span>
                         <% } else { %>
-                            <span style="color: #28a745; font-weight: 600;">正常</span>
+                        <span class="status-badge status-active">正常</span>
                         <% } %>
                     </td>
-                    <td><%= part.created_at %></td>
+                    <td style="font-size:12px; color:#999; white-space:nowrap;"><%= part.created_at ? part.created_at.substring(0,10) : '-' %></td>
                     <td>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <a href="/parts/edit/<%= part.id %>" class="btn btn-edit" style="padding: 6px 12px; font-size: 12px;">編輯</a>
+                        <div class="action-btns">
+                            <a href="/parts/edit/<%= part.id %>" class="btn-sm btn-edit">編輯</a>
                             <% if (user && user.role === 'admin') { %>
                                 <% if (part.is_active === 0) { %>
-                                    <button type="button" class="btn btn-activate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>" style="padding: 6px 12px; font-size: 12px; background: linear-gradient(135deg, #28a745 0%, #218838 100%); border: none; color: white; border-radius: 6px; cursor: pointer; font-weight: 600;">啟用</button>
+                                <button type="button" class="btn-sm btn-activate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>">啟用</button>
                                 <% } else { %>
-                                    <button type="button" class="btn btn-deactivate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>" style="padding: 6px 12px; font-size: 12px; background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); border: none; color: #333; border-radius: 6px; cursor: pointer; font-weight: 600;">停用</button>
+                                <button type="button" class="btn-sm btn-deactivate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>">停用</button>
                                 <% } %>
                             <% } %>
                         </div>
@@ -309,251 +428,214 @@
                 <% }); %>
             </tbody>
         </table>
-        <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= parts.length %> 筆記錄</p>
+        </div>
+
+        <!-- 分頁控制 -->
+        <div class="pagination">
+            <span class="pagination-info">共 <%= totalCount %> 筆</span>
+            <div class="pagination-btns">
+                <%
+                function pageUrl(p) {
+                    const ps = new URLSearchParams({ search: search||'', category_id: category_id||'', status: status||'', sort: sort, order: order, page: p });
+                    return '/parts?' + ps.toString();
+                }
+                %>
+                <a href="<%= pageUrl(1) %>"           class="page-btn <%= currentPage===1 ? 'disabled' : '' %>">«</a>
+                <a href="<%= pageUrl(currentPage-1) %>" class="page-btn <%= currentPage===1 ? 'disabled' : '' %>">‹</a>
+                <%
+                const startPage = Math.max(1, currentPage - 2);
+                const endPage   = Math.min(totalPages, currentPage + 2);
+                for (let i = startPage; i <= endPage; i++) {
+                %>
+                <a href="<%= pageUrl(i) %>" class="page-btn <%= i === currentPage ? 'active' : '' %>"><%= i %></a>
+                <% } %>
+                <a href="<%= pageUrl(currentPage+1) %>" class="page-btn <%= currentPage===totalPages ? 'disabled' : '' %>">›</a>
+                <a href="<%= pageUrl(totalPages) %>"    class="page-btn <%= currentPage===totalPages ? 'disabled' : '' %>">»</a>
+            </div>
+        </div>
+
         <% } else { %>
         <div class="empty-state">
-            <p>目前沒有任何料件</p>
-            <% if (search) { %>
-            <p>請調整搜尋條件或<a href="/parts/add">新增料件</a></p>
+            <p>目前沒有符合條件的料件</p>
+            <% if (search || category_id || (status && status !== '')) { %>
+            <p>請調整搜尋條件或 <a href="/parts">清除篩選</a></p>
             <% } else { %>
             <p><a href="/parts/add">點擊這裡新增第一個料件</a></p>
             <% } %>
         </div>
         <% } %>
     </div>
+
+    <!-- 快速查看 Modal -->
+    <div class="modal-overlay" id="partModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="modalTitle">料件詳情</h3>
+                <button class="modal-close" onclick="closePartModal()">×</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="modal-empty">載入中…</div>
+            </div>
+        </div>
+    </div>
+
     <script>
         <%- include('_common-mobile-script') %>
     </script>
     <%- include('_common-nav-script') %>
-    
-    <% if (typeof canDelete !== 'undefined' && canDelete) { %>
+
     <script>
-        // 批量刪除功能 - 等待 DOM 載入完成
-        document.addEventListener('DOMContentLoaded', function() {
-            const selectAllCheckbox = document.getElementById('selectAll');
-            const partCheckboxes = document.querySelectorAll('.part-checkbox');
-            const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-            
-            // 如果沒有料件，直接返回
-            if (!partCheckboxes || partCheckboxes.length === 0) {
-                return;
+    document.addEventListener('DOMContentLoaded', function() {
+
+        // ── 批量刪除 ──
+        <% if (typeof canDelete !== 'undefined' && canDelete) { %>
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.part-checkbox');
+        const batchBtn = document.getElementById('batchDeleteBtn');
+
+        function updateBatchBtn() {
+            const n = Array.from(checkboxes).filter(c => c.checked).length;
+            if (batchBtn) {
+                batchBtn.style.display = n > 0 ? 'inline-block' : 'none';
+                batchBtn.textContent = '🗑️ 批量刪除 (' + n + ')';
             }
-            
-            // 全選/取消全選
-            if (selectAllCheckbox) {
-                selectAllCheckbox.addEventListener('change', function() {
-                    partCheckboxes.forEach(checkbox => {
-                        checkbox.checked = this.checked;
-                    });
-                    updateBatchDeleteButton();
-                });
-            }
-            
-            // 單個勾選框改變時
-            partCheckboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    updateSelectAllState();
-                    updateBatchDeleteButton();
-                });
+        }
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                checkboxes.forEach(c => c.checked = this.checked);
+                updateBatchBtn();
             });
-            
-            // 更新全選狀態
-            function updateSelectAllState() {
-                if (selectAllCheckbox && partCheckboxes.length > 0) {
-                    const allChecked = Array.from(partCheckboxes).every(cb => cb.checked);
-                    const someChecked = Array.from(partCheckboxes).some(cb => cb.checked);
-                    selectAllCheckbox.checked = allChecked;
-                    selectAllCheckbox.indeterminate = someChecked && !allChecked;
-                }
+        }
+        checkboxes.forEach(c => c.addEventListener('change', function() {
+            if (selectAll) {
+                const all = Array.from(checkboxes).every(x => x.checked);
+                const some = Array.from(checkboxes).some(x => x.checked);
+                selectAll.checked = all;
+                selectAll.indeterminate = some && !all;
             }
-            
-            // 更新批量刪除按鈕顯示
-            function updateBatchDeleteButton() {
-                const checkedCount = Array.from(partCheckboxes).filter(cb => cb.checked).length;
-                if (batchDeleteBtn) {
-                    if (checkedCount > 0) {
-                        batchDeleteBtn.style.display = 'inline-block';
-                        batchDeleteBtn.textContent = '🗑️ 批量刪除 (' + checkedCount + ')';
+            updateBatchBtn();
+        }));
+        if (batchBtn) {
+            batchBtn.addEventListener('click', function() {
+                const ids = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+                if (!ids.length) return;
+                if (!confirm('確定要刪除 ' + ids.length + ' 個料件嗎？\n\n系統會自動判斷：\n・有庫存或記錄 → 改為停用\n・完全無記錄 → 真正刪除')) return;
+                batchBtn.disabled = true;
+                batchBtn.textContent = '處理中…';
+                fetch('/parts/batch-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ part_ids: ids })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        let msg = '處理完成！\n';
+                        if (data.deleted)     msg += '✓ 已刪除：' + data.deleted + ' 個\n';
+                        if (data.deactivated) msg += '⚠ 已停用：' + data.deactivated + ' 個（有庫存或紀錄）\n';
+                        if (data.failed)      msg += '✗ 失敗：' + data.failed + ' 個\n';
+                        alert(msg);
+                        location.reload();
                     } else {
-                        batchDeleteBtn.style.display = 'none';
+                        alert('刪除失敗：' + (data.error || '未知錯誤'));
+                        batchBtn.disabled = false;
+                        updateBatchBtn();
                     }
-                }
-            }
-            
-            // 批量刪除按鈕點擊
-            if (batchDeleteBtn) {
-                batchDeleteBtn.addEventListener('click', function() {
-                    const checkedIds = Array.from(partCheckboxes)
-                        .filter(function(cb) { return cb.checked; })
-                        .map(function(cb) { return cb.value; });
-                    
-                    if (checkedIds.length === 0) {
-                        alert('請至少選擇一個料件');
-                        return;
-                    }
-                    
-                    if (!confirm('確定要刪除 ' + checkedIds.length + ' 個料件嗎？\n\n系統會自動檢查：\n- 有庫存的料件將改為停用\n- 有進出入庫紀錄的料件將改為停用\n- 只有完全沒有紀錄的料件才會真正刪除')) {
-                        return;
-                    }
-                    
-                    // 禁用按鈕，防止重複點擊
-                    batchDeleteBtn.disabled = true;
-                    const originalText = batchDeleteBtn.textContent;
-                    batchDeleteBtn.textContent = '處理中...';
-                    
-                    // 發送批量刪除請求
-                    fetch('/parts/batch-delete', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ part_ids: checkedIds })
-                    })
-                    .then(function(res) {
-                        if (!res.ok) {
-                            throw new Error('HTTP error! status: ' + res.status);
-                        }
-                        return res.json();
-                    })
-                    .then(function(data) {
-                        if (data.success) {
-                            var message = '處理完成！\n\n';
-                            if (data.deleted > 0) {
-                                message += '✓ 已刪除：' + data.deleted + ' 個料件\n';
-                            }
-                            if (data.deactivated > 0) {
-                                message += '⚠ 已停用：' + data.deactivated + ' 個料件（有庫存或紀錄）\n';
-                            }
-                            if (data.failed > 0) {
-                                message += '✗ 處理失敗：' + data.failed + ' 個料件\n';
-                            }
-                            if (data.details && data.details.length > 0 && data.details.length <= 10) {
-                                message += '\n詳細資訊：\n' + data.details.join('\n');
-                            } else if (data.details && data.details.length > 10) {
-                                message += '\n詳細資訊（前10項）：\n' + data.details.slice(0, 10).join('\n') + '\n... 還有 ' + (data.details.length - 10) + ' 項';
-                            }
-                            alert(message);
-                            location.reload();
-                        } else {
-                            alert('批量刪除失敗：' + (data.error || '未知錯誤'));
-                            batchDeleteBtn.disabled = false;
-                            batchDeleteBtn.textContent = originalText;
-                        }
-                    })
-                    .catch(function(err) {
-                        console.error('批量刪除錯誤:', err);
-                        alert('批量刪除時發生錯誤，請稍後再試');
-                        batchDeleteBtn.disabled = false;
-                        batchDeleteBtn.textContent = originalText;
-                    });
-                });
-            }
-            
-            // 初始化：更新按鈕狀態
-            updateBatchDeleteButton();
-            
-            // 啟用/停用按鈕功能
-            const activateButtons = document.querySelectorAll('.btn-activate');
-            const deactivateButtons = document.querySelectorAll('.btn-deactivate');
-            
-            // 處理啟用按鈕
-            activateButtons.forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    const partId = this.getAttribute('data-part-id');
-                    const partName = this.getAttribute('data-part-name');
-                    
-                    if (!confirm('確定要啟用料件「' + partName + '」嗎？')) {
-                        return;
-                    }
-                    
-                    // 禁用按鈕，防止重複點擊
-                    this.disabled = true;
-                    const originalText = this.textContent;
-                    this.textContent = '處理中...';
-                    
-                    fetch('/parts/toggle-status/' + partId, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(function(res) {
-                        return res.json().then(function(data) {
-                            if (!res.ok) {
-                                throw new Error(data.error || 'HTTP error! status: ' + res.status);
-                            }
-                            return data;
-                        });
-                    })
-                    .then(function(data) {
-                        if (data.success) {
-                            alert('料件已啟用');
-                            location.reload();
-                        } else {
-                            alert('啟用失敗：' + (data.error || '未知錯誤'));
-                            btn.disabled = false;
-                            btn.textContent = originalText;
-                        }
-                    })
-                    .catch(function(err) {
-                        console.error('啟用料件錯誤:', err);
-                        alert('啟用料件時發生錯誤：' + (err.message || '請稍後再試'));
-                        btn.disabled = false;
-                        btn.textContent = originalText;
-                    });
-                });
+                })
+                .catch(() => { alert('發生錯誤，請稍後再試'); batchBtn.disabled = false; updateBatchBtn(); });
             });
-            
-            // 處理停用按鈕
-            deactivateButtons.forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    const partId = this.getAttribute('data-part-id');
-                    const partName = this.getAttribute('data-part-name');
-                    
-                    if (!confirm('確定要停用料件「' + partName + '」嗎？\n\n停用後該料件將不會在庫存查詢中顯示，但所有紀錄都會保留。')) {
-                        return;
-                    }
-                    
-                    // 禁用按鈕，防止重複點擊
-                    this.disabled = true;
-                    const originalText = this.textContent;
-                    this.textContent = '處理中...';
-                    
-                    fetch('/parts/toggle-status/' + partId, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(function(res) {
-                        return res.json().then(function(data) {
-                            if (!res.ok) {
-                                throw new Error(data.error || 'HTTP error! status: ' + res.status);
-                            }
-                            return data;
-                        });
-                    })
-                    .then(function(data) {
-                        if (data.success) {
-                            alert('料件已停用');
-                            location.reload();
-                        } else {
-                            alert('停用失敗：' + (data.error || '未知錯誤'));
-                            btn.disabled = false;
-                            btn.textContent = originalText;
-                        }
-                    })
-                    .catch(function(err) {
-                        console.error('停用料件錯誤:', err);
-                        alert('停用料件時發生錯誤：' + (err.message || '請稍後再試'));
-                        btn.disabled = false;
-                        btn.textContent = originalText;
-                    });
-                });
+        }
+        <% } %>
+
+        // ── 啟用 / 停用 ──
+        document.querySelectorAll('.btn-activate, .btn-deactivate').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const id   = this.getAttribute('data-part-id');
+                const name = this.getAttribute('data-part-name');
+                const isActivate = this.classList.contains('btn-activate');
+                const msg = isActivate
+                    ? '確定要啟用料件「' + name + '」嗎？'
+                    : '確定要停用料件「' + name + '」嗎？\n\n停用後不顯示在庫存列表，但所有紀錄保留。';
+                if (!confirm(msg)) return;
+                this.disabled = true;
+                const orig = this.textContent;
+                this.textContent = '處理中…';
+                const self = this;
+                fetch('/parts/toggle-status/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) { location.reload(); }
+                    else { alert('操作失敗：' + (data.error || '未知錯誤')); self.disabled = false; self.textContent = orig; }
+                })
+                .catch(() => { alert('發生錯誤，請稍後再試'); self.disabled = false; self.textContent = orig; });
             });
         });
+    });
+
+    // ── 快速查看 Modal ──
+    function openPartModal(partId) {
+        const modal = document.getElementById('partModal');
+        const body  = document.getElementById('modalBody');
+        const title = document.getElementById('modalTitle');
+        modal.classList.add('open');
+        body.innerHTML = '<div class="modal-empty">載入中…</div>';
+        title.textContent = '料件詳情';
+
+        fetch('/api/parts/' + partId + '/detail')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { body.innerHTML = '<div class="modal-empty">載入失敗</div>'; return; }
+            const p = data.part;
+            const stockCls = p.current_stock <= 0 ? 'stock-zero' : p.current_stock <= 5 ? 'stock-low' : 'stock-ok';
+            title.textContent = '📦 ' + p.part_name;
+            let html = `
+                <div class="modal-info-grid">
+                    <div class="modal-info-item"><div class="label">料號</div><div class="value" style="font-size:14px;">${p.part_number}</div></div>
+                    <div class="modal-info-item highlight"><div class="label">目前庫存</div><div class="value ${stockCls}">${p.current_stock}</div></div>
+                    <div class="modal-info-item"><div class="label">借測中數量</div><div class="value" style="font-size:16px; color:#fd7e14;">${p.loaned_quantity}</div></div>
+                    <div class="modal-info-item"><div class="label">類型</div><div class="value" style="font-size:14px;">${p.category_name || '-'}</div></div>
+                    <div class="modal-info-item"><div class="label">單位</div><div class="value" style="font-size:14px;">${p.unit}</div></div>
+                    <div class="modal-info-item"><div class="label">規格</div><div class="value" style="font-size:13px; word-break:break-all;">${p.specification || '-'}</div></div>
+                </div>
+                <div class="modal-records-title">📋 近期出入庫記錄（最近 10 筆）</div>`;
+
+            if (data.records && data.records.length > 0) {
+                html += `<table class="modal-records-table">
+                    <thead><tr><th>日期</th><th>類型</th><th>數量</th><th>備註</th><th>操作人員</th></tr></thead><tbody>`;
+                data.records.forEach(r => {
+                    const typeMap = { inbound: ['入庫','type-inbound'], return: ['歸還','type-return'], outbound: ['出庫','type-outbound'], loan: ['借測','type-loan'] };
+                    const [typeLabel, typeCls] = typeMap[r.type] || [r.type, ''];
+                    const qty = (r.type === 'inbound' || r.type === 'return') ? '+' + r.quantity : '-' + r.quantity;
+                    html += `<tr>
+                        <td style="white-space:nowrap;">${r.transaction_date || '-'}</td>
+                        <td><span class="type-badge ${typeCls}">${typeLabel}</span></td>
+                        <td style="font-weight:700;">${qty}</td>
+                        <td style="font-size:12px; color:#888;">${r.note || '-'}</td>
+                        <td style="font-size:12px; color:#888;">${r.created_by || '-'}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="modal-empty">尚無出入庫記錄</div>';
+            }
+
+            html += `<div style="margin-top:14px; text-align:right;">
+                <a href="/parts/edit/${partId}" class="btn-sm btn-edit" style="padding:7px 16px; font-size:13px;">✏️ 編輯料件</a>
+            </div>`;
+            body.innerHTML = html;
+        })
+        .catch(() => { body.innerHTML = '<div class="modal-empty">載入失敗，請稍後再試</div>'; });
+    }
+
+    function closePartModal() {
+        document.getElementById('partModal').classList.remove('open');
+    }
+    document.getElementById('partModal').addEventListener('click', function(e) {
+        if (e.target === this) closePartModal();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closePartModal();
+    });
     </script>
-    <% } %>
 </body>
 </html>
-
