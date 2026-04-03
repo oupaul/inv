@@ -297,13 +297,20 @@
                 <select id="part_id" name="part_id" required>
                     <option value="">-- 請選擇料件 --</option>
                     <% parts.forEach(function(part) { %>
-                    <option value="<%= part.id %>" data-barcode="<%= part.barcode || '' %>">
+                    <option value="<%= part.id %>" 
+                            data-barcode="<%= part.barcode || '' %>"
+                            data-part-number="<%= part.part_number %>"
+                            data-part-name="<%= part.part_name %>">
                         <%= part.part_number %> - <%= part.part_name %>
                         <% if (part.specification) { %>(<%= part.specification %>)<% } %>
                         <% if (part.category_name) { %> [<%= part.category_name %>]<% } %>
                     </option>
                     <% }); %>
                 </select>
+                <!-- 即時庫存顯示 -->
+                <div id="stock-info-box" style="display:none; margin-top:10px; padding:10px 14px; background:#f0f7ff; border-left:4px solid #667eea; border-radius:6px; font-size:14px;">
+                    <span id="stock-info-text"></span>
+                </div>
             </div>
             
             <div class="form-group">
@@ -512,10 +519,31 @@
         
         partSelect.addEventListener('change', async () => {
             const partId = partSelect.value;
+            const stockBox = document.getElementById('stock-info-box');
+            const stockText = document.getElementById('stock-info-text');
+            
             if (!partId) {
                 returnSection.style.display = 'none';
                 isReturnCheckbox.checked = false;
+                if (stockBox) stockBox.style.display = 'none';
                 return;
+            }
+            
+            // 顯示即時庫存
+            if (stockBox && stockText) {
+                try {
+                    const resp = await fetch(`/api/parts/${partId}/detail`);
+                    const d = await resp.json();
+                    if (d.success && d.part) {
+                        const st = d.part.current_stock;
+                        const mn = d.part.min_stock || 0;
+                        const warn = mn > 0 && st <= mn ? ` ⚠️ 低於最低庫存（${mn}）` : '';
+                        const color = st <= 0 ? '#dc3545' : (mn > 0 && st <= mn ? '#ff9800' : '#28a745');
+                        stockText.innerHTML = `📦 <strong>${d.part.part_name}</strong> 目前庫存：<strong style="color:${color};font-size:16px;">${st}</strong> ${d.part.unit}${warn}`;
+                        stockBox.style.display = 'block';
+                        stockBox.style.borderLeftColor = color;
+                    }
+                } catch(e) { stockBox.style.display = 'none'; }
             }
             
             try {

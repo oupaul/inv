@@ -401,8 +401,14 @@
                     <td style="font-size:12px; color:#666;"><%= part.specification || '-' %></td>
                     <td style="font-size:12px; color:#888;"><%= part.barcode || '-' %></td>
                     <td><%= part.unit %></td>
-                    <td class="stock-cell <%= part.current_stock <= 0 ? 'stock-zero' : part.current_stock <= 5 ? 'stock-low' : 'stock-ok' %>">
+                    <%
+                    const minStock = part.min_stock || 0;
+                    const isLow = minStock > 0 && part.current_stock <= minStock;
+                    const stockCls = part.current_stock <= 0 ? 'stock-zero' : isLow ? 'stock-low' : 'stock-ok';
+                    %>
+                    <td class="stock-cell <%= stockCls %>">
                         <%= part.current_stock %>
+                        <% if (isLow) { %><span title="低於最低庫存 <%= minStock %>" style="margin-left:4px; font-size:13px;">⚠️</span><% } %>
                     </td>
                     <td>
                         <% if (part.is_active === 0) { %>

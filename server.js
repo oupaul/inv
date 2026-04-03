@@ -163,6 +163,15 @@ function initDB() {
         }
     }
     
+    // 為現有資料庫添加 min_stock 欄位（最低庫存警示）
+    if (!columnExists('parts', 'min_stock')) {
+        try {
+            db.exec(`ALTER TABLE parts ADD COLUMN min_stock INTEGER DEFAULT 0`);
+        } catch (e) {
+            console.error('添加 min_stock 欄位失敗:', e.message);
+        }
+    }
+    
     // 入庫記錄表
     db.exec(`
         CREATE TABLE IF NOT EXISTS inbound_records (
@@ -923,6 +932,7 @@ app.get('/', requireAuth, (req, res) => {
             p.specification,
             p.unit,
             p.barcode,
+            p.min_stock,
             c.name as category_name,
             COALESCE(p.is_active, 1) as is_active,
             COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0) - 
@@ -941,6 +951,43 @@ app.get('/', requireAuth, (req, res) => {
     
     const inventory = stmt.all(...params);
     
+    // 低庫存警示（庫存 <= min_stock 且 min_stock > 0）
+    const lowStockStmt = db.prepare(`
+        SELECT p.id, p.part_number, p.part_name, p.unit, COALESCE(p.min_stock, 0) as min_stock,
+            (
+                COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0)
+                - COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0)
+                - COALESCE((
+                    SELECT SUM(o2.quantity) - COALESCE((SELECT SUM(i2.quantity) FROM inbound_records i2 WHERE i2.return_outbound_id = o2.id AND i2.is_return = 1), 0)
+                    FROM outbound_records o2 WHERE o2.part_id = p.id AND o2.is_loan = 1
+                ), 0)
+            ) as current_stock
+        FROM parts p
+        WHERE COALESCE(p.is_active, 1) = 1 AND COALESCE(p.min_stock, 0) > 0
+        HAVING current_stock <= min_stock
+        ORDER BY (current_stock - min_stock) ASC
+        LIMIT 20
+    `);
+    const lowStockItems = lowStockStmt.all();
+
+    // 近期 10 筆交易記錄
+    const recentTransStmt = db.prepare(`
+        SELECT transaction_date, type, part_number, part_name, quantity, created_by FROM (
+            SELECT ir.inbound_date as transaction_date,
+                CASE WHEN ir.is_return = 1 THEN 'return' ELSE 'inbound' END as type,
+                p.part_number, p.part_name, ir.quantity, ir.created_by
+            FROM inbound_records ir JOIN parts p ON ir.part_id = p.id
+            UNION ALL
+            SELECT o.outbound_date as transaction_date,
+                CASE WHEN o.is_loan = 1 THEN 'loan' ELSE 'outbound' END as type,
+                p.part_number, p.part_name, o.quantity, o.created_by
+            FROM outbound_records o JOIN parts p ON o.part_id = p.id
+        ) combined
+        ORDER BY transaction_date DESC
+        LIMIT 10
+    `);
+    const recentTransactions = recentTransStmt.all();
+
     // 獲取所有類型用於下拉選單
     const categoriesStmt = db.prepare('SELECT * FROM categories ORDER BY name');
     const categories = categoriesStmt.all();
@@ -948,6 +995,8 @@ app.get('/', requireAuth, (req, res) => {
     res.render('index', { 
         inventory, 
         categories,
+        lowStockItems,
+        recentTransactions,
         search: search || '',
         category_id: category_id || '',
         user: req.session.user,
@@ -1326,8 +1375,8 @@ app.post('/parts/add', (req, res) => {
         }
         
         const stmt = db.prepare(`
-            INSERT INTO parts (part_number, part_name, specification, unit, category_id, barcode)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO parts (part_number, part_name, specification, unit, category_id, barcode, min_stock)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
         const result = stmt.run(
             part_number, 
@@ -1335,7 +1384,8 @@ app.post('/parts/add', (req, res) => {
             specification || null, 
             finalUnit, 
             finalCategoryId,
-            barcode || null
+            barcode || null,
+            parseInt(req.body.min_stock) || 0
         );
         
         logActivity(req, 'create', `新增料件：${part_number} - ${part_name}`, 'part', result.lastInsertRowid);
@@ -1475,7 +1525,7 @@ app.post('/parts/edit/:id', (req, res) => {
         
         const stmt = db.prepare(`
             UPDATE parts 
-            SET part_number = ?, part_name = ?, specification = ?, unit = ?, category_id = ?, barcode = ?
+            SET part_number = ?, part_name = ?, specification = ?, unit = ?, category_id = ?, barcode = ?, min_stock = ?
             WHERE id = ?
         `);
         stmt.run(
@@ -1485,6 +1535,7 @@ app.post('/parts/edit/:id', (req, res) => {
             finalUnit,
             finalCategoryId,
             barcode || null,
+            parseInt(min_stock) || 0,
             id
         );
         

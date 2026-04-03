@@ -486,6 +486,14 @@
             </div>
             
             <div class="form-group">
+                <label for="min_stock">最低庫存量（安全庫存）</label>
+                <input type="number" id="min_stock" name="min_stock" min="0" value="0">
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 當庫存低於此數量時，首頁儀表板與料件列表會顯示低庫存警示。設為 0 表示不啟用警示。
+                </small>
+            </div>
+            
+            <div class="form-group">
                 <label for="category_id">類型</label>
                 <div style="display: flex; gap: 10px; align-items: flex-start;">
                     <select id="category_id" name="category_id" style="flex: 1;">

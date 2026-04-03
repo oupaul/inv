@@ -372,8 +372,32 @@
         
         <!-- 到期通知面板 -->
         <div id="notification-panel" style="display: none;"></div>
-        
+
         <h1>📊 庫存儀表板</h1>
+        
+        <!-- 低庫存警示面板 -->
+        <% if (typeof lowStockItems !== 'undefined' && lowStockItems && lowStockItems.length > 0) { %>
+        <div style="background: linear-gradient(135deg, #fff3cd, #ffe0b2); border-left: 5px solid #ff9800; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <h3 style="margin:0; color:#e65100; font-size:15px;">⚠️ 低庫存警示（<%= lowStockItems.length %> 項料件低於最低庫存量）</h3>
+                <a href="/parts?status=all" style="font-size:12px; color:#e65100; text-decoration:none; font-weight:600;">查看全部 →</a>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:8px;">
+                <% lowStockItems.forEach(function(item) { %>
+                <div style="background:white; border-radius:7px; padding:10px 13px; box-shadow:0 1px 4px rgba(0,0,0,0.08); display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:700; font-size:13px; color:#333;"><%= item.part_name %></div>
+                        <div style="font-size:11px; color:#888; margin-top:2px;"><%= item.part_number %></div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:18px; font-weight:800; color:<%= item.current_stock <= 0 ? '#dc3545' : '#ff9800' %>;"><%= item.current_stock %></div>
+                        <div style="font-size:10px; color:#aaa;">最低：<%= item.min_stock %> <%= item.unit %></div>
+                    </div>
+                </div>
+                <% }); %>
+            </div>
+        </div>
+        <% } %>
         
         <!-- 手機版視圖切換 -->
         <div class="view-toggle">
@@ -543,20 +567,26 @@
                 <tbody>
                     <% inventory.forEach(function(item) { 
                         const availableQty = item.total_quantity - (item.loaned_quantity || 0);
+                        const minStock = item.min_stock || 0;
+                        const isLow = minStock > 0 && item.total_quantity <= minStock;
+                        const rowStyle = isLow ? 'background-color: #fff8f0;' : '';
                     %>
-                    <tr>
-                        <td><%= item.part_number %></td>
-                        <td><%= item.part_name %></td>
+                    <tr style="cursor:pointer; <%= rowStyle %>" onclick="window.location='/parts?search=<%= encodeURIComponent(item.part_number) %>'" title="點擊進入料件管理">
+                        <td><code style="font-size:12px;"><%= item.part_number %></code></td>
+                        <td style="font-weight:600;">
+                            <%= item.part_name %>
+                            <% if (isLow) { %><span style="color:#ff9800; font-size:12px; margin-left:4px;" title="低於最低庫存 <%= minStock %>">⚠️</span><% } %>
+                        </td>
                         <td><%= item.category_name || '-' %></td>
-                        <td><%= item.specification || '-' %></td>
-                        <td><%= item.barcode || '-' %></td>
-                        <td style="font-weight: bold; color: <%= item.total_quantity > 0 ? '#667eea' : '#999' %>;">
+                        <td style="font-size:12px; color:#666;"><%= item.specification || '-' %></td>
+                        <td style="font-size:12px; color:#999;"><%= item.barcode || '-' %></td>
+                        <td style="font-weight:bold; color:<%= item.total_quantity <= 0 ? '#dc3545' : isLow ? '#ff9800' : '#667eea' %>;">
                             <%= item.total_quantity %>
                         </td>
-                        <td style="color: <%= item.loaned_quantity > 0 ? '#ffc107' : '#999' %>;">
+                        <td style="color:<%= (item.loaned_quantity || 0) > 0 ? '#ffc107' : '#999' %>;">
                             <%= item.loaned_quantity || 0 %>
                         </td>
-                        <td style="font-weight: bold; color: <%= availableQty > 0 ? '#28a745' : '#999' %>;">
+                        <td style="font-weight:bold; color:<%= availableQty <= 0 ? '#dc3545' : isLow ? '#ff9800' : '#28a745' %>;">
                             <%= availableQty %>
                         </td>
                         <td><%= item.unit %></td>
@@ -564,11 +594,45 @@
                     <% }); %>
                 </tbody>
             </table>
-            <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= inventory.length %> 筆記錄</p>
+            <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= inventory.length %> 筆記錄｜點擊列可進入料件管理</p>
             <% } else { %>
             <div class="empty-state">
                 <p>目前沒有任何料件資料</p>
                 <p>請先前往<a href="/parts/add">料件管理</a>新增料件</p>
+            </div>
+            <% } %>
+            
+            <!-- 近期交易記錄 -->
+            <% if (typeof recentTransactions !== 'undefined' && recentTransactions && recentTransactions.length > 0) { %>
+            <div style="margin-top:30px;">
+                <h3 style="font-size:15px; color:#555; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;">
+                    <span>🕐 近期出入庫記錄</span>
+                    <a href="/transaction/records" style="font-size:12px; color:#667eea; text-decoration:none; font-weight:600;">查看全部 →</a>
+                </h3>
+                <table style="font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th>日期</th><th>類型</th><th>料號</th><th>料件名稱</th><th>數量</th><th>操作人員</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% recentTransactions.forEach(function(t) { 
+                            const typeMap = { inbound: ['入庫','#d4edda','#155724'], return: ['歸還','#cce5ff','#004085'], outbound: ['出庫','#f8d7da','#721c24'], loan: ['借測','#fff3cd','#856404'] };
+                            const [label, bg, fg] = typeMap[t.type] || [t.type, '#eee', '#333'];
+                        %>
+                        <tr>
+                            <td style="white-space:nowrap; color:#888;"><%= t.transaction_date %></td>
+                            <td><span style="background:<%= bg %>; color:<%= fg %>; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;"><%= label %></span></td>
+                            <td style="font-size:11px; color:#888;"><code><%= t.part_number %></code></td>
+                            <td style="font-weight:600;"><%= t.part_name %></td>
+                            <td style="font-weight:700; color:<%= t.type==='inbound'||t.type==='return' ? '#28a745' : '#dc3545' %>;">
+                                <%= t.type==='inbound'||t.type==='return' ? '+' : '-' %><%= t.quantity %>
+                            </td>
+                            <td style="color:#888;"><%= t.created_by || '-' %></td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
             </div>
             <% } %>
         </div>
