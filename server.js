@@ -1482,7 +1482,7 @@ app.get('/parts/edit/:id', (req, res) => {
 // 編輯料件處理
 app.post('/parts/edit/:id', (req, res) => {
     const { id } = req.params;
-    const { part_number, part_name, specification, unit, category_id, barcode, new_category_name, new_unit_name } = req.body;
+    const { part_number, part_name, specification, unit, category_id, barcode, new_category_name, new_unit_name, min_stock } = req.body;
     
     try {
         let finalCategoryId = category_id || null;
