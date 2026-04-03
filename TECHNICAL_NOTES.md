@@ -620,3 +620,210 @@ ALTER TABLE outbound_records ADD COLUMN invoice_number TEXT;
 **更新完成日期**：2026-01-15  
 **版本**：v2.1  
 **狀態**：✅ 已測試並投入使用
+
+---
+
+### 2026-01-23 - 料件管理 UX 全面改善、權限系統修正、最低庫存警示
+
+#### 🎯 本次更新重點
+
+---
+
+## 一、料件管理頁面 UX 全面改善
+
+### 功能描述
+對料件管理頁面進行全面重寫，大幅提升易用性。
+
+### 新增功能
+
+#### 1. 統計摘要卡片
+頁面頂部顯示四張統計卡片：
+- 料件總數
+- 啟用中料件數
+- 停用料件數
+- 零庫存料件數
+
+#### 2. 狀態篩選下拉選單
+- 支援「全部」、「啟用中」、「停用」三種狀態篩選
+
+#### 3. 目前庫存量欄位
+- 表格新增「目前庫存」欄位，即時顯示計算後的可用庫存
+- 依庫存量以顏色區分：
+  - 🔴 零庫存（紅色）
+  - 🟡 低庫存（橘黃色，當庫存 ≤ min_stock 時）
+  - 🟢 正常庫存（綠色）
+
+#### 4. 欄位排序
+- 點擊表頭可進行升降序排序
+- 支援排序欄位：料號、料件名稱、類型、目前庫存
+
+#### 5. 分頁功能
+- 每頁顯示 20 筆料件
+- 顯示總筆數、目前頁數、總頁數
+
+#### 6. 快速查看 Modal
+- 點擊料件名稱，彈出 Modal 顯示：
+  - 料件基本資訊（料號、規格、類型、單位、狀態）
+  - 目前庫存 / 借出中 / 最低庫存
+  - 近期 10 筆出入庫記錄（含日期、類型、數量、備註）
+
+### 相關 API 端點
+- `GET /api/parts/:id/detail` - 取得料件詳情與近期記錄，供 Modal 使用
+
+---
+
+## 二、角色管理細粒度權限控制
+
+### 問題描述
+料件管理的刪除功能原本只有 `role === 'admin'` 才能使用，設定了「料件管理刪除」權限的管理人員無法看到刪除功能。
+
+### 解決方案
+
+#### 1. 登入時載入角色權限
+```javascript
+// app.post('/login', ...)
+req.session.user = {
+    id, username, full_name, email, role,
+    permissions: userPermissions,  // 從 roles 表載入的細粒度權限
+    loginTime: Date.now()
+};
+```
+
+#### 2. hasPermission 輔助函數
+```javascript
+function hasPermission(user, module, action) {
+    if (user && user.role === 'admin') return true;
+    if (user && user.permissions && user.permissions[module]) {
+        return user.permissions[module].includes(action);
+    }
+    return false;
+}
+```
+
+#### 3. 前端條件渲染改用 canDelete
+```ejs
+<%# 舊寫法 %>
+<% if (user && user.role === 'admin') { %>
+<%# 新寫法 %>
+<% if (typeof canDelete !== 'undefined' && canDelete) { %>
+```
+
+#### 4. 後端批量刪除路由改為權限檢查
+```javascript
+app.post('/parts/batch-delete', requireAuth, (req, res) => {
+    if (!hasPermission(req.session.user, 'parts', 'delete')) {
+        return res.status(403).json({ success: false, error: '沒有刪除權限' });
+    }
+    // ...
+});
+```
+
+---
+
+## 三、時間顯示修正（UTC → CST）
+
+### 問題描述
+操作紀錄（activity_logs）與備份管理頁面顯示的是資料庫儲存的 UTC 時間，而非本地 CST（UTC+8）時間。
+
+### 解決方案
+
+#### 操作紀錄（activity_logs）
+在 SQL 查詢層直接轉換時區：
+```sql
+SELECT
+    id, user_id, username, action_type, action_detail, target_type,
+    target_id, ip_address, user_agent,
+    datetime(created_at, '+8 hours') as created_at
+FROM activity_logs
+```
+
+#### 備份管理（backup.ejs）
+前端渲染時明確指定時區：
+```javascript
+new Date(backup.created).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })
+```
+
+---
+
+## 四、最低庫存警示系統（安全庫存量）
+
+### 資料庫變更
+```sql
+-- parts 表新增 min_stock 欄位
+ALTER TABLE parts ADD COLUMN min_stock INTEGER DEFAULT 0;
+```
+
+### 功能描述
+
+#### 1. 料件設定最低庫存量
+- **新增料件**（`add_part.ejs`）與**編輯料件**（`edit_part.ejs`）頁面均新增「最低庫存量（安全庫存）」欄位
+- 設為 0 表示不啟用警示
+
+#### 2. 料件管理列表低庫存警示
+- 目前庫存 ≤ min_stock（且 min_stock > 0）時，庫存欄顯示 ⚠️ 圖示及 tooltip
+
+#### 3. 首頁儀表板強化
+- **低庫存警示面板**：當有料件低於最低庫存量時，在頁面頂端顯示橘色警示卡，列出所有低庫存料件的目前庫存 vs 最低庫存
+- **可點擊庫存列**：點擊任意料件列可直接跳轉到料件管理並搜尋該料號
+- **庫存顏色標示**：依庫存狀態（零庫存/低庫存/正常）顯示紅/橘/藍不同顏色
+- **近期 10 筆交易記錄**：底部顯示最新出入庫記錄，含類型色票標籤（入庫🟢/出庫🔴/借測🟡/歸還🔵）
+
+### 低庫存查詢技術細節
+SQLite 不支援 `HAVING` 在非聚合查詢，使用子查詢繞過限制：
+```sql
+SELECT * FROM (
+    SELECT p.id, ...,
+        (...計算庫存子查詢...) as current_stock
+    FROM parts p
+    WHERE COALESCE(p.is_active, 1) = 1 AND COALESCE(p.min_stock, 0) > 0
+) sub
+WHERE current_stock <= min_stock
+ORDER BY (current_stock - min_stock) ASC
+LIMIT 20
+```
+
+---
+
+## 五、出入庫頁面即時庫存顯示
+
+### 功能描述
+- **入庫頁面**：選取料件後，即時呼叫 `/api/parts/:id/detail` API，顯示目前庫存量及最低庫存警示卡片
+- **出庫頁面**：選取料件後，依 `data-stock` 屬性即時渲染庫存卡片，顏色依狀態動態變化（正常/低庫存/零庫存）
+
+### 庫存卡片 UI
+```
+📦 目前可用庫存：[數字] 單位  [⚠️ 低於最低庫存警示（選用）]
+```
+- 正常庫存：綠色邊框
+- 低庫存：橘色邊框 + 警示訊息
+- 零庫存：紅色邊框 + 錯誤訊息
+
+---
+
+## 六、修改檔案列表
+
+| 檔案 | 變更說明 |
+|------|---------|
+| `server.js` | 新增 `min_stock` 欄位遷移、修改 `/` 路由（低庫存、近期交易）、新增 `hasPermission` 函數、修改登入載入權限、新增 `/api/parts/:id/detail`、修改 `/parts` 路由（分頁/排序/篩選/統計）|
+| `views/index.ejs` | 新增低庫存警示面板、近期交易表格、可點擊列、低庫存顏色標示 |
+| `views/parts_list.ejs` | 全面重寫：統計卡片、狀態篩選、庫存欄、排序、分頁、Quick View Modal |
+| `views/add_part.ejs` | 新增 `min_stock` 欄位 |
+| `views/edit_part.ejs` | 新增 `min_stock` 欄位 |
+| `views/inbound.ejs` | 選料件後即時顯示庫存量卡片 |
+| `views/outbound.ejs` | 改善庫存卡片顯示，加入低庫存警示 |
+| `views/activity_logs.ejs` | 時間顯示改為 CST |
+| `views/backup.ejs` | 時間顯示改為 CST（指定 Asia/Taipei 時區） |
+
+---
+
+## 七、新增 API 端點
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/api/parts/:id/detail` | 取得料件詳情（庫存、借出、min_stock）與近期 10 筆出入庫記錄 |
+
+---
+
+**更新完成日期**：2026-01-23  
+**版本**：v2.2  
+**狀態**：✅ 已測試並投入使用
