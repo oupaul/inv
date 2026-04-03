@@ -951,20 +951,22 @@ app.get('/', requireAuth, (req, res) => {
     
     const inventory = stmt.all(...params);
     
-    // 低庫存警示（庫存 <= min_stock 且 min_stock > 0）
+    // 低庫存警示（庫存 <= min_stock 且 min_stock > 0），用子查詢避免 HAVING 在非聚合查詢的限制
     const lowStockStmt = db.prepare(`
-        SELECT p.id, p.part_number, p.part_name, p.unit, COALESCE(p.min_stock, 0) as min_stock,
-            (
-                COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0)
-                - COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0)
-                - COALESCE((
-                    SELECT SUM(o2.quantity) - COALESCE((SELECT SUM(i2.quantity) FROM inbound_records i2 WHERE i2.return_outbound_id = o2.id AND i2.is_return = 1), 0)
-                    FROM outbound_records o2 WHERE o2.part_id = p.id AND o2.is_loan = 1
-                ), 0)
-            ) as current_stock
-        FROM parts p
-        WHERE COALESCE(p.is_active, 1) = 1 AND COALESCE(p.min_stock, 0) > 0
-        HAVING current_stock <= min_stock
+        SELECT * FROM (
+            SELECT p.id, p.part_number, p.part_name, p.unit, COALESCE(p.min_stock, 0) as min_stock,
+                (
+                    COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0)
+                    - COALESCE((SELECT SUM(quantity) FROM outbound_records WHERE part_id = p.id AND (is_loan = 0 OR is_loan IS NULL)), 0)
+                    - COALESCE((
+                        SELECT SUM(o2.quantity) - COALESCE((SELECT SUM(i2.quantity) FROM inbound_records i2 WHERE i2.return_outbound_id = o2.id AND i2.is_return = 1), 0)
+                        FROM outbound_records o2 WHERE o2.part_id = p.id AND o2.is_loan = 1
+                    ), 0)
+                ) as current_stock
+            FROM parts p
+            WHERE COALESCE(p.is_active, 1) = 1 AND COALESCE(p.min_stock, 0) > 0
+        ) sub
+        WHERE current_stock <= min_stock
         ORDER BY (current_stock - min_stock) ASC
         LIMIT 20
     `);
