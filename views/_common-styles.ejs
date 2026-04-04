@@ -116,13 +116,14 @@ h1 {
 }
 
 /* ========== 側邊欄 ========== */
+/* !important 防止頁面殘留 nav{background:gradient} 覆蓋側邊欄 */
 .sidebar {
     position: fixed;
     top: 0;
     left: 0;
     width: var(--sidebar-width);
     height: 100vh;
-    background: var(--sidebar-bg);
+    background: var(--sidebar-bg) !important;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -160,6 +161,8 @@ h1 {
     padding: 8px 0;
     scrollbar-width: thin;
     scrollbar-color: var(--sidebar-border) transparent;
+    /* 防止頁面 nav{background:...} 套用到此元素 */
+    background: transparent !important;
 }
 
 .sidebar-nav::-webkit-scrollbar {
@@ -194,27 +197,30 @@ h1 {
     align-items: center;
     gap: 9px;
     padding: 8px 16px;
-    color: var(--sidebar-text);
-    text-decoration: none;
+    /* !important 防止頁面 nav a{color:white} 覆蓋 */
+    color: var(--sidebar-text) !important;
+    text-decoration: none !important;
     font-size: 13.5px;
     font-weight: 500;
     border-radius: 0;
     transition: all var(--transition);
     cursor: pointer;
     border: none;
-    background: none;
+    background: none !important;
     width: 100%;
     text-align: left;
 }
 
 .sidebar-link:hover {
-    background: var(--sidebar-hover-bg);
-    color: #e2e8f0;
+    background: var(--sidebar-hover-bg) !important;
+    color: #e2e8f0 !important;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 .sidebar-link.active {
-    background: var(--sidebar-active-bg);
-    color: var(--sidebar-active-text);
+    background: var(--sidebar-active-bg) !important;
+    color: var(--sidebar-active-text) !important;
     font-weight: 600;
 }
 
@@ -559,8 +565,9 @@ th, td {
 }
 
 th {
-    background: var(--bg-muted);
-    color: var(--text-secondary);
+    /* !important 覆蓋頁面殘留的 th{background:linear-gradient(#667eea...)} */
+    background: var(--bg-muted) !important;
+    color: var(--text-secondary) !important;
     font-weight: 600;
     font-size: 12px;
     text-transform: uppercase;

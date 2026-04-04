@@ -39,33 +39,49 @@
 
     /* ==========================================
        標記當前頁面（側邊欄 + 底部導航）
+       使用最長路徑優先算法，避免 /inventory/check
+       同時匹配 /inventory/check/records 的問題
        ========================================== */
+    function pathMatches(linkPath, currentPath) {
+        if (linkPath === '/') return currentPath === '/';
+        return currentPath === linkPath ||
+               currentPath.startsWith(linkPath + '/') ||
+               currentPath.startsWith(linkPath + '?');
+    }
+
     function markActiveLinks() {
         var currentPath = window.location.pathname;
 
-        /* 側邊欄連結 */
+        /* 側邊欄：找到路徑最長（最精確）的匹配連結 */
         var sidebarLinks = document.querySelectorAll('.sidebar-link[href]');
+        var bestLink = null;
+        var bestLen  = -1;
         sidebarLinks.forEach(function(link) {
             var linkPath = link.getAttribute('href');
-            var isActive = (linkPath === '/' && currentPath === '/') ||
-                           (linkPath !== '/' && currentPath.startsWith(linkPath));
-            if (isActive) {
-                link.classList.add('active');
-                /* 捲動到 active 連結 */
-                setTimeout(function() {
-                    link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                }, 100);
+            if (pathMatches(linkPath, currentPath) && linkPath.length > bestLen) {
+                bestLink = link;
+                bestLen  = linkPath.length;
             }
         });
+        if (bestLink) {
+            bestLink.classList.add('active');
+            setTimeout(function() {
+                bestLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }, 100);
+        }
 
-        /* 底部導航 */
+        /* 底部導航：同樣用最長路徑優先 */
         var bottomItems = document.querySelectorAll('.bottom-nav-item[data-path]');
+        var bestItem = null;
+        var bestItemLen = -1;
         bottomItems.forEach(function(item) {
             var itemPath = item.getAttribute('data-path');
-            var isActive = (itemPath === '/' && currentPath === '/') ||
-                           (itemPath !== '/' && currentPath.startsWith(itemPath));
-            if (isActive) item.classList.add('active');
+            if (pathMatches(itemPath, currentPath) && itemPath.length > bestItemLen) {
+                bestItem = item;
+                bestItemLen = itemPath.length;
+            }
         });
+        if (bestItem) bestItem.classList.add('active');
     }
 
     /* ==========================================

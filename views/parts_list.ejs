@@ -87,14 +87,15 @@
         table { width: 100%; border-collapse: collapse; min-width: 780px; }
         th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid #eee; }
         th {
-            background: var(--color-primary);
-            color: white;
             font-size: 13px;
             font-weight: 600;
             white-space: nowrap;
         }
         th.sortable { cursor: pointer; user-select: none; }
-        th.sortable:hover { background: var(--color-primary-hover); }
+        th.sortable:hover {
+            background: var(--border) !important;
+            color: var(--text-primary) !important;
+        }
         th .sort-icon { margin-left: 5px; opacity: 0.6; font-size: 11px; }
         th.sort-asc .sort-icon::after  { content: '▲'; opacity: 1; }
         th.sort-desc .sort-icon::after { content: '▼'; opacity: 1; }
