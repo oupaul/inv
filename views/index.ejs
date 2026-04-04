@@ -6,360 +6,149 @@
     <title>庫存管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
     <style>
         <%- include('_common-styles') %>
-        
-        /* 儀表板專用樣式 */
+
+        /* ===== 儀表板統計卡片 ===== */
         .dashboard-stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        
+
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            text-align: center;
-            transition: transform 0.3s;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .stat-card.warning {
-            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
-        }
-        
-        .stat-card.danger {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        }
-        
-        .stat-card.success {
-            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
-        }
-        
-        .stat-card .stat-icon {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
-        .stat-card .stat-value {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .stat-card .stat-label {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        
-        /* 手機版儀表板優化 */
-        @media (max-width: 768px) {
-            .dashboard-stats {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-                margin-bottom: 16px;
-            }
-            
-            .stat-card {
-                padding: 16px;
-                border-radius: 8px;
-            }
-            
-            .stat-card .stat-icon {
-                font-size: 28px;
-                margin-bottom: 8px;
-            }
-            
-            .stat-card .stat-value {
-                font-size: 28px;
-                margin-bottom: 4px;
-            }
-            
-            .stat-card .stat-label {
-                font-size: 13px;
-            }
-            
-            /* 儀表板模式：隱藏搜索和表格，顯示概覽 */
-            body.index-page.dashboard-mode .search-section,
-            body.index-page.dashboard-mode #inventoryTable,
-            body.index-page.dashboard-mode .table-mobile-container,
-            body.index-page.dashboard-mode .inventory-list-section {
-                display: none;
-            }
-            
-            /* 切換按鈕 */
-            .view-toggle {
-                display: flex;
-                gap: 8px;
-                margin-bottom: 16px;
-            }
-            
-            .view-toggle button {
-                flex: 1;
-                min-height: 44px;
-                padding: 8px;
-                background: white;
-                color: #667eea;
-                border: 2px solid #667eea;
-                border-radius: 8px;
-                font-weight: 600;
-                transition: all 0.2s;
-            }
-            
-            .view-toggle button.active {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-            }
-            
-            /* 快速操作區 - 顯示所有功能 */
-            .quick-actions {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-                margin-bottom: 24px;
-            }
-            
-            .quick-action-btn {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: 88px;
-                padding: 12px 8px;
-                background: white;
-                border: 2px solid #e0e0e0;
-                border-radius: 8px;
-                text-decoration: none;
-                color: #333;
-                font-weight: 600;
-                transition: all 0.2s;
-                gap: 6px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            }
-            
-            .quick-action-btn:active {
-                transform: scale(0.95);
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            }
-            
-            .quick-action-btn .action-icon {
-                font-size: 28px;
-                line-height: 1;
-            }
-            
-            .quick-action-btn .action-label {
-                font-size: 14px;
-                text-align: center;
-                line-height: 1.3;
-            }
-            
-            .quick-action-btn.logout-btn {
-                background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-                color: white;
-                border-color: #dc3545;
-            }
-            
-            .quick-action-btn.login-btn {
-                background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-                color: white;
-                border-color: #007bff;
-            }
-        }
-        
-        /* 桌面版 */
-        @media (min-width: 769px) {
-            .view-toggle,
-            .quick-actions {
-                display: none;
-            }
-            
-            .dashboard-stats {
-                grid-template-columns: repeat(4, 1fr);
-            }
-            
-            /* 桌面版顯示導航 */
-            nav {
-                display: block !important;
-                visibility: visible !important;
-                height: auto !important;
-                width: auto !important;
-                position: static !important;
-                left: auto !important;
-            }
-        }
-        
-        /* 手機版隱藏首頁導航 */
-        @media (max-width: 768px) {
-            body.index-page nav {
-                display: none !important;
-                visibility: hidden !important;
-                height: 0 !important;
-                overflow: hidden !important;
-            }
-        }
-        
-        /* 通知面板樣式 */
-        .notification-panel {
-            background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%);
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            border-left: 5px solid #ffc107;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        
-        .notification-panel.urgent {
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            border-left-color: #dc3545;
-        }
-        
-        .notification-panel h2 {
-            margin-bottom: 15px;
-            color: #333;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 16px;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s, transform 0.2s;
         }
-        
-        .notification-list {
-            list-style: none;
-            padding: 0;
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
-        
+
+        .stat-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .stat-card-icon.purple { background: #ede9fe; }
+        .stat-card-icon.green  { background: #d1fae5; }
+        .stat-card-icon.amber  { background: #fef3c7; }
+        .stat-card-icon.blue   { background: #dbeafe; }
+
+        .stat-card-body { flex: 1; min-width: 0; }
+
+        .stat-card .stat-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.1;
+        }
+
+        .stat-card .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        /* ===== 借測到期通知面板 ===== */
+        .notification-panel {
+            background: var(--warning-bg);
+            border: 1px solid #fde68a;
+            border-left: 4px solid var(--warning);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+
+        .notification-panel.urgent {
+            background: var(--danger-bg);
+            border-color: #fca5a5;
+            border-left-color: var(--danger);
+        }
+
+        .notification-panel h2 {
+            font-size: 15px;
+            color: var(--warning-text);
+            margin-bottom: 12px;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .notification-panel.urgent h2 { color: var(--danger-text); }
+
+        .notification-list { list-style: none; }
+
         .notification-item {
-            padding: 12px;
+            padding: 10px 12px;
             background: white;
-            border-radius: 8px;
-            margin-bottom: 10px;
+            border-radius: var(--radius);
+            margin-bottom: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow-sm);
+            font-size: 13px;
         }
-        
-        .notification-item:last-child {
-            margin-bottom: 0;
-        }
-        
-        .notification-actions {
-            margin-top: 15px;
-            text-align: right;
-        }
-        
+
+        .notification-item:last-child { margin-bottom: 0; }
+
+        .notification-actions { margin-top: 12px; text-align: right; }
+
         .notification-actions a {
-            color: #667eea;
+            color: var(--color-primary);
             font-weight: 600;
             text-decoration: none;
-            padding: 8px 16px;
-            background: white;
-            border-radius: 6px;
-            display: inline-block;
+            font-size: 13px;
         }
-        
-        .notification-actions a:hover {
-            background: #f8f9fa;
-        }
-        
-        /* 手機版通知面板 */
+
         @media (max-width: 768px) {
-            .notification-panel {
-                padding: var(--mobile-padding);
-                margin-bottom: var(--mobile-spacing-block);
+            .dashboard-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                margin-bottom: 16px;
             }
-            
-            .notification-panel h2 {
-                font-size: var(--mobile-font-subtitle);
-                margin-bottom: var(--mobile-spacing-inline);
+
+            .stat-card {
+                padding: 14px;
+                gap: 12px;
             }
-            
+
+            .stat-card-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+            }
+
+            .stat-card .stat-value { font-size: 22px; }
+
             .notification-item {
                 flex-direction: column;
                 align-items: flex-start;
-                gap: var(--mobile-spacing-inline);
+                gap: 6px;
             }
         }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        
-        th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        tr:hover {
-            background-color: #f8f9fa;
-        }
-        
-        table {
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+
+        @media (min-width: 769px) {
+            .view-toggle, .quick-actions { display: none; }
         }
     </style>
 </head>
-<body class="index-page">
-    <nav>
-        <div class="nav-wrapper">
-            <!-- 主要功能 -->
-            <div class="nav-group">
-                <div class="nav-group-title">主要功能</div>
-                <a href="/" class="active">📊 庫存查詢</a>
-                <a href="/parts">📦 料件管理</a>
-                <a href="/inbound">📥 料件入庫</a>
-                <a href="/outbound">📤 料件出庫</a>
-                <a href="/inventory/check">🔍 庫存盤點</a>
-            </div>
-            <!-- 記錄查詢 -->
-            <div class="nav-group">
-                <div class="nav-group-title">記錄查詢</div>
-                <a href="/transaction/records">📝 出入庫記錄</a>
-                <a href="/loans">📋 借出中料件</a>
-                <a href="/inventory/check/records">📝 盤點記錄</a>
-            </div>
-            <!-- 系統管理 -->
-            <div class="nav-group">
-                <div class="nav-group-title">系統管理</div>
-                <a href="/categories">🏷️ 類型管理</a>
-                <a href="/units">📏 單位管理</a>
-                <a href="/users">👥 人員管理</a>
-                <a href="/import">📋 Excel匯入</a>
-            </div>
-            <!-- 系統工具（管理員） -->
-            <% if (user && user.role === 'admin') { %>
-            <div class="nav-group">
-                <div class="nav-group-title">系統工具</div>
-                <a href="/backup">💾 備份管理</a>
-                <a href="/health">🏥 系統健康</a>
-            </div>
-            <% } %>
-            <!-- 認證 -->
-            <div class="nav-group auth-group">
-                <% if (user) { %>
-                <a href="/logout" class="auth-link logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">🚪 登出 (<%= user.username %>)</a>
-                <% } else { %>
-                <a href="/login" class="auth-link login">🔐 登入</a>
-                <% } %>
-            </div>
-        </div>
-    </nav>
-    <form id="logoutForm" method="POST" action="/logout" style="display: none;"></form>
+<body>
+    <%- include('_common-nav') %>
     
     <div class="container">
         <% if (messages && messages.length > 0) { %>
@@ -399,124 +188,48 @@
         </div>
         <% } %>
         
-        <!-- 手機版視圖切換 -->
-        <div class="view-toggle">
-            <button type="button" class="active" onclick="switchView('dashboard')">📊 儀表板</button>
-            <button type="button" onclick="switchView('list')">📋 列表</button>
-        </div>
-        
         <!-- 儀表板統計卡片 -->
+        <%
+            let totalStock = 0, loanedStock = 0;
+            if (inventory) {
+                inventory.forEach(item => {
+                    totalStock += item.total_quantity || 0;
+                    loanedStock += item.loaned_quantity || 0;
+                });
+            }
+        %>
         <div class="dashboard-stats">
             <div class="stat-card">
-                <div class="stat-icon">📦</div>
-                <div class="stat-value" id="total-parts"><%= inventory ? inventory.length : 0 %></div>
-                <div class="stat-label">總料件數</div>
-            </div>
-            <div class="stat-card success">
-                <div class="stat-icon">✅</div>
-                <div class="stat-value" id="total-stock"><%
-                    let totalStock = 0;
-                    if (inventory) {
-                        inventory.forEach(item => totalStock += item.total_quantity || 0);
-                    }
-                %><%= totalStock %></div>
-                <div class="stat-label">總庫存量</div>
-            </div>
-            <div class="stat-card warning">
-                <div class="stat-icon">📤</div>
-                <div class="stat-value" id="loaned-stock"><%
-                    let loanedStock = 0;
-                    if (inventory) {
-                        inventory.forEach(item => loanedStock += item.loaned_quantity || 0);
-                    }
-                %><%= loanedStock %></div>
-                <div class="stat-label">借出中</div>
+                <div class="stat-card-icon purple">📦</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= inventory ? inventory.length : 0 %></div>
+                    <div class="stat-label">料件種類</div>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">💚</div>
-                <div class="stat-value" id="available-stock"><%= totalStock - loanedStock %></div>
-                <div class="stat-label">可用庫存</div>
+                <div class="stat-card-icon blue">📊</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= totalStock %></div>
+                    <div class="stat-label">總庫存量</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon amber">📤</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= loanedStock %></div>
+                    <div class="stat-label">借出中</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon green">✅</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= totalStock - loanedStock %></div>
+                    <div class="stat-label">可用庫存</div>
+                </div>
             </div>
         </div>
-        
-        <!-- 手機版快速操作 -->
-        <div class="quick-actions">
-            <a href="/parts" class="quick-action-btn">
-                <div class="action-icon">📦</div>
-                <div class="action-label">料件管理</div>
-            </a>
-            <a href="/inbound" class="quick-action-btn">
-                <div class="action-icon">📥</div>
-                <div class="action-label">料件入庫</div>
-            </a>
-            <a href="/outbound" class="quick-action-btn">
-                <div class="action-icon">📤</div>
-                <div class="action-label">料件出庫</div>
-            </a>
-            <a href="/inventory/check" class="quick-action-btn">
-                <div class="action-icon">🔍</div>
-                <div class="action-label">庫存盤點</div>
-            </a>
-            <a href="/transaction/records" class="quick-action-btn">
-                <div class="action-icon">📝</div>
-                <div class="action-label">出入庫記錄</div>
-            </a>
-            <a href="/loans" class="quick-action-btn">
-                <div class="action-icon">📋</div>
-                <div class="action-label">借出中料件</div>
-            </a>
-            <a href="/categories" class="quick-action-btn">
-                <div class="action-icon">🏷️</div>
-                <div class="action-label">類型管理</div>
-            </a>
-            <a href="/units" class="quick-action-btn">
-                <div class="action-icon">📏</div>
-                <div class="action-label">單位管理</div>
-            </a>
-            <a href="/users" class="quick-action-btn">
-                <div class="action-icon">👥</div>
-                <div class="action-label">人員管理</div>
-            </a>
-            <a href="/import" class="quick-action-btn">
-                <div class="action-icon">📋</div>
-                <div class="action-label">Excel匯入</div>
-            </a>
-            <% if (user && user.role === 'admin') { %>
-            <a href="/roles" class="quick-action-btn">
-                <div class="action-icon">🎭</div>
-                <div class="action-label">角色管理</div>
-            </a>
-            <a href="/activity-logs" class="quick-action-btn">
-                <div class="action-icon">📋</div>
-                <div class="action-label">操作記錄</div>
-            </a>
-            <a href="/backup" class="quick-action-btn">
-                <div class="action-icon">💾</div>
-                <div class="action-label">備份管理</div>
-            </a>
-            <a href="/health" class="quick-action-btn">
-                <div class="action-icon">🏥</div>
-                <div class="action-label">系統健康</div>
-            </a>
-            <% } %>
-            <% if (user) { %>
-            <a href="/change-password" class="quick-action-btn">
-                <div class="action-icon">🔑</div>
-                <div class="action-label">修改密碼</div>
-            </a>
-            <a href="/logout" class="quick-action-btn logout-btn" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">
-                <div class="action-icon">🚪</div>
-                <div class="action-label">登出 (<%= user.username %>)</div>
-            </a>
-            <% } else { %>
-            <a href="/login" class="quick-action-btn login-btn">
-                <div class="action-icon">🔐</div>
-                <div class="action-label">登入</div>
-            </a>
-            <% } %>
-        </div>
-        
-        <!-- 列表視圖區域 -->
+
+        <!-- 庫存列表區域 -->
         <div class="inventory-list-section">
             <div class="search-section">
                 <form method="GET" action="/" id="searchForm">
@@ -639,37 +352,6 @@
     </div>
     
     <script>
-        // 視圖切換功能（手機版）
-        function switchView(view) {
-            const body = document.body;
-            const buttons = document.querySelectorAll('.view-toggle button');
-            
-            buttons.forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            if (view === 'dashboard') {
-                body.classList.add('dashboard-mode');
-            } else {
-                body.classList.remove('dashboard-mode');
-            }
-            
-            // 保存用戶偏好
-            localStorage.setItem('inventoryView', view);
-        }
-        
-        // 載入用戶偏好的視圖
-        window.addEventListener('DOMContentLoaded', function() {
-            const savedView = localStorage.getItem('inventoryView') || 'dashboard';
-            if (savedView === 'list' && window.innerWidth <= 768) {
-                document.body.classList.remove('dashboard-mode');
-                const buttons = document.querySelectorAll('.view-toggle button');
-                buttons[0].classList.remove('active');
-                buttons[1].classList.add('active');
-            } else if (window.innerWidth <= 768) {
-                document.body.classList.add('dashboard-mode');
-            }
-        });
-        
         // 載入並顯示到期通知
         async function loadLoanNotifications() {
             try {

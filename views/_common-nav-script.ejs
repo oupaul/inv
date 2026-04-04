@@ -1,36 +1,85 @@
 <script>
-    // 手機版導航欄優化：按鈕式交互體驗
-    (function() {
-        if (window.innerWidth <= 768) {
-            const currentPath = window.location.pathname;
-            const navLinks = document.querySelectorAll('nav a[href]');
-            
-            // 標記當前頁面
-            navLinks.forEach(link => {
-                const linkPath = new URL(link.href).pathname;
-                if (linkPath === currentPath || 
-                    (linkPath !== '/' && currentPath.startsWith(linkPath))) {
-                    link.classList.add('active');
-                    
-                    // 平滑滾動到當前連結
-                    setTimeout(() => {
-                        link.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 300);
-                }
-            });
-            
-            // 添加點擊反饋效果
-            navLinks.forEach(link => {
-                link.addEventListener('touchstart', function() {
-                    this.style.transform = 'scale(0.97)';
-                }, { passive: true });
-                
-                link.addEventListener('touchend', function() {
-                    setTimeout(() => {
-                        this.style.transform = '';
-                    }, 150);
-                }, { passive: true });
-            });
+(function() {
+    'use strict';
+
+    /* ==========================================
+       側邊欄控制
+       ========================================== */
+    function toggleSidebar() {
+        var sidebar = document.getElementById('mainSidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        if (!sidebar) return;
+        var isOpen = sidebar.classList.contains('open');
+        if (isOpen) {
+            closeSidebar();
+        } else {
+            sidebar.classList.add('open');
+            if (overlay) overlay.classList.add('open');
+            document.body.style.overflow = 'hidden';
         }
-    })();
+    }
+
+    function closeSidebar() {
+        var sidebar = document.getElementById('mainSidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    /* 鍵盤 ESC 關閉 */
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeSidebar();
+    });
+
+    /* 視窗放大到桌面版時自動關閉 */
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 768) closeSidebar();
+    });
+
+    /* ==========================================
+       標記當前頁面（側邊欄 + 底部導航）
+       ========================================== */
+    function markActiveLinks() {
+        var currentPath = window.location.pathname;
+
+        /* 側邊欄連結 */
+        var sidebarLinks = document.querySelectorAll('.sidebar-link[href]');
+        sidebarLinks.forEach(function(link) {
+            var linkPath = link.getAttribute('href');
+            var isActive = (linkPath === '/' && currentPath === '/') ||
+                           (linkPath !== '/' && currentPath.startsWith(linkPath));
+            if (isActive) {
+                link.classList.add('active');
+                /* 捲動到 active 連結 */
+                setTimeout(function() {
+                    link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }, 100);
+            }
+        });
+
+        /* 底部導航 */
+        var bottomItems = document.querySelectorAll('.bottom-nav-item[data-path]');
+        bottomItems.forEach(function(item) {
+            var itemPath = item.getAttribute('data-path');
+            var isActive = (itemPath === '/' && currentPath === '/') ||
+                           (itemPath !== '/' && currentPath.startsWith(itemPath));
+            if (isActive) item.classList.add('active');
+        });
+    }
+
+    /* ==========================================
+       初始化
+       ========================================== */
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', markActiveLinks);
+    } else {
+        markActiveLinks();
+    }
+
+    /* 掛載到 window 供 HTML onclick 使用 */
+    window.toggleSidebar = toggleSidebar;
+    window.closeSidebar = closeSidebar;
+
+})();
 </script>
