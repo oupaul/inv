@@ -702,12 +702,12 @@ body > nav:not(.sidebar-nav):not(.bottom-nav) {
    行動裝置 ≤ 768px
    ============================================== */
 @media (max-width: 768px) {
-    /* 版面：上方預留 topbar 高度，下方預留底部導航 */
+    /* 版面：container 已固定定位，body 只需清除 desktop 的 sidebar 設定 */
     body {
         padding-left: 0 !important;
-        padding-top: var(--topbar-height) !important;
-        padding-bottom: var(--bottom-nav-height) !important;
-        min-height: 100vh !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        overflow: hidden !important;
     }
 
     /* 頂部列 */
@@ -736,13 +736,24 @@ body > nav:not(.sidebar-nav):not(.bottom-nav) {
         display: block;
     }
 
-    /* 容器：使用 !important 確保覆蓋頁面的 padding:30px
-       padding-bottom 夠大，讓所有內容都在底部工具列上方 */
+    /* 容器：固定在頂部列與底部列之間，自身負責滾動
+       這是最可靠的手機版佈局方式，不受 iOS Safari 影響 */
     .container {
+        position: fixed !important;
+        top: var(--topbar-height) !important;
+        bottom: var(--bottom-nav-height) !important;
+        left: 0 !important;
+        right: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
         padding: 16px !important;
-        padding-bottom: calc(var(--bottom-nav-height) + 20px) !important;
-        border-left: none !important;
+        height: auto !important;
         min-height: auto !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        max-width: none !important;
+        width: 100% !important;
     }
 
     h1 {
