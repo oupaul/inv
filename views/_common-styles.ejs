@@ -76,24 +76,29 @@
 
 /* ========== 基礎版面配置（桌面）========== */
 body {
-    font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
-    background: var(--bg-page);
+    font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif !important;
+    background: var(--bg-page) !important;
     color: var(--text-primary);
-    min-height: 100vh;
-    padding-left: var(--sidebar-width);
+    min-height: 100vh !important;
+    /* 預留側邊欄寬度 - !important 確保覆蓋頁面的 padding: 20px */
+    padding-top: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: var(--sidebar-width) !important;
     font-size: 14px;
     line-height: 1.5;
 }
 
 /* 主內容容器 */
 .container {
-    max-width: 1400px;
     padding: 28px 32px;
     min-height: 100vh;
-    background: var(--bg-card);
-    margin: 0;
-    border-radius: 0;
-    box-shadow: none;
+    background: var(--bg-card) !important;
+    /* 覆蓋頁面的 margin: 0 auto 和 border-radius */
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
     border-left: 1px solid var(--border);
 }
 
@@ -101,10 +106,10 @@ body {
 h1 {
     font-size: 22px;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--text-primary) !important;
     margin-bottom: 24px;
     padding-bottom: 16px;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 2px solid var(--border) !important;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -689,8 +694,8 @@ body > nav:not(.sidebar-nav):not(.bottom-nav) {
 @media (max-width: 768px) {
     /* 版面 */
     body {
-        padding-left: 0;
-        padding-bottom: var(--bottom-nav-height);
+        padding-left: 0 !important;
+        padding-bottom: var(--bottom-nav-height) !important;
     }
 
     /* 頂部列 */
