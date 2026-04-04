@@ -1,6 +1,9 @@
 <script>
 (function() {
     'use strict';
+    /* 防止重複執行（_common-nav.ejs 已嵌入此腳本，頁面若再次引入則跳過）*/
+    if (window.__navScriptLoaded) return;
+    window.__navScriptLoaded = true;
 
     /* ==========================================
        側邊欄控制

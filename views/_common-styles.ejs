@@ -327,17 +327,20 @@ h1 {
 }
 
 /* ========== 手機頂部列 ========== */
+/* position: fixed 比 sticky 更穩定（不受頁面 overflow 影響） */
 .mobile-topbar {
     display: none;
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 100;
+    left: 0;
+    right: 0;
+    z-index: 900;
     height: var(--topbar-height);
-    background: var(--sidebar-bg);
+    background: var(--sidebar-bg) !important;
     align-items: center;
     padding: 0 12px;
     gap: 10px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
 }
 
 .sidebar-toggle-btn {
@@ -699,9 +702,10 @@ body > nav:not(.sidebar-nav):not(.bottom-nav) {
    行動裝置 ≤ 768px
    ============================================== */
 @media (max-width: 768px) {
-    /* 版面 */
+    /* 版面：上方預留 topbar 高度，下方預留底部導航 */
     body {
         padding-left: 0 !important;
+        padding-top: var(--topbar-height) !important;
         padding-bottom: var(--bottom-nav-height) !important;
     }
 
