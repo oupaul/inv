@@ -827,3 +827,205 @@ LIMIT 20
 **更新完成日期**：2026-01-23  
 **版本**：v2.2  
 **狀態**：✅ 已測試並投入使用
+
+---
+
+### 2026-04-04 - UI/UX 全面改版（側邊欄 + 手機版優化）
+
+#### 🎯 本次更新重點
+- 全站導航改為側邊欄式設計（桌面 + 手機雙模式）
+- 手機版底部導航列 + 滑出側邊欄
+- 全站表格配色統一（淺灰色表頭）
+- 料件管理配色更新（移除舊紫色）
+- 修正側邊欄 CSS 污染問題
+- 修正 Active link 判斷邏輯
+- 徹底解決手機版工具列遮蓋頁面問題
+
+---
+
+## 一、全站 UI/UX 改版（設計系統 v3.0）
+
+### 設計系統 CSS 變數（`_common-styles.ejs`）
+
+```css
+:root {
+    --sidebar-width: 250px;
+    --topbar-height: 52px;
+    --bottom-nav-height: 60px;
+    --color-primary: #4f46e5;       /* 靛藍（Indigo） */
+    --color-primary-hover: #4338ca;
+    --sidebar-bg: #1e293b;          /* 深藍灰 */
+    --sidebar-text: #94a3b8;
+    --sidebar-active-bg: rgba(99,102,241,0.18);
+    --sidebar-active-text: #818cf8;
+    --bg-page: #f1f5f9;
+    --bg-card: #ffffff;
+    --bg-muted: #f8fafc;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+}
+```
+
+### 桌面版版面配置
+
+- **側邊欄（Sidebar）**：`position: fixed; width: 250px; left: 0`，固定在畫面左側
+- **主內容區（.container）**：`padding-left: 250px`，自動向右移出側邊欄空間
+- 側邊欄含分組連結（主要功能 / 記錄查詢 / 系統管理 / 系統工具）、使用者資訊、登出按鈕
+
+### 手機版版面配置（≤ 768px）
+
+- **頂部列（.mobile-topbar）**：`position: fixed; top: 0; z-index: 900`，顯示 App 標題與開啟側邊欄的漢堡按鈕
+- **底部導航列（.bottom-nav）**：`position: fixed; bottom: 0; z-index: 200`，提供庫存 / 料件 / 入庫 / 出庫 / 更多五個快捷鍵
+- **側邊欄**：預設隱藏（`transform: translateX(-100%)`），點「更多」從左滑入
+- **主內容區（.container）**：
+
+```css
+@media (max-width: 768px) {
+    .container {
+        position: fixed !important;
+        top: var(--topbar-height) !important;     /* 52px */
+        bottom: var(--bottom-nav-height) !important; /* 60px */
+        left: 0 !important;
+        right: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+}
+```
+
+> **重要**：container 在手機版改為 fixed 定位，填滿頂部列與底部列之間的空間，並自身負責捲動。此設計徹底避免 iOS Safari 視窗高度計算差異導致的內容遮蓋問題。
+
+---
+
+## 二、共用導航組件架構
+
+| 檔案 | 說明 |
+|------|------|
+| `views/_common-nav.ejs` | 側邊欄 HTML + 手機版頂部列 + 底部導航列，末尾內嵌 `_common-nav-script.ejs` |
+| `views/_common-nav-script.ejs` | 側邊欄 toggle/close、Active link 標記（最長路徑優先算法） |
+| `views/_common-styles.ejs` | 設計系統 v3.0 CSS（CSS 變數 + 桌面 + 手機版媒體查詢） |
+
+### `_common-nav-script.ejs` 嵌入策略
+
+- 已將 `_common-nav-script.ejs` 的引入移至 `_common-nav.ejs` 末尾，確保**所有頁面**自動獲得 `toggleSidebar` 函數，解決舊版只有部分頁面有引入導致「更多」按鈕無反應的問題
+- 設有 `window.__navScriptLoaded` 防重複執行旗標，避免顯式引入的頁面執行兩次
+
+### Active Link 算法（最長路徑優先）
+
+```javascript
+// 避免 /inventory/check 誤匹配 /inventory/check/records
+function pathMatches(linkPath, currentPath) {
+    if (linkPath === '/') return currentPath === '/';
+    return currentPath === linkPath ||
+           currentPath.startsWith(linkPath + '/') ||
+           currentPath.startsWith(linkPath + '?');
+}
+// 找最長（最精確）匹配
+sidebarLinks.forEach(link => {
+    if (pathMatches(linkPath, currentPath) && linkPath.length > bestLen) {
+        bestLink = link; bestLen = linkPath.length;
+    }
+});
+```
+
+---
+
+## 三、CSS 衝突防護策略（`!important` 使用原則）
+
+各功能頁面在 `<style>` 標籤內引入 `_common-styles` 後，仍有自己的舊版 CSS（如 `body { padding: 20px }` / `nav { background: gradient }` / `.container { margin: 0 auto }`）。為確保共用樣式優先，以下關鍵屬性使用 `!important`：
+
+| 選擇器 | 保護屬性 | 原因 |
+|--------|---------|------|
+| `body`（桌面） | `padding-left: 250px`, `background`, `padding-top: 0` | 防止頁面 `body { padding: 20px }` 覆蓋側邊欄位移 |
+| `.container`（桌面） | `margin: 0`, `border-radius: 0`, `box-shadow: none`, `max-width: none` | 防止頁面 `.container { margin: 0 auto }` 覆蓋 |
+| `h1` | `color`, `border-bottom` | 統一標題樣式，移除舊版紫色底線 |
+| `th` | `background: var(--bg-muted)`, `color` | 統一全站表格標題列為淺灰色 |
+| `.sidebar` | `background: var(--sidebar-bg)` | 防止頁面 `nav { background: gradient }` 染色側邊欄 |
+| `.sidebar-nav` | `background: transparent` | 防止頁面 `nav` 規則套用至 `<nav class="sidebar-nav">` |
+| `.sidebar-link` | `color`, `text-decoration`, `background`, `transform`, `box-shadow` | 防止頁面 `nav a { color: white }` 覆蓋連結樣式 |
+| `.container`（手機） | `position: fixed`, `top`, `bottom`, `overflow-y`, 全部屬性 | 確保手機版容器定位不受頁面 CSS 影響 |
+
+---
+
+## 四、料件管理配色更新
+
+`views/parts_list.ejs` 全面移除舊版紫色漸層（`#667eea / #764ba2`），改用設計系統 CSS 變數：
+
+| 元素 | 舊值 | 新值 |
+|------|------|------|
+| 統計卡片邊框 | `#667eea` | `var(--color-primary)` |
+| 表格標題列 | `linear-gradient(#667eea, #764ba2)` | `var(--bg-muted)`（淺灰） |
+| 輸入框 focus | `#667eea` | `var(--color-primary)` |
+| 分頁按鈕 active | `#667eea` | `var(--color-primary)` |
+| Modal 標題列 | `linear-gradient(#667eea, #764ba2)` | `var(--color-primary)` |
+| 編輯按鈕 | `linear-gradient(#28a745)` | `var(--success)` |
+| 停用按鈕 | `linear-gradient(#ffc107)` | `var(--warning)` |
+
+---
+
+## 五、修改檔案列表
+
+| 檔案 | 變更說明 |
+|------|---------|
+| `views/_common-styles.ejs` | 全面重寫為設計系統 v3.0；加入側邊欄、手機頂部列、底部導航 CSS；手機版 container fixed 定位；多項 `!important` 衝突防護 |
+| `views/_common-nav.ejs` | 全面重寫：側邊欄 HTML + 手機頂部列 + 底部導航；末尾引入 `_common-nav-script.ejs` |
+| `views/_common-nav-script.ejs` | 重寫：側邊欄 toggle/close、最長路徑優先 active link 算法、`__navScriptLoaded` 防重複旗標 |
+| `views/parts_list.ejs` | 配色全面更新至設計系統變數 |
+| `views/index.ejs` | 整合 `_common-nav`，移除舊版 inline nav |
+| 其他 28 個 EJS 頁面 | 整合 `_common-nav`，移除舊版 inline nav HTML |
+
+---
+
+## 六、新增頁面時的注意事項（v3.0）
+
+```html
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>頁面名稱 - 庫存管理系統</title>
+    <style>
+        <%- include('_common-styles') %>
+        /* 頁面專屬樣式（勿覆蓋 body/container 的 padding/margin） */
+    </style>
+</head>
+<body>
+    <%- include('_common-nav') %>  <!-- 已包含 script，無需額外引入 -->
+    <div class="container">
+        <h1>頁面標題</h1>
+        <!-- 頁面內容 -->
+    </div>
+</body>
+</html>
+```
+
+> **注意**：不要在頁面的 `<style>` 中直接設定 `body { padding: ... }` 或 `.container { margin: 0 auto; }` 等屬性，否則會與共用樣式衝突（即使有 `!important` 保護，仍應保持頁面 CSS 的乾淨）。
+
+---
+
+## 七、測試清單（v3.0）
+
+### 桌面版（> 768px）
+- [x] 所有頁面顯示左側側邊欄
+- [x] 側邊欄分組連結正確顯示
+- [x] 當前頁面連結高亮（Active）
+- [x] 表格標題列呈淺灰色（統一）
+- [x] 料件管理配色符合設計系統
+
+### 手機版（≤ 768px）
+- [x] 頂部列顯示 App 標題 + 漢堡按鈕
+- [x] 底部導航列顯示 5 個快捷功能
+- [x] 點「更多」滑出側邊欄，可點選所有功能
+- [x] 頁面內容不被頂部列遮住（container top: 52px）
+- [x] 頁面內容不被底部導航遮住（container bottom: 60px）
+- [x] 表格可左右滑動（橫向捲動）
+- [x] 側邊欄點選後頁面導航正確
+- [x] 多種頁面測試：庫存查詢、料件管理、入庫、出庫、盤點、記錄查詢等
+
+---
+
+**更新完成日期**：2026-04-04  
+**版本**：v3.0  
+**狀態**：✅ 已測試並投入使用

@@ -189,25 +189,29 @@ npm run dev
 - **後端框架**：Express 4.x
 - **模板引擎**：EJS
 - **資料庫**：SQLite（better-sqlite3），自動 schema 遷移
-- **前端**：HTML + CSS（內建樣式）+ Vanilla JS
-- **響應式設計**：支援桌面版與手機版
-- **UI/UX**：統一導航設計、手機版優化、儀表板模式
+- **前端**：HTML + CSS（設計系統 v3.0）+ Vanilla JS
+- **響應式設計**：桌面固定側邊欄 + 手機底部導航 + 手機滑出抽屜
+- **UI/UX**：設計系統（CSS 變數）、統一配色（Indigo + 深藍灰側邊欄）
 - **權限系統**：細粒度角色權限（session 層 + 路由層雙重驗證）
 - **條碼支援**：ZXing 相機掃描 + USB/藍芽無線掃描器
+- **共用組件**：`_common-nav.ejs`（導航）/ `_common-styles.ejs`（設計系統）/ `_common-nav-script.ejs`（互動邏輯）
 
 ## 📱 響應式設計特色
 
 ### 桌面版（> 768px）
-- ✅ 分組式導航欄（主要功能、記錄查詢、系統管理）
-- ✅ 完整表格顯示
-- ✅ 大螢幕優化佈局
+- ✅ **固定左側側邊欄**（250px 寬），含分組導航（主要功能、記錄查詢、系統管理、系統工具）
+- ✅ 側邊欄底部顯示使用者資訊、修改密碼、登出
+- ✅ 當前頁面導航連結自動高亮（最長路徑優先算法）
+- ✅ 完整表格顯示，統一淺灰色表頭
+- ✅ 統一設計系統（Indigo 主色調 + 深藍灰側邊欄）
 
 ### 手機版（≤ 768px）
-- ✅ 首頁儀表板式導航
-- ✅ 功能頁面僅顯示「返回主頁」按鈕
-- ✅ 表格橫向滾動查看
-- ✅ 觸控優化，滑動流暢
-- ✅ 節省螢幕空間
+- ✅ **頂部固定工具列**：顯示 App 名稱 + 漢堡按鈕
+- ✅ **底部導航列**：庫存 / 料件 / 入庫 / 出庫 / 更多 五個常用功能
+- ✅ **點「更多」滑出完整側邊欄**，可瀏覽所有功能選單
+- ✅ 頁面內容固定在頂部列與底部列之間，不重疊（`position: fixed` 容器）
+- ✅ 表格橫向滾動查看，觸控流暢（`-webkit-overflow-scrolling: touch`）
+- ✅ iOS Safari 相容（使用固定定位容器而非依賴 body padding）
 
 詳細技術資訊請參閱 [技術文件](TECHNICAL_NOTES.md)
 
@@ -225,13 +229,15 @@ npm run dev
 ├── status.sh             # 狀態查詢腳本
 ├── update.sh             # 更新系統腳本
 ├── uninstall.sh          # 卸載系統腳本
-├── views/                # EJS 模板目錄
-│   ├── base.ejs         # 基礎模板
-│   ├── index.ejs        # 庫存查詢頁面
-│   ├── parts_list.ejs   # 料件列表頁面
-│   ├── add_part.ejs     # 新增料件頁面
-│   ├── inbound.ejs      # 入庫頁面
-│   └── inbound_records.ejs # 入庫記錄頁面
+├── views/                    # EJS 模板目錄
+│   ├── _common-styles.ejs   # 設計系統 v3.0（CSS 變數 + 響應式佈局）
+│   ├── _common-nav.ejs      # 共用導航組件（側邊欄 + 手機頂部列 + 底部導航）
+│   ├── _common-nav-script.ejs # 側邊欄互動腳本
+│   ├── index.ejs            # 庫存查詢儀表板
+│   ├── parts_list.ejs       # 料件管理（統計卡片 + 分頁 + 快速查看）
+│   ├── inbound.ejs          # 料件入庫
+│   ├── outbound.ejs         # 料件出庫
+│   └── ...（30+ 頁面）
 └── inventory.db          # SQLite 資料庫（自動生成）
 ```
 
