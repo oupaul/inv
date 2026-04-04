@@ -707,6 +707,7 @@ body > nav:not(.sidebar-nav):not(.bottom-nav) {
         padding-left: 0 !important;
         padding-top: var(--topbar-height) !important;
         padding-bottom: var(--bottom-nav-height) !important;
+        min-height: 100vh !important;
     }
 
     /* 頂部列 */
@@ -735,10 +736,13 @@ body > nav:not(.sidebar-nav):not(.bottom-nav) {
         display: block;
     }
 
-    /* 容器 */
+    /* 容器：使用 !important 確保覆蓋頁面的 padding:30px
+       padding-bottom 夠大，讓所有內容都在底部工具列上方 */
     .container {
-        padding: 16px;
-        border-left: none;
+        padding: 16px !important;
+        padding-bottom: calc(var(--bottom-nav-height) + 20px) !important;
+        border-left: none !important;
+        min-height: auto !important;
     }
 
     h1 {
