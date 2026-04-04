@@ -658,9 +658,9 @@ tbody tr:last-child td {
     display: none;
 }
 
-/* ========== 導航（不再使用舊版，保留相容） ========== */
-nav {
-    display: none;
+/* ========== 舊版頂層橫向 nav 隱藏（不影響 sidebar-nav / bottom-nav）========== */
+body > nav:not(.sidebar-nav):not(.bottom-nav) {
+    display: none !important;
 }
 
 /* ========== 手機版：完全隱藏舊導航 ========== */
