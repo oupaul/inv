@@ -1,36 +1,104 @@
 <script>
-    // 手機版導航欄優化：按鈕式交互體驗
-    (function() {
-        if (window.innerWidth <= 768) {
-            const currentPath = window.location.pathname;
-            const navLinks = document.querySelectorAll('nav a[href]');
-            
-            // 標記當前頁面
-            navLinks.forEach(link => {
-                const linkPath = new URL(link.href).pathname;
-                if (linkPath === currentPath || 
-                    (linkPath !== '/' && currentPath.startsWith(linkPath))) {
-                    link.classList.add('active');
-                    
-                    // 平滑滾動到當前連結
-                    setTimeout(() => {
-                        link.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 300);
-                }
-            });
-            
-            // 添加點擊反饋效果
-            navLinks.forEach(link => {
-                link.addEventListener('touchstart', function() {
-                    this.style.transform = 'scale(0.97)';
-                }, { passive: true });
-                
-                link.addEventListener('touchend', function() {
-                    setTimeout(() => {
-                        this.style.transform = '';
-                    }, 150);
-                }, { passive: true });
-            });
+(function() {
+    'use strict';
+    /* 防止重複執行（_common-nav.ejs 已嵌入此腳本，頁面若再次引入則跳過）*/
+    if (window.__navScriptLoaded) return;
+    window.__navScriptLoaded = true;
+
+    /* ==========================================
+       側邊欄控制
+       ========================================== */
+    function toggleSidebar() {
+        var sidebar = document.getElementById('mainSidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        if (!sidebar) return;
+        var isOpen = sidebar.classList.contains('open');
+        if (isOpen) {
+            closeSidebar();
+        } else {
+            sidebar.classList.add('open');
+            if (overlay) overlay.classList.add('open');
+            document.body.style.overflow = 'hidden';
         }
-    })();
+    }
+
+    function closeSidebar() {
+        var sidebar = document.getElementById('mainSidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    /* 鍵盤 ESC 關閉 */
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeSidebar();
+    });
+
+    /* 視窗放大到桌面版時自動關閉 */
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 768) closeSidebar();
+    });
+
+    /* ==========================================
+       標記當前頁面（側邊欄 + 底部導航）
+       使用最長路徑優先算法，避免 /inventory/check
+       同時匹配 /inventory/check/records 的問題
+       ========================================== */
+    function pathMatches(linkPath, currentPath) {
+        if (linkPath === '/') return currentPath === '/';
+        return currentPath === linkPath ||
+               currentPath.startsWith(linkPath + '/') ||
+               currentPath.startsWith(linkPath + '?');
+    }
+
+    function markActiveLinks() {
+        var currentPath = window.location.pathname;
+
+        /* 側邊欄：找到路徑最長（最精確）的匹配連結 */
+        var sidebarLinks = document.querySelectorAll('.sidebar-link[href]');
+        var bestLink = null;
+        var bestLen  = -1;
+        sidebarLinks.forEach(function(link) {
+            var linkPath = link.getAttribute('href');
+            if (pathMatches(linkPath, currentPath) && linkPath.length > bestLen) {
+                bestLink = link;
+                bestLen  = linkPath.length;
+            }
+        });
+        if (bestLink) {
+            bestLink.classList.add('active');
+            setTimeout(function() {
+                bestLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }, 100);
+        }
+
+        /* 底部導航：同樣用最長路徑優先 */
+        var bottomItems = document.querySelectorAll('.bottom-nav-item[data-path]');
+        var bestItem = null;
+        var bestItemLen = -1;
+        bottomItems.forEach(function(item) {
+            var itemPath = item.getAttribute('data-path');
+            if (pathMatches(itemPath, currentPath) && itemPath.length > bestItemLen) {
+                bestItem = item;
+                bestItemLen = itemPath.length;
+            }
+        });
+        if (bestItem) bestItem.classList.add('active');
+    }
+
+    /* ==========================================
+       初始化
+       ========================================== */
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', markActiveLinks);
+    } else {
+        markActiveLinks();
+    }
+
+    /* 掛載到 window 供 HTML onclick 使用 */
+    window.toggleSidebar = toggleSidebar;
+    window.closeSidebar = closeSidebar;
+
+})();
 </script>

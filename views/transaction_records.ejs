@@ -981,8 +981,7 @@
                 fetch('/api/outbound/' + recordId + '/invoice', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': '<%= csrfToken %>'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         has_invoice: hasInvoice,

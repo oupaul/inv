@@ -156,7 +156,7 @@
         
         <div class="create-session-form">
             <h2 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 18px;">➕ 創建新盤點事件</h2>
-            <form method="POST" action="/inventory/check/sessions/create" id="createSessionForm"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <form method="POST" action="/inventory/check/sessions/create" id="createSessionForm">
                 <div class="form-row">
                     <div class="form-group-inline">
                         <label for="session_date">盤點日期 *</label>
@@ -216,7 +216,6 @@
                     <a href="/inventory/check/differences?session_id=<%= session.id %>" class="btn-view">📊 查看差異</a>
                     <% if (session.status !== 'completed') { %>
                     <form method="POST" action="/inventory/check/sessions/<%= session.id %>/complete" style="display: inline;" onsubmit="return confirm('確定要完成此盤點事件嗎？完成後將無法再添加盤點記錄。')">
-                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <button type="submit" class="btn-complete">✓ 完成盤點</button>
                     </form>
                     <% } %>

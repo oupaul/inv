@@ -175,7 +175,6 @@
                         <a href="/roles/edit/<%= role.id %>" class="btn btn-primary">✏️ 編輯</a>
                         <% if (!role.is_system) { %>
                         <form method="POST" action="/roles/delete/<%= role.id %>" style="display: inline;" onsubmit="return confirm('確定要刪除此角色嗎？');">
-                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                             <button type="submit" class="btn btn-danger">🗑️ 刪除</button>
                         </form>
                         <% } %>

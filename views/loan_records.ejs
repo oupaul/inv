@@ -485,8 +485,7 @@
                     fetch('/api/loans/convert-to-outbound/' + recordId, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-Token': '<%= csrfToken %>'
+                            'Content-Type': 'application/json'
                         }
                     })
                     .then(function(res) {

@@ -1,50 +1,173 @@
-<nav>
-    <div class="nav-wrapper">
+<!-- ========================================
+     庫存管理系統 - 側邊欄導航組件 v3.0
+     支援桌面固定側邊欄 + 行動版滑出抽屜
+     ======================================== -->
+
+<!-- 行動版頂部列 -->
+<div class="mobile-topbar" id="mobileTopbar">
+    <button class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="開啟選單">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+    </button>
+    <a href="/" class="mobile-logo">📦 庫存管理系統</a>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <div class="mobile-avatar" title="<%= user.full_name || user.username %>">
+        <%= (user.full_name || user.username).charAt(0).toUpperCase() %>
+    </div>
+    <% } else { %>
+    <div style="width:34px;"></div>
+    <% } %>
+</div>
+
+<!-- 側邊欄遮罩（行動版點擊關閉）-->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- 側邊欄主體 -->
+<aside class="sidebar" id="mainSidebar" role="navigation">
+
+    <!-- 品牌區 -->
+    <div class="sidebar-brand">
+        <a href="/" class="sidebar-brand-link" onclick="closeSidebar()">
+            <span class="sidebar-brand-icon">📦</span>
+            <span class="sidebar-brand-name">庫存管理系統</span>
+        </a>
+    </div>
+
+    <!-- 導航連結 -->
+    <nav class="sidebar-nav">
+
         <!-- 主要功能 -->
-        <div class="nav-group">
-            <div class="nav-group-title">主要功能</div>
-            <a href="/">📊 庫存查詢</a>
-            <a href="/parts">📦 料件管理</a>
-            <a href="/inbound">📥 料件入庫</a>
-            <a href="/outbound">📤 料件出庫</a>
-            <a href="/inventory/check">🔍 庫存盤點</a>
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">主要功能</div>
+            <a href="/" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📊</span><span>庫存查詢</span>
+            </a>
+            <a href="/parts" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📦</span><span>料件管理</span>
+            </a>
+            <a href="/inbound" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📥</span><span>料件入庫</span>
+            </a>
+            <a href="/outbound" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📤</span><span>料件出庫</span>
+            </a>
+            <a href="/inventory/check" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">🔍</span><span>庫存盤點</span>
+            </a>
         </div>
+
         <!-- 記錄查詢 -->
-        <div class="nav-group">
-            <div class="nav-group-title">記錄查詢</div>
-            <a href="/transaction/records">📝 出入庫記錄</a>
-            <a href="/loans">📋 借出中料件</a>
-            <a href="/inventory/check/records">📝 盤點記錄</a>
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">記錄查詢</div>
+            <a href="/transaction/records" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📝</span><span>出入庫記錄</span>
+            </a>
+            <a href="/loans" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📋</span><span>借出中料件</span>
+            </a>
+            <a href="/inventory/check/records" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📄</span><span>盤點記錄</span>
+            </a>
         </div>
+
         <!-- 系統管理 -->
-        <div class="nav-group">
-            <div class="nav-group-title">系統管理</div>
-            <a href="/categories">🏷️ 類型管理</a>
-            <a href="/units">📏 單位管理</a>
-            <a href="/users">👥 人員管理</a>
-            <a href="/import">📋 Excel匯入</a>
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">系統管理</div>
+            <a href="/categories" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">🏷️</span><span>類型管理</span>
+            </a>
+            <a href="/units" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📏</span><span>單位管理</span>
+            </a>
+            <a href="/users" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">👥</span><span>人員管理</span>
+            </a>
+            <a href="/import" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📊</span><span>Excel 匯入</span>
+            </a>
         </div>
-        <!-- 系統工具（管理員） -->
-        <% if (user && user.role === 'admin') { %>
-        <div class="nav-group">
-            <div class="nav-group-title">系統工具</div>
-            <a href="/roles">🎭 角色管理</a>
-            <a href="/activity-logs">📋 操作記錄</a>
-            <a href="/backup">💾 備份管理</a>
-            <a href="/health">🏥 系統健康</a>
-            <a href="/settings/email">📧 Email 通知設定</a>
+
+        <!-- 系統工具（管理員）-->
+        <% if (typeof user !== 'undefined' && user && user.role === 'admin') { %>
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">系統工具</div>
+            <a href="/roles" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">🎭</span><span>角色管理</span>
+            </a>
+            <a href="/activity-logs" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">🗒️</span><span>操作記錄</span>
+            </a>
+            <a href="/backup" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">💾</span><span>備份管理</span>
+            </a>
+            <a href="/health" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">🏥</span><span>系統健康</span>
+            </a>
+            <a href="/settings/email" class="sidebar-link" onclick="closeSidebar()">
+                <span class="sidebar-link-icon">📧</span><span>Email 通知設定</span>
+            </a>
         </div>
         <% } %>
-        <!-- 認證 -->
-        <div class="nav-group auth-group">
-            <% if (user) { %>
-            <a href="/change-password">🔑 修改密碼</a>
-            <a href="/logout" class="auth-link logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">🚪 登出 (<%= user.username %>)</a>
-            <% } else { %>
-            <a href="/login" class="auth-link login">🔐 登入</a>
-            <% } %>
-        </div>
-    </div>
-</nav>
-<form id="logoutForm" method="POST" action="/logout" style="display: none;"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
 
+    </nav>
+
+    <!-- 底部使用者資訊 -->
+    <div class="sidebar-footer">
+        <% if (typeof user !== 'undefined' && user) { %>
+        <div class="sidebar-user-info">
+            <div class="sidebar-user-avatar">
+                <%= (user.full_name || user.username).charAt(0).toUpperCase() %>
+            </div>
+            <div class="sidebar-user-detail">
+                <div class="sidebar-user-name"><%= user.full_name || user.username %></div>
+                <div class="sidebar-user-role">
+                    <%= user.role === 'admin' ? '系統管理員' : (user.role === 'staff' ? '管理人員' : '一般用戶') %>
+                </div>
+            </div>
+        </div>
+        <div class="sidebar-footer-actions">
+            <a href="/change-password" class="sidebar-footer-link" onclick="closeSidebar()">
+                🔑 修改密碼
+            </a>
+            <form id="logoutForm" method="POST" action="/logout" style="display: contents;">
+                <button type="submit" class="sidebar-footer-link sidebar-logout-btn">
+                    🚪 登出
+                </button>
+            </form>
+        </div>
+        <% } else { %>
+        <a href="/login" class="sidebar-footer-link">🔐 登入系統</a>
+        <% } %>
+    </div>
+
+</aside>
+
+<!-- 行動版底部導航列 -->
+<nav class="bottom-nav" role="navigation" aria-label="主要導航">
+    <a href="/" class="bottom-nav-item" data-path="/">
+        <span class="bottom-nav-icon">📊</span>
+        <span class="bottom-nav-label">庫存</span>
+    </a>
+    <a href="/parts" class="bottom-nav-item" data-path="/parts">
+        <span class="bottom-nav-icon">📦</span>
+        <span class="bottom-nav-label">料件</span>
+    </a>
+    <a href="/inbound" class="bottom-nav-item" data-path="/inbound">
+        <span class="bottom-nav-icon">📥</span>
+        <span class="bottom-nav-label">入庫</span>
+    </a>
+    <a href="/outbound" class="bottom-nav-item" data-path="/outbound">
+        <span class="bottom-nav-icon">📤</span>
+        <span class="bottom-nav-label">出庫</span>
+    </a>
+    <button class="bottom-nav-item" onclick="toggleSidebar()" aria-label="更多選項">
+        <span class="bottom-nav-icon">☰</span>
+        <span class="bottom-nav-label">更多</span>
+    </button>
+</nav>
+
+<!-- 側邊欄控制腳本（嵌入此處確保所有頁面都能使用 toggleSidebar）-->
+<%- include('_common-nav-script') %>

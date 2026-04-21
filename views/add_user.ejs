@@ -138,7 +138,7 @@
         
         <h1>➕ 新增用戶</h1>
 
-        <form method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <form method="POST">
             <div class="form-group">
                 <label for="username">帳號 *</label>
                 <input type="text" id="username" name="username" required placeholder="請輸入帳號">
@@ -183,7 +183,7 @@
                     <div style="font-size:12px; color:#8d6e63; line-height:1.5;">勾選後，該用戶首次登入時系統將強制要求其立即變更密碼，才能繼續使用系統。</div>
                 </div>
             </div>
-
+            
             <button type="submit">新增用戶</button>
             <a href="/users" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
         </form>
