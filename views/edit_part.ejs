@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -291,7 +291,33 @@
     <script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body>
-    <%- include('_common-nav') %>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <nav>
+        <div class="nav-wrapper">
+            <a href="/">📊 庫存查詢</a>
+            <a href="/parts">📦 料件管理</a>
+            <a href="/categories">🏷️ 類型管理</a>
+            <a href="/units">📏 單位管理</a>
+            <a href="/users">👥 人員管理</a>
+            <a href="/inbound">📥 料件入庫</a>
+            <a href="/outbound">📤 料件出庫</a>
+            <a href="/inventory/check">🔍 庫存盤點</a>
+            <a href="/import">📋 Excel匯入</a>
+            <a href="/transaction/records">📝 出入庫記錄</a>
+            <a href="/loans">📋 借出中料件</a>
+            <a href="/inventory/check/records">📝 盤點記錄</a>
+            <% if (user && user.role === 'admin') { %>
+            <a href="/backup">💾 備份管理</a>
+            <a href="/health">🏥 系統健康</a>
+            <% } %>
+            <% if (user) { %>
+            <a href="/logout" class="auth-link logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">🚪 登出 (<%= user.username %>)</a>
+            <% } else { %>
+            <a href="/login" class="auth-link login">🔐 登入</a>
+            <% } %>
+        </div>
+    </nav>
+    <form id="logoutForm" method="POST" action="/logout" style="display: none;"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
     
     <div class="container">
         <% if (messages && messages.length > 0) { %>
@@ -304,7 +330,7 @@
         
         <h1>✏️ 編輯料件</h1>
 
-        <form method="POST" id="partForm">
+        <form method="POST" id="partForm"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <div class="form-group">
                 <label for="barcode">條碼</label>
                 <div class="barcode-scanner">
@@ -335,14 +361,6 @@
             <div class="form-group">
                 <label for="specification">規格</label>
                 <input type="text" id="specification" name="specification" value="<%= part.specification || '' %>">
-            </div>
-            
-            <div class="form-group">
-                <label for="min_stock">最低庫存量（安全庫存）</label>
-                <input type="number" id="min_stock" name="min_stock" min="0" value="<%= part.min_stock || 0 %>">
-                <small style="color: #666; margin-top: 5px; display: block;">
-                    💡 當庫存低於此數量時，首頁儀表板與料件列表會顯示低庫存警示。設為 0 表示不啟用警示。
-                </small>
             </div>
             
             <div class="form-group">

@@ -200,7 +200,7 @@
         <h1>📧 Email 通知設定</h1>
 
         <div class="settings-container">
-            <form method="POST" action="/settings/email">
+            <form method="POST" action="/settings/email"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
                 <!-- SMTP 設定 -->
                 <div class="settings-card">

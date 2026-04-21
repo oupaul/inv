@@ -772,7 +772,7 @@
                         </small>
                     </div>
                     
-                    <form method="POST" id="batchCheckForm" action="/inventory/check/batch">
+                    <form method="POST" id="batchCheckForm" action="/inventory/check/batch"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" id="batch_session_id" name="session_id" value="<%= currentSession.id %>">
                         <input type="hidden" id="batch_session_date" name="session_date" value="<%= currentSession.session_date %>">
                         <input type="hidden" id="batch_items" name="items" value="">

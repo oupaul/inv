@@ -166,7 +166,7 @@
         <a href="/login" style="float: right; background-color: #007bff;">登入</a>
         <% } %>
     </nav>
-    <form id="logoutForm" method="POST" action="/logout" style="display: none;"></form>
+    <form id="logoutForm" method="POST" action="/logout" style="display: none;"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
     
     <div class="container">
         <% if (messages && messages.length > 0) { %>

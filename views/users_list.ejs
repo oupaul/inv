@@ -312,6 +312,7 @@
                     <td class="actions">
                         <a href="/users/edit/<%= user.id %>" class="btn btn-edit">編輯</a>
                         <form method="POST" action="/users/delete/<%= user.id %>" onsubmit="return confirm('確定要刪除此用戶嗎？');" style="display: inline;">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                             <button type="submit" class="btn btn-danger">刪除</button>
                         </form>
                     </td>

@@ -110,7 +110,7 @@
         
         <h1>✏️ 編輯用戶</h1>
 
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <div class="form-group">
                 <label for="username">帳號 *</label>
                 <input type="text" id="username" name="username" required value="<%= user.username %>">

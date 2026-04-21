@@ -51,7 +51,7 @@
     <div class="container">
         <h1>➕ 新增角色</h1>
         
-        <form method="POST" action="/roles/add">
+        <form method="POST" action="/roles/add"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <div class="form-group">
                 <label for="role_name">角色名稱 * (英文，用於系統識別)</label>
                 <input type="text" id="role_name" name="role_name" required pattern="[a-z_]+" 

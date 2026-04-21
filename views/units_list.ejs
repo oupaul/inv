@@ -286,6 +286,7 @@
                     <td class="actions">
                         <a href="/units/edit/<%= unit.id %>" class="btn btn-edit">編輯</a>
                         <form method="POST" action="/units/delete/<%= unit.id %>" onsubmit="return confirm('確定要刪除此單位嗎？');" style="display: inline;">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                             <button type="submit" class="btn btn-danger">刪除</button>
                         </form>
                     </td>
