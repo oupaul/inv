@@ -9,6 +9,7 @@ const ExcelJS = require('exceljs');
 const multer = require('multer');
 const fs = require('fs');
 const argon2 = require('argon2');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -415,10 +416,19 @@ function initDB() {
             email TEXT,
             role TEXT DEFAULT 'user',
             is_active INTEGER DEFAULT 1,
+            force_password_change INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    if (!columnExists('users', 'force_password_change')) {
+        try {
+            db.exec(`ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0`);
+        } catch (e) {
+            console.error('添加 force_password_change 欄位失敗:', e.message);
+        }
+    }
     
     // 角色表
     db.exec(`
@@ -472,6 +482,26 @@ function initDB() {
         `);
         insertSetting.run('force_logout_minutes', '480', '強制使用者登出時間（分鐘），預設 8 小時（480 分鐘）');
     }
+
+    // 插入 Email 通知相關預設設定
+    const emailDefaults = [
+        ['email_smtp_host',         '',        'SMTP 伺服器位址'],
+        ['email_smtp_port',         '587',     'SMTP 連接埠'],
+        ['email_smtp_secure',       '0',       'SMTP 使用 SSL/TLS（1=是, 0=否）'],
+        ['email_smtp_user',         '',        'SMTP 登入帳號'],
+        ['email_smtp_password',     '',        'SMTP 登入密碼'],
+        ['email_from_address',      '',        '寄件人 Email 地址'],
+        ['email_from_name',         '庫存管理系統', '寄件人顯示名稱'],
+        ['email_notify_recipients', '',        '通知收件人（多個以逗號分隔）'],
+        ['email_notify_parts',      '1',       '料件新增/編輯/刪除時發送通知'],
+        ['email_notify_inbound',    '1',       '入庫時發送通知'],
+        ['email_notify_outbound',   '1',       '出庫/借測時發送通知'],
+    ];
+    const insertEmailSetting = db.prepare(`
+        INSERT OR IGNORE INTO system_settings (setting_key, setting_value, description)
+        VALUES (?, ?, ?)
+    `);
+    emailDefaults.forEach(([key, val, desc]) => insertEmailSetting.run(key, val, desc));
     
     // 插入預設角色
     const checkRoles = db.prepare('SELECT COUNT(*) as count FROM roles');
@@ -631,6 +661,78 @@ function getSystemSetting(key, defaultValue = null) {
     }
 }
 
+// ==================== Email 通知功能 ====================
+function upsertSystemSetting(key, value, description) {
+    const stmt = db.prepare(`
+        INSERT INTO system_settings (setting_key, setting_value, description, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(setting_key) DO UPDATE SET
+            setting_value = excluded.setting_value,
+            updated_at = CURRENT_TIMESTAMP
+    `);
+    stmt.run(key, value, description);
+}
+
+async function sendNotificationEmail(subject, htmlContent) {
+    try {
+        const host     = getSystemSetting('email_smtp_host', '');
+        const port     = parseInt(getSystemSetting('email_smtp_port', '587'));
+        const secure   = getSystemSetting('email_smtp_secure', '0') === '1';
+        const user     = getSystemSetting('email_smtp_user', '');
+        const pass     = getSystemSetting('email_smtp_password', '');
+        const fromAddr = getSystemSetting('email_from_address', '');
+        const fromName = getSystemSetting('email_from_name', '庫存管理系統');
+        const recipients = getSystemSetting('email_notify_recipients', '');
+
+        if (!host || !user || !pass || !fromAddr || !recipients) {
+            console.log('📧 Email 通知未設定，略過發送');
+            return { success: false, reason: '未設定' };
+        }
+
+        const transporter = nodemailer.createTransport({
+            host,
+            port,
+            secure,
+            auth: { user, pass },
+            tls: { rejectUnauthorized: false }
+        });
+
+        const info = await transporter.sendMail({
+            from: `"${fromName}" <${fromAddr}>`,
+            to: recipients,
+            subject,
+            html: htmlContent
+        });
+
+        console.log(`📧 Email 已發送：${info.messageId}`);
+        return { success: true, messageId: info.messageId };
+    } catch (error) {
+        console.error('📧 Email 發送失敗:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+function buildEmailHtml(title, rows, operatorName, operatorTime) {
+    const rowsHtml = rows.map(([label, value]) =>
+        `<tr><td style="padding:8px 12px;font-weight:600;color:#555;background:#f8f9fa;white-space:nowrap;">${label}</td><td style="padding:8px 12px;color:#222;">${value}</td></tr>`
+    ).join('');
+    return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:20px 24px;">
+        <h2 style="margin:0;color:#fff;font-size:18px;">📦 庫存管理系統通知</h2>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,.8);font-size:13px;">${title}</p>
+      </div>
+      <div style="padding:20px 24px;">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          ${rowsHtml}
+        </table>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;font-size:12px;color:#999;">
+          操作人員：${operatorName || '系統'} &nbsp;|&nbsp; 時間：${operatorTime || new Date().toLocaleString('zh-TW')}
+        </div>
+      </div>
+    </div>`;
+}
+
 // 權限檢查函數
 function hasPermission(user, module, action) {
     // admin 角色擁有所有權限
@@ -648,6 +750,7 @@ function hasPermission(user, module, action) {
 
 // 認證中介軟體（可選，用於保護特定路由）
 function requireAuth(req, res, next) {
+    const isApiRoute = req.path.startsWith('/api/');
     if (req.session.user) {
         // 檢查強制登出時間
         const forceLogoutMinutes = parseInt(getSystemSetting('force_logout_minutes', '480'));
@@ -663,6 +766,9 @@ function requireAuth(req, res, next) {
                 if (err) {
                     console.error('強制登出錯誤:', err);
                 }
+                if (isApiRoute) {
+                    return res.status(401).json({ success: false, error: '登入已逾時，請重新登入' });
+                }
                 flash(req, 'warning', `您的登入時間已超過 ${forceLogoutMinutes} 分鐘，系統已自動登出。請重新登入。`);
                 res.redirect('/login');
             });
@@ -671,6 +777,9 @@ function requireAuth(req, res, next) {
         
         next();
     } else {
+        if (isApiRoute) {
+            return res.status(401).json({ success: false, error: '請先登入' });
+        }
         flash(req, 'error', '請先登入');
         res.redirect('/login');
     }
@@ -748,11 +857,17 @@ app.post('/login', async (req, res) => {
             email: user.email,
             role: user.role,
             permissions: userPermissions,
-            loginTime: Date.now() // 記錄登入時間戳
+            loginTime: Date.now(),
+            mustChangePassword: user.force_password_change === 1
         };
         
         // 記錄登入操作
         logActivity(req, 'login', `使用者 ${user.username} 登入系統`, 'user', user.id);
+        
+        if (user.force_password_change === 1) {
+            flash(req, 'warning', '您是首次登入，系統要求您立即變更密碼。');
+            return res.redirect('/change-password');
+        }
         
         flash(req, 'success', `歡迎回來，${user.full_name || user.username}！`);
         res.redirect('/');
@@ -781,7 +896,8 @@ app.post('/logout', (req, res) => {
 app.get('/change-password', requireAuth, (req, res) => {
     try {
         res.render('change_password', {
-            title: PAGE_TITLE
+            title: PAGE_TITLE,
+            isForced: req.session.user && req.session.user.mustChangePassword === true
         });
     } catch (error) {
         console.error('載入修改密碼頁面錯誤:', error);
@@ -839,13 +955,18 @@ app.post('/change-password', requireAuth, async (req, res) => {
         // 產生新密碼的雜湊值
         const newPasswordHash = await argon2.hash(new_password, { type: argon2.argon2id });
         
-        // 更新密碼
+        // 更新密碼，同時清除強制變更密碼標誌
         const updateStmt = db.prepare(`
             UPDATE users 
-            SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
+            SET password_hash = ?, force_password_change = 0, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
         `);
         updateStmt.run(newPasswordHash, userId);
+        
+        // 清除 session 中的強制變更密碼標誌
+        if (req.session.user) {
+            req.session.user.mustChangePassword = false;
+        }
         
         // 記錄活動
         logActivity(req, 'update', '修改密碼', 'user', userId);
@@ -876,6 +997,12 @@ app.use((req, res, next) => {
     if (!req.session.user) {
         flash(req, 'error', '請先登入才能訪問此頁面');
         return res.redirect('/login');
+    }
+    
+    // 強制首次變更密碼：除了 /change-password 之外全部導向
+    if (req.session.user.mustChangePassword && req.path !== '/change-password') {
+        flash(req, 'warning', '您必須先變更初始密碼才能繼續使用系統。');
+        return res.redirect('/change-password');
     }
     
     // 檢查強制登出時間
@@ -1393,6 +1520,19 @@ app.post('/parts/add', (req, res) => {
         logActivity(req, 'create', `新增料件：${part_number} - ${part_name}`, 'part', result.lastInsertRowid);
         flash(req, 'success', '料件新增成功！');
         res.redirect('/parts');
+
+        // 非同步發送 Email 通知
+        if (getSystemSetting('email_notify_parts', '0') === '1') {
+            const operator = req.session && req.session.user ? (req.session.user.full_name || req.session.user.username) : '系統';
+            const html = buildEmailHtml('新增料件通知', [
+                ['操作', '新增料件'],
+                ['料號', part_number],
+                ['料件名稱', part_name],
+                ['規格', specification || '-'],
+                ['單位', finalUnit],
+            ], operator, new Date().toLocaleString('zh-TW'));
+            sendNotificationEmail(`【庫存系統】新增料件 - ${part_name}`, html);
+        }
     } catch (error) {
         if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             if (error.message.includes('barcode')) {
@@ -1448,7 +1588,7 @@ app.get('/api/parts/:id/detail', requireAuth, (req, res) => {
                     quantity, note, created_by
                 FROM outbound_records WHERE part_id = ?
             ) combined
-            ORDER BY transaction_date DESC, rowid DESC
+            ORDER BY transaction_date DESC
             LIMIT 10
         `);
         const records = recordsStmt.all(id, id);
@@ -1750,13 +1890,28 @@ app.post('/inbound', (req, res) => {
         `);
         const result = stmt.run(part_id, quantity, inbound_date, note || null, isReturn, returnOutboundId, createdBy);
         
-        const partStmt = db.prepare('SELECT part_number, part_name FROM parts WHERE id = ?');
+        const partStmt = db.prepare('SELECT part_number, part_name, unit FROM parts WHERE id = ?');
         const part = partStmt.get(part_id);
         const partInfo = part ? `${part.part_number} - ${part.part_name}` : `料件ID: ${part_id}`;
+        const typeLabel = isReturn ? '歸還' : '入庫';
         
-        logActivity(req, isReturn ? 'return' : 'inbound', `${isReturn ? '歸還' : '入庫'}：${partInfo}，數量：${quantity}`, 'inbound_record', result.lastInsertRowid);
+        logActivity(req, isReturn ? 'return' : 'inbound', `${typeLabel}：${partInfo}，數量：${quantity}`, 'inbound_record', result.lastInsertRowid);
         flash(req, 'success', isReturn ? '歸還記錄成功！' : '入庫記錄成功！');
         res.redirect('/');
+
+        // 非同步發送 Email 通知
+        if (getSystemSetting('email_notify_inbound', '0') === '1') {
+            const operator = req.session && req.session.user ? (req.session.user.full_name || req.session.user.username) : '系統';
+            const html = buildEmailHtml(`${typeLabel}通知`, [
+                ['類型',   typeLabel],
+                ['料號',   part ? part.part_number : `ID:${part_id}`],
+                ['料件名稱', part ? part.part_name : '-'],
+                ['數量',   `${quantity} ${part ? part.unit : ''}`],
+                ['日期',   inbound_date],
+                ['備註',   note || '-'],
+            ], operator, new Date().toLocaleString('zh-TW'));
+            sendNotificationEmail(`【庫存系統】${typeLabel}通知 - ${part ? part.part_name : part_id}`, html);
+        }
     } catch (error) {
         flash(req, 'error', `入庫失敗：${error.message}`);
         res.redirect('/inbound');
@@ -2045,13 +2200,31 @@ app.post('/outbound', (req, res) => {
             invoiceNumber
         );
         
-        const partStmt = db.prepare('SELECT part_number, part_name FROM parts WHERE id = ?');
+        const partStmt = db.prepare('SELECT part_number, part_name, unit FROM parts WHERE id = ?');
         const part = partStmt.get(part_id);
         const partInfo = part ? `${part.part_number} - ${part.part_name}` : `料件ID: ${part_id}`;
+        const outTypeLabel = isLoan ? '借測' : '出庫';
         
-        logActivity(req, isLoan ? 'loan' : 'outbound', `${isLoan ? '借測' : '出庫'}：${partInfo}，數量：${qty}`, 'outbound_record', result.lastInsertRowid);
+        logActivity(req, isLoan ? 'loan' : 'outbound', `${outTypeLabel}：${partInfo}，數量：${qty}`, 'outbound_record', result.lastInsertRowid);
         flash(req, 'success', isLoan ? '借測記錄成功！' : '出庫記錄成功！');
         res.redirect('/');
+
+        // 非同步發送 Email 通知
+        if (getSystemSetting('email_notify_outbound', '0') === '1') {
+            const operator = req.session && req.session.user ? (req.session.user.full_name || req.session.user.username) : '系統';
+            const emailRows = [
+                ['類型',   outTypeLabel],
+                ['料號',   part ? part.part_number : `ID:${part_id}`],
+                ['料件名稱', part ? part.part_name : '-'],
+                ['數量',   `${qty} ${part ? part.unit : ''}`],
+                ['日期',   outbound_date],
+                ['備註',   note || '-'],
+            ];
+            if (isLoan) emailRows.push(['借測到期', loan_due_date || '-']);
+            if (!isLoan && hasInvoice) emailRows.push(['發票號碼', invoiceNumber || '-']);
+            const html = buildEmailHtml(`${outTypeLabel}通知`, emailRows, operator, new Date().toLocaleString('zh-TW'));
+            sendNotificationEmail(`【庫存系統】${outTypeLabel}通知 - ${part ? part.part_name : part_id}`, html);
+        }
     } catch (error) {
         flash(req, 'error', `出庫失敗：${error.message}`);
         res.redirect('/outbound');
@@ -3760,7 +3933,7 @@ app.get('/users/add', requireAuth, requireAdmin, (req, res) => {
 
 // 用戶管理 - 新增處理
 app.post('/users/add', requireAuth, requireAdmin, async (req, res) => {
-    const { username, password, full_name, email, role } = req.body;
+    const { username, password, full_name, email, role, force_password_change } = req.body;
     
     if (!username || !password) {
         flash(req, 'error', '帳號和密碼為必填欄位');
@@ -3769,13 +3942,14 @@ app.post('/users/add', requireAuth, requireAdmin, async (req, res) => {
     
     try {
         const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+        const forceChange = force_password_change === 'on' ? 1 : 0;
         const stmt = db.prepare(`
-            INSERT INTO users (username, password_hash, full_name, email, role)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (username, password_hash, full_name, email, role, force_password_change)
+            VALUES (?, ?, ?, ?, ?, ?)
         `);
-        const result = stmt.run(username, passwordHash, full_name || null, email || null, role || 'user');
+        const result = stmt.run(username, passwordHash, full_name || null, email || null, role || 'user', forceChange);
         
-        logActivity(req, 'create', `新增使用者：${username}`, 'user', result.lastInsertRowid);
+        logActivity(req, 'create', `新增使用者：${username}${forceChange ? '（需首次變更密碼）' : ''}`, 'user', result.lastInsertRowid);
         flash(req, 'success', '用戶新增成功！');
         res.redirect('/users');
     } catch (error) {
@@ -4494,6 +4668,72 @@ app.post('/api/settings/force-logout', requireAuth, requireAdmin, (req, res) => 
         res.json({ success: true, message: '設定已保存', forceLogoutMinutes: minutesInt });
     } catch (error) {
         console.error('保存強制登出時間設定失敗:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// ==================== Email 通知設定路由 ====================
+app.get('/settings/email', requireAuth, requireAdmin, (req, res) => {
+    const settings = {
+        smtp_host:      getSystemSetting('email_smtp_host', ''),
+        smtp_port:      getSystemSetting('email_smtp_port', '587'),
+        smtp_secure:    getSystemSetting('email_smtp_secure', '0'),
+        smtp_user:      getSystemSetting('email_smtp_user', ''),
+        smtp_password:  getSystemSetting('email_smtp_password', ''),
+        from_address:   getSystemSetting('email_from_address', ''),
+        from_name:      getSystemSetting('email_from_name', '庫存管理系統'),
+        recipients:     getSystemSetting('email_notify_recipients', ''),
+        notify_parts:   getSystemSetting('email_notify_parts', '1'),
+        notify_inbound: getSystemSetting('email_notify_inbound', '1'),
+        notify_outbound:getSystemSetting('email_notify_outbound', '1'),
+    };
+    res.render('settings_email', { title: PAGE_TITLE, settings });
+});
+
+app.post('/settings/email', requireAuth, requireAdmin, (req, res) => {
+    const {
+        smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password,
+        from_address, from_name, recipients,
+        notify_parts, notify_inbound, notify_outbound
+    } = req.body;
+
+    try {
+        upsertSystemSetting('email_smtp_host',         smtp_host || '',       'SMTP 伺服器位址');
+        upsertSystemSetting('email_smtp_port',         smtp_port || '587',    'SMTP 連接埠');
+        upsertSystemSetting('email_smtp_secure',       smtp_secure === 'on' ? '1' : '0', 'SMTP 使用 SSL/TLS');
+        upsertSystemSetting('email_smtp_user',         smtp_user || '',       'SMTP 登入帳號');
+        if (smtp_password && smtp_password.trim() !== '') {
+            upsertSystemSetting('email_smtp_password', smtp_password.trim(),  'SMTP 登入密碼');
+        }
+        upsertSystemSetting('email_from_address',      from_address || '',    '寄件人 Email 地址');
+        upsertSystemSetting('email_from_name',         from_name || '庫存管理系統', '寄件人顯示名稱');
+        upsertSystemSetting('email_notify_recipients', recipients || '',       '通知收件人');
+        upsertSystemSetting('email_notify_parts',      notify_parts === 'on' ? '1' : '0',    '料件異動通知');
+        upsertSystemSetting('email_notify_inbound',    notify_inbound === 'on' ? '1' : '0',  '入庫通知');
+        upsertSystemSetting('email_notify_outbound',   notify_outbound === 'on' ? '1' : '0', '出庫通知');
+
+        logActivity(req, 'update', '更新 Email 通知設定', 'system', null);
+        flash(req, 'success', 'Email 通知設定已儲存！');
+    } catch (error) {
+        flash(req, 'error', `儲存失敗：${error.message}`);
+    }
+    res.redirect('/settings/email');
+});
+
+app.post('/api/settings/email/test', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const testHtml = buildEmailHtml('Email 測試通知', [
+            ['狀態',  '✅ 測試成功'],
+            ['說明',  '如果您收到此郵件，代表 Email 通知功能已正確設定。'],
+        ], req.session.user.full_name || req.session.user.username, new Date().toLocaleString('zh-TW'));
+
+        const result = await sendNotificationEmail('【庫存系統】Email 測試通知', testHtml);
+        if (result.success) {
+            res.json({ success: true, message: '測試郵件已發送，請檢查收件匣' });
+        } else {
+            res.json({ success: false, error: result.error || result.reason || '發送失敗' });
+        }
+    } catch (error) {
         res.json({ success: false, error: error.message });
     }
 });

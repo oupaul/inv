@@ -589,9 +589,13 @@
         title.textContent = '料件詳情';
 
         fetch('/api/parts/' + partId + '/detail')
-        .then(r => r.json())
+        .then(r => {
+            if (r.status === 401) { window.location.href = '/login'; return null; }
+            return r.json();
+        })
         .then(data => {
-            if (!data.success) { body.innerHTML = '<div class="modal-empty">載入失敗</div>'; return; }
+            if (!data) return;
+            if (!data.success) { body.innerHTML = '<div class="modal-empty">載入失敗：' + (data.error || '未知錯誤') + '</div>'; return; }
             const p = data.part;
             const stockCls = p.current_stock <= 0 ? 'stock-zero' : p.current_stock <= 5 ? 'stock-low' : 'stock-ok';
             title.textContent = '📦 ' + p.part_name;

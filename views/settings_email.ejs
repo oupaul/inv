@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email 通知設定 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
+    <style>
+        <%- include('_common-styles') %>
+
+        .settings-container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .settings-card {
+            background: #fff;
+            border: 1px solid #e8e8e8;
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.05);
+        }
+
+        .settings-card h2 {
+            margin: 0 0 18px;
+            font-size: 16px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #555;
+            font-size: 13px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color .2s;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+        }
+
+        .toggle-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .toggle-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 14px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        .toggle-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            flex-shrink: 0;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .toggle-item label {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .toggle-label-main {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .toggle-label-sub {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all .2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102,126,234,.4);
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: #667eea;
+            padding: 10px 24px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all .2s;
+        }
+
+        .btn-secondary:hover {
+            background: #f0f2ff;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .flash-messages { margin-bottom: 20px; }
+        .flash {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .flash.success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .flash.error   { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .flash.warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+
+        #testResult {
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+
+        #testResult.ok  { background: #d4edda; color: #155724; }
+        #testResult.err { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-to-home">← 返回主頁</a>
+    <%- include('_common-nav') %>
+
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+        <div class="flash-messages">
+            <% messages.forEach(function(msg) { %>
+            <div class="flash <%= msg.category %>"><%= msg.message %></div>
+            <% }); %>
+        </div>
+        <% } %>
+
+        <h1>📧 Email 通知設定</h1>
+
+        <div class="settings-container">
+            <form method="POST" action="/settings/email">
+
+                <!-- SMTP 設定 -->
+                <div class="settings-card">
+                    <h2>🔧 SMTP 伺服器設定</h2>
+
+                    <div class="form-group">
+                        <label for="smtp_host">SMTP 伺服器位址</label>
+                        <input type="text" id="smtp_host" name="smtp_host"
+                               value="<%= settings.smtp_host %>"
+                               placeholder="例如：smtp.gmail.com 或 smtp.office365.com">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="smtp_port">連接埠</label>
+                            <input type="number" id="smtp_port" name="smtp_port"
+                                   value="<%= settings.smtp_port %>"
+                                   placeholder="587">
+                            <div class="hint">一般：587（STARTTLS）或 465（SSL）</div>
+                        </div>
+                        <div class="form-group" style="padding-top: 28px;">
+                            <div class="toggle-item">
+                                <input type="checkbox" id="smtp_secure" name="smtp_secure"
+                                       <%= settings.smtp_secure === '1' ? 'checked' : '' %>>
+                                <div>
+                                    <div class="toggle-label-main">使用 SSL/TLS（連接埠 465）</div>
+                                    <div class="toggle-label-sub">使用 587 時請勿勾選（STARTTLS 自動處理）</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="smtp_user">帳號（Email）</label>
+                            <input type="text" id="smtp_user" name="smtp_user"
+                                   value="<%= settings.smtp_user %>"
+                                   placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp_password">密碼 / 應用程式密碼</label>
+                            <input type="password" id="smtp_password" name="smtp_password"
+                                   placeholder="留空則保留現有密碼">
+                            <div class="hint">Gmail 請使用「應用程式密碼」</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 寄件人設定 -->
+                <div class="settings-card">
+                    <h2>✉️ 寄件人資訊</h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="from_address">寄件人 Email</label>
+                            <input type="email" id="from_address" name="from_address"
+                                   value="<%= settings.from_address %>"
+                                   placeholder="noreply@yourcompany.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="from_name">寄件人顯示名稱</label>
+                            <input type="text" id="from_name" name="from_name"
+                                   value="<%= settings.from_name %>"
+                                   placeholder="庫存管理系統">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="recipients">通知收件人</label>
+                        <input type="text" id="recipients" name="recipients"
+                               value="<%= settings.recipients %>"
+                               placeholder="a@example.com, b@example.com">
+                        <div class="hint">多個收件人請用逗號分隔</div>
+                    </div>
+                </div>
+
+                <!-- 通知事件 -->
+                <div class="settings-card">
+                    <h2>🔔 通知事件設定</h2>
+                    <div class="toggle-group">
+                        <div class="toggle-item">
+                            <input type="checkbox" id="notify_parts" name="notify_parts"
+                                   <%= settings.notify_parts === '1' ? 'checked' : '' %>>
+                            <label for="notify_parts">
+                                <div class="toggle-label-main">📦 料件管理異動通知</div>
+                                <div class="toggle-label-sub">新增料件時發送 Email 通知</div>
+                            </label>
+                        </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="notify_inbound" name="notify_inbound"
+                                   <%= settings.notify_inbound === '1' ? 'checked' : '' %>>
+                            <label for="notify_inbound">
+                                <div class="toggle-label-main">📥 入庫 / 歸還通知</div>
+                                <div class="toggle-label-sub">料件入庫或借測歸還時發送 Email 通知</div>
+                            </label>
+                        </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="notify_outbound" name="notify_outbound"
+                                   <%= settings.notify_outbound === '1' ? 'checked' : '' %>>
+                            <label for="notify_outbound">
+                                <div class="toggle-label-main">📤 出庫 / 借測通知</div>
+                                <div class="toggle-label-sub">料件出庫或借測時發送 Email 通知</div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-row">
+                    <button type="submit" class="btn-primary">💾 儲存設定</button>
+                    <button type="button" class="btn-secondary" onclick="testEmail()">📨 發送測試郵件</button>
+                </div>
+                <div id="testResult"></div>
+            </form>
+        </div>
+    </div>
+
+    <%- include('_common-nav-script') %>
+
+    <script>
+    async function testEmail() {
+        const btn = event.target;
+        const result = document.getElementById('testResult');
+        btn.disabled = true;
+        btn.textContent = '發送中…';
+        result.style.display = 'none';
+
+        try {
+            const resp = await fetch('/api/settings/email/test', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            const data = await resp.json();
+            result.style.display = 'block';
+            if (data.success) {
+                result.className = 'ok';
+                result.textContent = '✅ ' + data.message;
+            } else {
+                result.className = 'err';
+                result.textContent = '❌ 發送失敗：' + (data.error || '未知錯誤');
+            }
+        } catch (e) {
+            result.style.display = 'block';
+            result.className = 'err';
+            result.textContent = '❌ 請求失敗，請稍後再試';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📨 發送測試郵件';
+        }
+    }
+    </script>
+</body>
+</html>
