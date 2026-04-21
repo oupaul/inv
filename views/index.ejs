@@ -27,9 +27,50 @@
             transition: box-shadow 0.2s, transform 0.2s;
         }
 
+        .stat-card {
+            cursor: pointer;
+        }
+
         .stat-card:hover {
             box-shadow: var(--shadow-md);
             transform: translateY(-2px);
+        }
+
+        .stat-card.active {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25), var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .stat-card.active .stat-label {
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+
+        .filter-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #ede9fe;
+            color: var(--color-primary);
+            border: 1px solid #c4b5fd;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .filter-badge button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--color-primary);
+            font-size: 15px;
+            line-height: 1;
+            padding: 0;
+            display: flex;
+            align-items: center;
         }
 
         .stat-card-icon {
@@ -199,28 +240,28 @@
             }
         %>
         <div class="dashboard-stats">
-            <div class="stat-card">
+            <div class="stat-card active" data-filter="all" onclick="filterInventory('all', '全部料件')">
                 <div class="stat-card-icon purple">📦</div>
                 <div class="stat-card-body">
                     <div class="stat-value"><%= inventory ? inventory.length : 0 %></div>
                     <div class="stat-label">料件種類</div>
                 </div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-filter="instock" onclick="filterInventory('instock', '有庫存料件')">
                 <div class="stat-card-icon blue">📊</div>
                 <div class="stat-card-body">
                     <div class="stat-value"><%= totalStock %></div>
                     <div class="stat-label">總庫存量</div>
                 </div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-filter="loaned" onclick="filterInventory('loaned', '借出中料件')">
                 <div class="stat-card-icon amber">📤</div>
                 <div class="stat-card-body">
                     <div class="stat-value"><%= loanedStock %></div>
                     <div class="stat-label">借出中</div>
                 </div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-filter="available" onclick="filterInventory('available', '可用庫存料件')">
                 <div class="stat-card-icon green">✅</div>
                 <div class="stat-card-body">
                     <div class="stat-value"><%= totalStock - loanedStock %></div>
@@ -262,6 +303,11 @@
                 </div>
             </div>
 
+            <div id="filterBadge" style="display:none;" class="filter-badge">
+                <span id="filterBadgeText"></span>
+                <button onclick="filterInventory('all', '全部料件')" title="清除篩選">✕</button>
+            </div>
+
             <% if (inventory && inventory.length > 0) { %>
             <table id="inventoryTable">
                 <thead>
@@ -284,7 +330,13 @@
                         const isLow = minStock > 0 && item.total_quantity <= minStock;
                         const rowStyle = isLow ? 'background-color: #fff8f0;' : '';
                     %>
-                    <tr style="cursor:pointer; <%= rowStyle %>" onclick="window.location='/parts?search=<%= encodeURIComponent(item.part_number) %>'" title="點擊進入料件管理">
+                    <tr class="inv-row"
+                        data-total="<%= item.total_quantity || 0 %>"
+                        data-loaned="<%= item.loaned_quantity || 0 %>"
+                        data-available="<%= availableQty %>"
+                        style="cursor:pointer; <%= rowStyle %>"
+                        onclick="window.location='/parts?search=<%= encodeURIComponent(item.part_number) %>'"
+                        title="點擊進入料件管理">
                         <td><code style="font-size:12px;"><%= item.part_number %></code></td>
                         <td style="font-weight:600;">
                             <%= item.part_name %>
@@ -307,7 +359,7 @@
                     <% }); %>
                 </tbody>
             </table>
-            <p style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= inventory.length %> 筆記錄｜點擊列可進入料件管理</p>
+            <p id="recordCount" style="margin-top: 10px; color: #999; font-size: 14px;">共 <%= inventory.length %> 筆記錄｜點擊列可進入料件管理</p>
             <% } else { %>
             <div class="empty-state">
                 <p>目前沒有任何料件資料</p>
@@ -416,6 +468,48 @@
             }
         }
         
+        // 儀表板卡片篩選
+        function filterInventory(type, label) {
+            const rows = document.querySelectorAll('.inv-row');
+            const badge = document.getElementById('filterBadge');
+            const badgeText = document.getElementById('filterBadgeText');
+            const countEl = document.getElementById('recordCount');
+            let visibleCount = 0;
+
+            rows.forEach(function(row) {
+                const total    = parseInt(row.dataset.total)    || 0;
+                const loaned   = parseInt(row.dataset.loaned)   || 0;
+                const available = parseInt(row.dataset.available) || 0;
+
+                let show = true;
+                if (type === 'instock')   show = total > 0;
+                if (type === 'loaned')    show = loaned > 0;
+                if (type === 'available') show = available > 0;
+
+                row.style.display = show ? '' : 'none';
+                if (show) visibleCount++;
+            });
+
+            // 更新卡片 active 狀態
+            document.querySelectorAll('.stat-card').forEach(function(card) {
+                card.classList.toggle('active', card.dataset.filter === type);
+            });
+
+            // 更新篩選標籤
+            if (type === 'all') {
+                badge.style.display = 'none';
+            } else {
+                badgeText.textContent = '篩選中：' + label;
+                badge.style.display = 'inline-flex';
+            }
+
+            // 更新筆數
+            if (countEl) {
+                const suffix = type === 'all' ? '' : '（已篩選）';
+                countEl.textContent = '共 ' + visibleCount + ' 筆記錄' + suffix + '｜點擊列可進入料件管理';
+            }
+        }
+
         // 頁面載入時載入通知
         loadLoanNotifications();
         
