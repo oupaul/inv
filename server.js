@@ -1077,7 +1077,31 @@ app.get('/', requireAuth, (req, res) => {
     `);
     
     const inventory = stmt.all(...params);
-    
+
+    // 取得所有有效借出記錄（依料件分組，用於儀錶板顯示借出對象）
+    const loanDetailsStmt = db.prepare(`
+        SELECT
+            o.part_id,
+            o.note,
+            o.outbound_date,
+            o.loan_due_date,
+            o.created_by,
+            o.quantity,
+            o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity
+        FROM outbound_records o
+        LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
+        WHERE o.is_loan = 1
+        GROUP BY o.id
+        HAVING remaining_quantity > 0
+        ORDER BY o.outbound_date DESC
+    `);
+    const loanDetailsRows = loanDetailsStmt.all();
+    const loanDetailsByPart = {};
+    loanDetailsRows.forEach(row => {
+        if (!loanDetailsByPart[row.part_id]) loanDetailsByPart[row.part_id] = [];
+        loanDetailsByPart[row.part_id].push(row);
+    });
+
     // 低庫存警示（庫存 <= min_stock 且 min_stock > 0），用子查詢避免 HAVING 在非聚合查詢的限制
     const lowStockStmt = db.prepare(`
         SELECT * FROM (
@@ -1126,6 +1150,7 @@ app.get('/', requireAuth, (req, res) => {
         categories,
         lowStockItems,
         recentTransactions,
+        loanDetailsByPart,
         search: search || '',
         category_id: category_id || '',
         user: req.session.user,

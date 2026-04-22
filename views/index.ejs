@@ -73,6 +73,113 @@
             align-items: center;
         }
 
+        /* ===== 借出明細 Popover ===== */
+        .loan-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+
+        .loan-badge:hover {
+            background: #fde68a;
+        }
+
+        .loan-popover-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: none;
+        }
+
+        .loan-popover {
+            position: fixed;
+            z-index: 1001;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            min-width: 280px;
+            max-width: 360px;
+            padding: 0;
+            overflow: hidden;
+            display: none;
+        }
+
+        .loan-popover-header {
+            background: linear-gradient(135deg, #fef3c7, #ffe0b2);
+            border-bottom: 1px solid #fde68a;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .loan-popover-header strong {
+            font-size: 13px;
+            color: #78350f;
+        }
+
+        .loan-popover-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #92400e;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .loan-popover-body { padding: 10px 14px; }
+
+        .loan-record-item {
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #fffbf0;
+            border: 1px solid #fde68a;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .loan-record-item:last-child { margin-bottom: 0; }
+
+        .loan-record-item .loan-who {
+            font-weight: 700;
+            color: #92400e;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .loan-record-item .loan-meta {
+            color: #a16207;
+            line-height: 1.6;
+        }
+
+        .loan-record-item .loan-qty {
+            display: inline-block;
+            background: #fef3c7;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 1px 7px;
+            font-weight: 700;
+            color: #92400e;
+            margin-left: 4px;
+        }
+
+        .loan-due-urgent {
+            color: #dc2626;
+            font-weight: 700;
+        }
+
         .stat-card-icon {
             width: 48px;
             height: 48px;
@@ -190,7 +297,17 @@
 </head>
 <body>
     <%- include('_common-nav') %>
-    
+
+    <!-- 借出明細 Popover -->
+    <div class="loan-popover-overlay" id="loanPopoverOverlay" onclick="closeLoanPopover()"></div>
+    <div class="loan-popover" id="loanPopover">
+        <div class="loan-popover-header">
+            <strong id="loanPopoverTitle">📤 借出明細</strong>
+            <button class="loan-popover-close" onclick="closeLoanPopover()">✕</button>
+        </div>
+        <div class="loan-popover-body" id="loanPopoverBody"></div>
+    </div>
+
     <div class="container">
         <% if (messages && messages.length > 0) { %>
             <div class="flash-messages">
@@ -348,8 +465,14 @@
                         <td style="font-weight:bold; color:<%= item.total_quantity <= 0 ? '#dc3545' : isLow ? '#ff9800' : '#667eea' %>;">
                             <%= item.total_quantity %>
                         </td>
-                        <td style="color:<%= (item.loaned_quantity || 0) > 0 ? '#ffc107' : '#999' %>;">
-                            <%= item.loaned_quantity || 0 %>
+                        <td onclick="event.stopPropagation()">
+                            <% if ((item.loaned_quantity || 0) > 0) { %>
+                            <span class="loan-badge" onclick="showLoanPopover(event, <%= item.id %>, '<%= item.part_name.replace(/'/g, "\\'") %>')">
+                                📤 <%= item.loaned_quantity %>
+                            </span>
+                            <% } else { %>
+                            <span style="color:#999;">0</span>
+                            <% } %>
                         </td>
                         <td style="font-weight:bold; color:<%= availableQty <= 0 ? '#dc3545' : isLow ? '#ff9800' : '#28a745' %>;">
                             <%= availableQty %>
@@ -403,6 +526,76 @@
         </div>
     </div>
     
+    <script>
+        // 借出明細資料（由伺服器嵌入）
+        const LOAN_DETAILS = <%- JSON.stringify(loanDetailsByPart || {}) %>;
+
+        function showLoanPopover(event, partId, partName) {
+            const records = LOAN_DETAILS[partId] || [];
+            const popover = document.getElementById('loanPopover');
+            const overlay = document.getElementById('loanPopoverOverlay');
+            const title   = document.getElementById('loanPopoverTitle');
+            const body    = document.getElementById('loanPopoverBody');
+
+            title.textContent = '📤 借出明細：' + partName;
+
+            if (records.length === 0) {
+                body.innerHTML = '<p style="color:#999; font-size:13px; text-align:center; padding:8px 0;">無借出記錄</p>';
+            } else {
+                body.innerHTML = records.map(function(r) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const due = r.loan_due_date ? new Date(r.loan_due_date) : null;
+                    let dueHtml = '';
+                    if (due) {
+                        const diffDays = Math.ceil((due - today) / 86400000);
+                        const dueStr = r.loan_due_date;
+                        if (diffDays < 0) {
+                            dueHtml = '<span class="loan-due-urgent">到期日：' + dueStr + '（已逾期 ' + Math.abs(diffDays) + ' 天）</span>';
+                        } else if (diffDays === 0) {
+                            dueHtml = '<span class="loan-due-urgent">到期日：' + dueStr + '（今日到期）</span>';
+                        } else if (diffDays <= 7) {
+                            dueHtml = '<span style="color:#d97706; font-weight:600;">到期日：' + dueStr + '（剩 ' + diffDays + ' 天）</span>';
+                        } else {
+                            dueHtml = '到期日：' + dueStr;
+                        }
+                    }
+                    const borrower = r.note || r.created_by || '（未記錄）';
+                    return '<div class="loan-record-item">' +
+                        '<div class="loan-who">👤 ' + borrower + '<span class="loan-qty">× ' + r.remaining_quantity + '</span></div>' +
+                        '<div class="loan-meta">' +
+                        '借出日期：' + r.outbound_date + '<br>' +
+                        (dueHtml || '到期日：未設定') +
+                        '</div>' +
+                        '</div>';
+                }).join('');
+            }
+
+            // 定位 popover 靠近點擊位置
+            popover.style.display = 'block';
+            overlay.style.display = 'block';
+            const rect = event.target.getBoundingClientRect();
+            const pw = popover.offsetWidth || 300;
+            const ph = popover.offsetHeight || 200;
+            let left = rect.left;
+            let top  = rect.bottom + 8;
+            if (left + pw > window.innerWidth - 16) left = window.innerWidth - pw - 16;
+            if (top + ph > window.innerHeight - 16) top = rect.top - ph - 8;
+            popover.style.left = Math.max(8, left) + 'px';
+            popover.style.top  = Math.max(8, top)  + 'px';
+        }
+
+        function closeLoanPopover() {
+            document.getElementById('loanPopover').style.display = 'none';
+            document.getElementById('loanPopoverOverlay').style.display = 'none';
+        }
+
+        // 按 Escape 關閉
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeLoanPopover();
+        });
+    </script>
+
     <script>
         // 載入並顯示到期通知
         async function loadLoanNotifications() {
