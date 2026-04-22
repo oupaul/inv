@@ -674,7 +674,7 @@
             hiddenReturnOutboundId.value = outboundReturnSelect.value || '';
         });
 
-        // 表單送出前：退回出庫時動態填入共用欄位
+        // 表單送出前：退回出庫時動態插入 hidden input 確保值正確送出
         document.querySelector('form').addEventListener('submit', function(e) {
             if (isOutboundReturnCb.checked) {
                 if (!outboundReturnSelect.value) {
@@ -683,19 +683,22 @@
                     outboundReturnSelect.focus();
                     return;
                 }
-                // 讓借測歸還的 checkbox 帶上 is_return=on
-                isReturnCheckbox.checked = true;
+                // 移除原有借測歸還欄位的 name，避免衝突
+                isReturnCheckbox.removeAttribute('name');
+                returnOutboundSelect.removeAttribute('name');
 
-                // 必須先在 returnOutboundSelect 裡加入這個 option，
-                // 否則直接 .value = X 在選項不存在時不會生效
-                const selectedId = outboundReturnSelect.value;
-                let existingOpt = returnOutboundSelect.querySelector(`option[value="${selectedId}"]`);
-                if (!existingOpt) {
-                    const tempOpt = document.createElement('option');
-                    tempOpt.value = selectedId;
-                    returnOutboundSelect.appendChild(tempOpt);
-                }
-                returnOutboundSelect.value = selectedId;
+                // 動態插入正確的 hidden input
+                const hIsReturn = document.createElement('input');
+                hIsReturn.type = 'hidden';
+                hIsReturn.name = 'is_return';
+                hIsReturn.value = 'on';
+                this.appendChild(hIsReturn);
+
+                const hReturnId = document.createElement('input');
+                hReturnId.type = 'hidden';
+                hReturnId.name = 'return_outbound_id';
+                hReturnId.value = outboundReturnSelect.value;
+                this.appendChild(hReturnId);
             }
         });
         
