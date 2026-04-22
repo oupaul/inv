@@ -2071,7 +2071,8 @@ app.get('/transaction/records', requireAuth, (req, res) => {
             o.converted_from_loan,
             o.has_invoice,
             o.invoice_number,
-            o.id as outbound_id
+            o.id as outbound_id,
+            (SELECT ii.invoice_id FROM invoice_items ii WHERE ii.outbound_id = o.id LIMIT 1) as linked_invoice_id
         FROM outbound_records o
         JOIN parts p ON o.part_id = p.id
         WHERE 1=1

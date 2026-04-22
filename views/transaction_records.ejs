@@ -777,16 +777,39 @@
                     <td style="color: #667eea; font-weight: 500;"><%= record.created_by || '系統' %></td>
                     <td><%= record.note || '-' %></td>
                     <td>
-                        <% if (record.type === 'outbound' && record.has_invoice) { %>
-                            <span style="color: #28a745; font-weight: 600; font-size: 12px;">✅ 已開發票</span>
-                            <% if (record.invoice_number) { %>
-                                <br><small style="color: #666; font-size: 11px;">📄 <%= record.invoice_number %></small>
+                        <% if (record.type === 'outbound') { %>
+                            <% if (record.linked_invoice_id) { %>
+                                <%# 已有完整發票管理記錄 %>
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span style="color:#065f46; font-weight:700; font-size:12px; background:#d1fae5; border-radius:8px; padding:2px 8px; display:inline-block;">✅ 已建發票管理</span>
+                                    <% if (record.invoice_number) { %><small style="color:#666; font-size:11px;">📄 <%= record.invoice_number %></small><% } %>
+                                    <a href="/invoices/<%= record.linked_invoice_id %>" style="font-size:11px; color:#2563eb; font-weight:600; text-decoration:none;">→ 查看發票</a>
+                                </div>
+                            <% } else if (record.has_invoice && record.invoice_number) { %>
+                                <%# 出庫時有記錄號碼，但尚未建完整記錄 %>
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span style="color:#92400e; font-weight:700; font-size:12px; background:#fef3c7; border-radius:8px; padding:2px 8px; display:inline-block;">🧾 <%= record.invoice_number %></span>
+                                    <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:2px;">
+                                        <button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="<%= record.has_invoice %>" data-invoice-number="<%= record.invoice_number || '' %>" style="background:#e5e7eb; color:#374151; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px;">修改號碼</button>
+                                        <a href="/invoices/add?outbound_ids=<%= record.outbound_id %>&invoice_number=<%= encodeURIComponent(record.invoice_number) %>" style="background:#10b981; color:white; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px; text-decoration:none; font-weight:600;">📋 建立發票</a>
+                                    </div>
+                                </div>
+                            <% } else if (record.has_invoice) { %>
+                                <%# 有勾選但無號碼 %>
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span style="color:#92400e; font-size:12px; background:#fef3c7; border-radius:8px; padding:2px 8px; display:inline-block;">🧾 已開發票</span>
+                                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                        <button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="1" data-invoice-number="" style="background:#e5e7eb; color:#374151; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px;">填入號碼</button>
+                                        <a href="/invoices/add?outbound_ids=<%= record.outbound_id %>" style="background:#10b981; color:white; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px; text-decoration:none; font-weight:600;">📋 建立發票</a>
+                                    </div>
+                                </div>
+                            <% } else { %>
+                                <%# 未有任何發票資訊 %>
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <button class="btn-add-invoice" data-id="<%= record.outbound_id %>" style="background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:11px;">+ 記錄發票號碼</button>
+                                    <a href="/invoices/add?outbound_ids=<%= record.outbound_id %>" style="font-size:11px; color:#10b981; font-weight:600; text-decoration:none; padding:3px 0;">📋 直接建立發票</a>
+                                </div>
                             <% } %>
-                            <% if (record.outbound_id) { %>
-                                <br><button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="<%= record.has_invoice %>" data-invoice-number="<%= record.invoice_number || '' %>" style="background-color: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px;">編輯</button>
-                            <% } %>
-                        <% } else if (record.type === 'outbound' && !record.has_invoice && record.outbound_id) { %>
-                            <button class="btn-add-invoice" data-id="<%= record.outbound_id %>" style="background-color: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">添加發票</button>
                         <% } else { %>
                             -
                         <% } %>
@@ -945,13 +968,13 @@
                     modalSaveBtn.addEventListener('click', function() {
                         const recordId = document.getElementById('invoiceRecordId').value;
                         const hasInvoice = modalHasInvoice.checked;
-                        const invoiceNumber = modalInvoiceNumber.value.trim();
-                        
+                        const invoiceNumber = document.getElementById('modalInvoiceNumber').value.trim();
+
                         if (hasInvoice && !invoiceNumber) {
                             alert('請輸入發票號碼');
                             return;
                         }
-                        
+
                         saveInvoiceInfo(recordId, hasInvoice, invoiceNumber, modalSaveBtn);
                     });
                     
@@ -996,7 +1019,16 @@
                 })
                 .then(function(data) {
                     if (data.success) {
-                        alert('發票信息已更新');
+                        // 關閉 modal
+                        document.getElementById('invoiceModal').style.display = 'none';
+                        if (data.has_invoice && data.invoice_number) {
+                            // 儲存成功且有號碼，詢問是否建立完整發票
+                            const go = confirm('發票號碼已記錄：' + data.invoice_number + '\n\n是否立即建立完整的發票管理記錄？\n（可追蹤客戶、金額、付款狀態）');
+                            if (go) {
+                                window.location.href = '/invoices/add?outbound_ids=' + recordId + '&invoice_number=' + encodeURIComponent(data.invoice_number);
+                                return;
+                            }
+                        }
                         location.reload();
                     } else {
                         alert('更新失敗：' + (data.error || '未知錯誤'));
