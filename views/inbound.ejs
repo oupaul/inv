@@ -683,11 +683,19 @@
                     outboundReturnSelect.focus();
                     return;
                 }
-                // 把退回出庫的設定寫入借測歸還的共用欄位（is_return、return_outbound_id）
+                // 讓借測歸還的 checkbox 帶上 is_return=on
                 isReturnCheckbox.checked = true;
-                isReturnCheckbox.name = 'is_return';  // 確保 name 存在
-                returnOutboundSelect.value = outboundReturnSelect.value;
-                returnOutboundSelect.name = 'return_outbound_id';
+
+                // 必須先在 returnOutboundSelect 裡加入這個 option，
+                // 否則直接 .value = X 在選項不存在時不會生效
+                const selectedId = outboundReturnSelect.value;
+                let existingOpt = returnOutboundSelect.querySelector(`option[value="${selectedId}"]`);
+                if (!existingOpt) {
+                    const tempOpt = document.createElement('option');
+                    tempOpt.value = selectedId;
+                    returnOutboundSelect.appendChild(tempOpt);
+                }
+                returnOutboundSelect.value = selectedId;
             }
         });
         
