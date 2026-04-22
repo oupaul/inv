@@ -6,108 +6,83 @@
     <title>操作記錄 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
     <style>
         <%- include('_common-styles') %>
-        
+
         .stats-summary {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        
+
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            text-align: center;
-            transition: transform 0.3s;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s, transform 0.15s;
         }
-        
+
         .stat-card:hover {
-            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
-        
-        .stat-card.success {
-            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+
+        .stat-card-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
         }
-        
-        .stat-card .stat-icon {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
+
+        .stat-card-icon.purple { background: #ede9fe; }
+        .stat-card-icon.blue   { background: #dbeafe; }
+        .stat-card-icon.green  { background: #d1fae5; }
+
+        .stat-card-body { flex: 1; }
+
         .stat-card .stat-value {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 5px;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.1;
         }
-        
+
         .stat-card .stat-label {
-            font-size: 14px;
-            opacity: 0.9;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 3px;
+            font-weight: 500;
         }
-        
-        @media (max-width: 768px) {
-            .stats-summary {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-            
-            .stat-card {
-                padding: 16px;
-            }
-            
-            .stat-card .stat-icon {
-                font-size: 28px;
-            }
-            
-            .stat-card .stat-value {
-                font-size: 28px;
-            }
-        }
-        
+
         .action-type-badge {
             display: inline-block;
-            padding: 4px 10px;
-            border-radius: 4px;
+            padding: 3px 10px;
+            border-radius: 10px;
             font-size: 12px;
             font-weight: 600;
         }
-        
-        .action-type-badge.login {
-            background-color: #17a2b8;
-            color: white;
-        }
-        
-        .action-type-badge.create {
-            background-color: #28a745;
-            color: white;
-        }
-        
-        .action-type-badge.update {
-            background-color: #ffc107;
-            color: #333;
-        }
-        
-        .action-type-badge.delete {
-            background-color: #dc3545;
-            color: white;
-        }
-        
-        .action-type-badge.view {
-            background-color: #6c757d;
-            color: white;
-        }
-        
-        .action-type-badge.other {
-            background-color: #667eea;
-            color: white;
-        }
-        
-        .log-detail {
-            font-size: 13px;
-            color: #666;
+        .action-type-badge.login  { background: #cffafe; color: #0e7490; }
+        .action-type-badge.create { background: #d1fae5; color: #065f46; }
+        .action-type-badge.update { background: #fef3c7; color: #92400e; }
+        .action-type-badge.delete { background: #fee2e2; color: #991b1b; }
+        .action-type-badge.view   { background: #f1f5f9; color: #475569; }
+        .action-type-badge.other  { background: #ede9fe; color: #6d28d9; }
+
+        .log-detail { font-size: 13px; color: var(--text-muted); }
+
+        @media (max-width: 768px) {
+            .stats-summary { grid-template-columns: 1fr; gap: 10px; }
+            .stat-card { padding: 14px; }
+            .stat-card-icon { width: 40px; height: 40px; font-size: 18px; }
+            .stat-card .stat-value { font-size: 22px; }
         }
     </style>
 </head>
@@ -118,23 +93,31 @@
     <div class="container">
         <h1>📋 人員操作記錄</h1>
         
+        <%
+            const uniqueUsers = logs ? [...new Set(logs.map(l => l.username))].length : 0;
+            const todayStr = new Date().toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+        %>
         <div class="stats-summary">
             <div class="stat-card">
-                <div class="stat-icon">📝</div>
-                <div class="stat-value"><%= logs ? logs.length : 0 %></div>
-                <div class="stat-label">總記錄數</div>
+                <div class="stat-card-icon purple">📝</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= logs ? logs.length : 0 %></div>
+                    <div class="stat-label">總記錄數</div>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">👥</div>
-                <div class="stat-value"><%
-                    const uniqueUsers = logs ? [...new Set(logs.map(l => l.username))].length : 0;
-                %><%= uniqueUsers %></div>
-                <div class="stat-label">操作人數</div>
+                <div class="stat-card-icon blue">👥</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= uniqueUsers %></div>
+                    <div class="stat-label">操作人數</div>
+                </div>
             </div>
-            <div class="stat-card success">
-                <div class="stat-icon">📅</div>
-                <div class="stat-value">今日</div>
-                <div class="stat-label">時間範圍</div>
+            <div class="stat-card">
+                <div class="stat-card-icon green">📅</div>
+                <div class="stat-card-body">
+                    <div class="stat-value" style="font-size:18px; margin-top:2px;"><%= todayStr %></div>
+                    <div class="stat-label">今日日期</div>
+                </div>
             </div>
         </div>
         

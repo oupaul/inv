@@ -6,96 +6,79 @@
     <title>角色管理 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
     <style>
         <%- include('_common-styles') %>
-        
+
         .stats-summary {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        
+
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            text-align: center;
-            transition: transform 0.3s;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s, transform 0.15s;
         }
-        
+
         .stat-card:hover {
-            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
-        
-        .stat-card.success {
-            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+
+        .stat-card-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
         }
-        
-        .stat-card .stat-icon {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
+
+        .stat-card-icon.purple { background: #ede9fe; }
+        .stat-card-icon.blue   { background: #dbeafe; }
+        .stat-card-icon.green  { background: #d1fae5; }
+
+        .stat-card-body { flex: 1; }
+
         .stat-card .stat-value {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 5px;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.1;
         }
-        
+
         .stat-card .stat-label {
-            font-size: 14px;
-            opacity: 0.9;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 3px;
+            font-weight: 500;
         }
-        
-        @media (max-width: 768px) {
-            .stats-summary {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-            
-            .stat-card {
-                padding: 16px;
-            }
-            
-            .stat-card .stat-icon {
-                font-size: 28px;
-            }
-            
-            .stat-card .stat-value {
-                font-size: 28px;
-            }
-        }
-        
+
         .role-badge {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 12px;
             font-size: 12px;
             font-weight: 600;
         }
-        
-        .role-badge.system {
-            background-color: #667eea;
-            color: white;
-        }
-        
-        .role-badge.custom {
-            background-color: #28a745;
-            color: white;
-        }
-        
-        .permissions-list {
-            font-size: 13px;
-            color: #666;
-        }
-        
-        .permission-item {
-            display: inline-block;
-            margin: 2px 4px;
-            padding: 2px 8px;
-            background: #f0f0f0;
-            border-radius: 4px;
+        .role-badge.system { background: #ede9fe; color: #6d28d9; }
+        .role-badge.custom { background: #d1fae5; color: #065f46; }
+
+        .permissions-list { font-size: 13px; color: #666; }
+
+        @media (max-width: 768px) {
+            .stats-summary { grid-template-columns: 1fr; gap: 10px; }
+            .stat-card { padding: 14px; }
+            .stat-card-icon { width: 40px; height: 40px; font-size: 18px; }
+            .stat-card .stat-value { font-size: 22px; }
         }
     </style>
 </head>
@@ -108,19 +91,25 @@
         
         <div class="stats-summary">
             <div class="stat-card">
-                <div class="stat-icon">🎭</div>
-                <div class="stat-value"><%= roles ? roles.length : 0 %></div>
-                <div class="stat-label">總角色數</div>
+                <div class="stat-card-icon purple">🎭</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= roles ? roles.length : 0 %></div>
+                    <div class="stat-label">總角色數</div>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">🔒</div>
-                <div class="stat-value"><%= roles ? roles.filter(r => r.is_system).length : 0 %></div>
-                <div class="stat-label">系統角色</div>
+                <div class="stat-card-icon blue">🔒</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= roles ? roles.filter(r => r.is_system).length : 0 %></div>
+                    <div class="stat-label">系統角色</div>
+                </div>
             </div>
-            <div class="stat-card success">
-                <div class="stat-icon">✨</div>
-                <div class="stat-value"><%= roles ? roles.filter(r => !r.is_system).length : 0 %></div>
-                <div class="stat-label">自訂角色</div>
+            <div class="stat-card">
+                <div class="stat-card-icon green">✨</div>
+                <div class="stat-card-body">
+                    <div class="stat-value"><%= roles ? roles.filter(r => !r.is_system).length : 0 %></div>
+                    <div class="stat-label">自訂角色</div>
+                </div>
             </div>
         </div>
         

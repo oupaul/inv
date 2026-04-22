@@ -6,153 +6,59 @@
     <title>借出中料件 - <%= typeof title !== 'undefined' ? title : '庫存管理系統' %></title>
     <style>
         <%- include('_common-styles') %>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+
+        /* 統計卡片 */
+        .loan-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        
-        body {
-            font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid #667eea;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        
-        nav {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 0;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }
-        
-        .nav-wrapper {
+
+        .loan-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px 20px;
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
-            padding: 12px 15px;
-            gap: 8px;
+            gap: 14px;
+            box-shadow: var(--shadow-sm);
         }
-        
-        nav a {
-            color: white;
-            text-decoration: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            display: inline-block;
-            transition: all 0.3s;
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-        
-        nav a:hover {
-            background-color: rgba(255,255,255,0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        
-        nav a[href="/users"] {
-            background-color: rgba(255,255,255,0.15);
-            font-weight: 600;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-        
-        nav a[href="/users"]:hover {
-            background-color: rgba(255,255,255,0.25);
-        }
-        
-        nav .auth-link {
-            margin-left: auto;
-            background-color: rgba(255,255,255,0.2);
-            font-weight: 600;
-        }
-        
-        nav .auth-link.logout {
-            background-color: #dc3545;
-        }
-        
-        nav .auth-link.login {
-            background-color: #007bff;
-        }
-        
-        .summary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+
+        .loan-stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: var(--radius);
             display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
         }
-        
-        .summary-item {
-            text-align: center;
+
+        .loan-stat-icon.blue   { background: #dbeafe; }
+        .loan-stat-icon.amber  { background: #fef3c7; }
+        .loan-stat-icon.green  { background: #d1fae5; }
+        .loan-stat-icon.red    { background: #fee2e2; }
+
+        .loan-stat-body { flex: 1; min-width: 0; }
+
+        .loan-stat-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.1;
         }
-        
-        .summary-item .value {
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 5px;
+
+        .loan-stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 3px;
+            font-weight: 500;
         }
-        
-        .summary-item .label {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        
-        th, td {
-            padding: 14px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        tr:hover {
-            background-color: #f8f9fa;
-        }
-        
-        tr:last-child td {
-            border-bottom: none;
-        }
-        
+
+        /* 狀態 badge */
         .status-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -160,37 +66,13 @@
             font-size: 12px;
             font-weight: 600;
         }
-        
-        .status-badge.pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        
-        .status-badge.partial {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .quantity-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .quantity-loaned {
-            color: #667eea;
-            font-weight: bold;
-        }
-        
-        .quantity-returned {
-            color: #28a745;
-        }
-        
-        .quantity-remaining {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        
+        .status-badge.pending  { background: #fff3cd; color: #856404; }
+        .status-badge.partial  { background: #d1ecf1; color: #0c5460; }
+
+        .quantity-loaned   { color: #667eea; font-weight: bold; }
+        .quantity-returned { color: #28a745; }
+        .quantity-remaining{ color: #dc3545; font-weight: bold; }
+
         .due-status-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -198,112 +80,22 @@
             font-size: 12px;
             font-weight: 600;
         }
-        
-        .due-status-badge.overdue {
-            background-color: #f8d7da;
-            color: #721c24;
-            animation: pulse 2s infinite;
-        }
-        
-        .due-status-badge.due-today {
-            background-color: #fff3cd;
-            color: #856404;
-            animation: pulse 2s infinite;
-        }
-        
-        .due-status-badge.due-soon {
-            background-color: #ffeaa7;
-            color: #856404;
-        }
-        
-        .due-status-badge.normal {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        
-        .due-status-badge.no-date {
-            background-color: #e9ecef;
-            color: #6c757d;
-        }
-        
+        .due-status-badge.overdue  { background: #f8d7da; color: #721c24; animation: pulse 2s infinite; }
+        .due-status-badge.due-today{ background: #fff3cd; color: #856404; animation: pulse 2s infinite; }
+        .due-status-badge.due-soon { background: #ffeaa7; color: #856404; }
+        .due-status-badge.normal   { background: #d4edda; color: #155724; }
+        .due-status-badge.no-date  { background: #e9ecef; color: #6c757d; }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
-        
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-        
-        .empty-state p {
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        
-        .flash-messages {
-            margin-bottom: 20px;
-        }
-        
-        .flash {
-            padding: 15px 20px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .flash.success {
-            background-color: #d4edda;
-            color: #155724;
-            border-left: 4px solid #28a745;
-        }
-        
-        .flash.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid #dc3545;
-        }
-        
+
         @media (max-width: 768px) {
-            .nav-wrapper {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            nav a {
-                width: 100%;
-                text-align: center;
-                margin-bottom: 5px;
-            }
-            
-            nav .auth-link {
-                margin-left: 0;
-            }
-            
-            .container {
-                padding: 20px;
-            }
-            
-            .container {
-                padding: 15px;
-            }
-            
-            /* 搜索區域手機版 */
-            .search-section form {
-                flex-direction: column !important;
-                gap: 12px !important;
-            }
-            
-            .search-section input,
-            .search-section select,
-            .search-section button {
-                width: 100% !important;
-                font-size: 16px !important;
-                padding: 14px !important;
-                min-height: 48px;
-            }
+            .loan-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .loan-stat-card { padding: 14px; gap: 10px; }
+            .loan-stat-icon { width: 38px; height: 38px; font-size: 18px; }
+            .loan-stat-value { font-size: 20px; }
         }
     </style>
 </head>
@@ -322,34 +114,48 @@
         
         <h1>📋 借出中料件</h1>
 
-        <% if (records && records.length > 0) { %>
-        <div class="summary">
-            <div class="summary-item">
-                <div class="value"><%= records.length %></div>
-                <div class="label">借出筆數</div>
+        <%
+            let totalLoaned = 0, totalReturned = 0, totalRemaining = 0;
+            if (records) {
+                records.forEach(function(r) {
+                    totalLoaned   += r.loaned_quantity    || 0;
+                    totalReturned += r.returned_quantity  || 0;
+                    totalRemaining+= r.remaining_quantity || 0;
+                });
+            }
+        %>
+        <div class="loan-stats">
+            <div class="loan-stat-card">
+                <div class="loan-stat-icon blue">📋</div>
+                <div class="loan-stat-body">
+                    <div class="loan-stat-value"><%= records ? records.length : 0 %></div>
+                    <div class="loan-stat-label">借出筆數</div>
+                </div>
             </div>
-            <div class="summary-item">
-                <div class="value"><% 
-                    let totalLoaned = 0;
-                    let totalReturned = 0;
-                    let totalRemaining = 0;
-                    records.forEach(function(r) {
-                        totalLoaned += r.loaned_quantity || 0;
-                        totalReturned += r.returned_quantity || 0;
-                        totalRemaining += r.remaining_quantity || 0;
-                    });
-                %><%= totalLoaned %></div>
-                <div class="label">總借出數量</div>
+            <div class="loan-stat-card">
+                <div class="loan-stat-icon amber">📤</div>
+                <div class="loan-stat-body">
+                    <div class="loan-stat-value"><%= totalLoaned %></div>
+                    <div class="loan-stat-label">總借出數量</div>
+                </div>
             </div>
-            <div class="summary-item">
-                <div class="value"><%= totalReturned %></div>
-                <div class="label">已歸還數量</div>
+            <div class="loan-stat-card">
+                <div class="loan-stat-icon green">✅</div>
+                <div class="loan-stat-body">
+                    <div class="loan-stat-value"><%= totalReturned %></div>
+                    <div class="loan-stat-label">已歸還數量</div>
+                </div>
             </div>
-            <div class="summary-item">
-                <div class="value"><%= totalRemaining %></div>
-                <div class="label">未歸還數量</div>
+            <div class="loan-stat-card">
+                <div class="loan-stat-icon red">⏳</div>
+                <div class="loan-stat-body">
+                    <div class="loan-stat-value"><%= totalRemaining %></div>
+                    <div class="loan-stat-label">未歸還數量</div>
+                </div>
             </div>
         </div>
+
+        <% if (records && records.length > 0) { %>
 
         <div class="mobile-scroll-hint" style="display: none; background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; color: #856404; font-size: 13px; font-weight: 600;">
             ⬅️ 表格可左右滑動查看完整內容 ➡️

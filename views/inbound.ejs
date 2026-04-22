@@ -293,23 +293,31 @@
             </div>
             
             <div class="form-group">
+                <label for="category_filter">類型篩選</label>
+                <select id="category_filter">
+                    <option value="">-- 全部類型 --</option>
+                    <% if (categories && categories.length > 0) { %>
+                        <% categories.forEach(function(category) { %>
+                        <option value="<%= category.id %>"><%= category.name %></option>
+                        <% }); %>
+                    <% } %>
+                </select>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 提示：先選擇類型可以快速篩選出對應的料件，方便查找。
+                </small>
+            </div>
+
+            <div class="form-group">
                 <label for="part_id">選擇料件 *</label>
-                <!-- 類型篩選 -->
-                <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
-                    <select id="category-filter" style="flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px; background:#f9fafb; color:#374151;">
-                        <option value="">── 全部類型 ──</option>
-                    </select>
-                    <button type="button" id="category-filter-clear" title="清除篩選"
-                        style="padding:7px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; color:#6b7280; cursor:pointer; font-size:13px; white-space:nowrap;">✕ 清除</button>
-                </div>
                 <select id="part_id" name="part_id" required>
-                    <option value="">-- 請選擇料件 --</option>
+                    <option value="">-- 請先選擇類型或掃描條碼 --</option>
                     <% parts.forEach(function(part) { %>
                     <option value="<%= part.id %>"
                             data-barcode="<%= part.barcode || '' %>"
                             data-part-number="<%= part.part_number %>"
                             data-part-name="<%= part.part_name %>"
-                            data-category="<%= part.category_name || '' %>">
+                            data-category-id="<%= part.category_id || '' %>"
+                            data-category-name="<%= part.category_name || '' %>">
                         <%= part.part_number %> - <%= part.part_name %>
                         <% if (part.specification) { %>(<%= part.specification %>)<% } %>
                         <% if (part.category_name) { %> [<%= part.category_name %>]<% } %>
@@ -398,48 +406,37 @@
         const video = document.getElementById('barcode-video');
         const stopScanBtn = document.getElementById('stop-scan');
         const partSelect = document.getElementById('part_id');
-        const categoryFilter = document.getElementById('category-filter');
-        const categoryFilterClear = document.getElementById('category-filter-clear');
+        const categoryFilter = document.getElementById('category_filter');
 
-        // 初始化類型篩選選項（從 part options 的 data-category 提取不重複值）
-        (function initCategoryFilter() {
-            const seen = new Set();
-            Array.from(partSelect.options).forEach(opt => {
-                const cat = opt.dataset.category;
-                if (cat && !seen.has(cat)) {
-                    seen.add(cat);
-                    const o = document.createElement('option');
-                    o.value = cat;
-                    o.textContent = cat;
-                    categoryFilter.appendChild(o);
-                }
-            });
-        })();
+        // 儲存所有料件選項（用於篩選）
+        const allPartOptions = Array.from(partSelect.options);
 
-        // 篩選料件下拉
-        function applyPartFilter() {
-            const selected = categoryFilter.value;
-            let firstVisible = null;
-            Array.from(partSelect.options).forEach(opt => {
-                if (!opt.value) return; // 保留 placeholder
-                const match = !selected || opt.dataset.category === selected;
-                opt.hidden = !match;
-                if (match && !firstVisible) firstVisible = opt;
-            });
-            // 若目前選取的料件不在篩選範圍內，重置
-            if (partSelect.value) {
-                const cur = partSelect.options[partSelect.selectedIndex];
-                if (cur && cur.hidden) {
-                    partSelect.value = '';
-                    partSelect.dispatchEvent(new Event('change'));
-                }
+        // 類型篩選功能
+        categoryFilter.addEventListener('change', function() {
+            const selectedCategoryId = this.value;
+
+            partSelect.value = '';
+            while (partSelect.options.length > 1) {
+                partSelect.remove(1);
             }
-        }
 
-        categoryFilter.addEventListener('change', applyPartFilter);
-        categoryFilterClear.addEventListener('click', () => {
-            categoryFilter.value = '';
-            applyPartFilter();
+            if (selectedCategoryId === '') {
+                allPartOptions.slice(1).forEach(option => {
+                    partSelect.appendChild(option.cloneNode(true));
+                });
+                partSelect.querySelector('option[value=""]').textContent = '-- 請先選擇類型或掃描條碼 --';
+            } else {
+                allPartOptions.slice(1).forEach(option => {
+                    if (option.getAttribute('data-category-id') === selectedCategoryId) {
+                        partSelect.appendChild(option.cloneNode(true));
+                    }
+                });
+                const filteredCount = partSelect.options.length - 1;
+                partSelect.querySelector('option[value=""]').textContent =
+                    filteredCount > 0 ? `-- 請選擇料件（共 ${filteredCount} 項） --` : '-- 此類型暫無料件 --';
+            }
+
+            partSelect.dispatchEvent(new Event('change'));
         });
 
         // 掃描按鈕
@@ -501,15 +498,19 @@
                 const data = await response.json();
                 
                 if (data.success && data.part) {
-                    // 找到料件，自動選擇
-                    const option = Array.from(partSelect.options).find(opt => 
+                    // 找到料件，若類型篩選與料件不符則先切換類型
+                    const partCategoryId = String(data.part.category_id || '');
+                    if (partCategoryId && categoryFilter.value !== partCategoryId) {
+                        categoryFilter.value = partCategoryId;
+                        categoryFilter.dispatchEvent(new Event('change'));
+                    }
+                    const option = Array.from(partSelect.options).find(opt =>
                         opt.value == data.part.id
                     );
                     if (option) {
                         partSelect.value = data.part.id;
                         partSelect.dispatchEvent(new Event('change'));
                         showStatus('✓ 找到料件：' + data.part.part_number + ' - ' + data.part.part_name, 'success');
-                        // 清空條碼輸入框並重新聚焦，準備下一次掃描
                         setTimeout(() => {
                             barcodeInput.value = '';
                             barcodeInput.focus();

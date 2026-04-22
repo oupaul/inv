@@ -1962,17 +1962,18 @@ app.get('/api/barcode/:barcode', (req, res) => {
 // 入庫頁面
 app.get('/inbound', (req, res) => {
     const stmt = db.prepare(`
-        SELECT p.*, c.name as category_name,
+        SELECT p.*, c.name as category_name, c.id as category_id,
                COALESCE(p.is_active, 1) as is_active
-        FROM parts p 
-        LEFT JOIN categories c ON p.category_id = c.id 
+        FROM parts p
+        LEFT JOIN categories c ON p.category_id = c.id
         WHERE COALESCE(p.is_active, 1) = 1
         ORDER BY p.part_number
     `);
     const parts = stmt.all();
-    
+    const categories = db.prepare('SELECT id, name FROM categories ORDER BY name').all();
+
     const today = new Date().toISOString().split('T')[0];
-    res.render('inbound', { parts, today, title: PAGE_TITLE });
+    res.render('inbound', { parts, categories, today, title: PAGE_TITLE });
 });
 
 // 入庫處理
