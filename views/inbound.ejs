@@ -294,13 +294,22 @@
             
             <div class="form-group">
                 <label for="part_id">選擇料件 *</label>
+                <!-- 類型篩選 -->
+                <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                    <select id="category-filter" style="flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px; background:#f9fafb; color:#374151;">
+                        <option value="">── 全部類型 ──</option>
+                    </select>
+                    <button type="button" id="category-filter-clear" title="清除篩選"
+                        style="padding:7px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; color:#6b7280; cursor:pointer; font-size:13px; white-space:nowrap;">✕ 清除</button>
+                </div>
                 <select id="part_id" name="part_id" required>
                     <option value="">-- 請選擇料件 --</option>
                     <% parts.forEach(function(part) { %>
-                    <option value="<%= part.id %>" 
+                    <option value="<%= part.id %>"
                             data-barcode="<%= part.barcode || '' %>"
                             data-part-number="<%= part.part_number %>"
-                            data-part-name="<%= part.part_name %>">
+                            data-part-name="<%= part.part_name %>"
+                            data-category="<%= part.category_name || '' %>">
                         <%= part.part_number %> - <%= part.part_name %>
                         <% if (part.specification) { %>(<%= part.specification %>)<% } %>
                         <% if (part.category_name) { %> [<%= part.category_name %>]<% } %>
@@ -389,7 +398,50 @@
         const video = document.getElementById('barcode-video');
         const stopScanBtn = document.getElementById('stop-scan');
         const partSelect = document.getElementById('part_id');
-        
+        const categoryFilter = document.getElementById('category-filter');
+        const categoryFilterClear = document.getElementById('category-filter-clear');
+
+        // 初始化類型篩選選項（從 part options 的 data-category 提取不重複值）
+        (function initCategoryFilter() {
+            const seen = new Set();
+            Array.from(partSelect.options).forEach(opt => {
+                const cat = opt.dataset.category;
+                if (cat && !seen.has(cat)) {
+                    seen.add(cat);
+                    const o = document.createElement('option');
+                    o.value = cat;
+                    o.textContent = cat;
+                    categoryFilter.appendChild(o);
+                }
+            });
+        })();
+
+        // 篩選料件下拉
+        function applyPartFilter() {
+            const selected = categoryFilter.value;
+            let firstVisible = null;
+            Array.from(partSelect.options).forEach(opt => {
+                if (!opt.value) return; // 保留 placeholder
+                const match = !selected || opt.dataset.category === selected;
+                opt.hidden = !match;
+                if (match && !firstVisible) firstVisible = opt;
+            });
+            // 若目前選取的料件不在篩選範圍內，重置
+            if (partSelect.value) {
+                const cur = partSelect.options[partSelect.selectedIndex];
+                if (cur && cur.hidden) {
+                    partSelect.value = '';
+                    partSelect.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        categoryFilter.addEventListener('change', applyPartFilter);
+        categoryFilterClear.addEventListener('click', () => {
+            categoryFilter.value = '';
+            applyPartFilter();
+        });
+
         // 掃描按鈕
         barcodeScan.addEventListener('click', async () => {
             if (scanning) return;
