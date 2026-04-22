@@ -320,6 +320,9 @@
         <!-- 到期通知面板 -->
         <div id="notification-panel" style="display: none;"></div>
 
+        <!-- 應收帳款到期警示面板 -->
+        <div id="invoice-alert-panel" style="display: none;"></div>
+
         <h1>📊 庫存儀表板</h1>
         
         <!-- 低庫存警示面板 -->
@@ -703,8 +706,59 @@
             }
         }
 
+        // 應收帳款到期警示
+        async function loadInvoiceAlerts() {
+            try {
+                const res = await fetch('/api/invoice-alerts');
+                const data = await res.json();
+                if (!data.success || !data.alerts || !data.alerts.length) return;
+
+                const panel = document.getElementById('invoice-alert-panel');
+                const hasOverdue = data.alerts.some(a => a.due_status === 'overdue');
+                const hasDueToday = data.alerts.some(a => a.due_status === 'due_today');
+                const isUrgent = hasOverdue || hasDueToday;
+
+                const fmt = n => 'NT$ ' + Number(n).toLocaleString('zh-TW', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+
+                let html = `<div style="background:${isUrgent ? 'linear-gradient(135deg,#fee2e2,#fecaca)' : 'linear-gradient(135deg,#fef3c7,#ffe0b2)'};
+                    border-left:4px solid ${isUrgent ? '#dc2626' : '#f59e0b'};
+                    border-radius:10px; padding:14px 18px; margin-bottom:18px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                        <h3 style="margin:0; font-size:14px; color:${isUrgent ? '#991b1b' : '#78350f'};">
+                            ${isUrgent ? '⚠️ 發票應收帳款逾期警示' : '💰 發票付款即將到期'}
+                            <span style="background:${isUrgent ? '#dc2626' : '#f59e0b'}; color:white; border-radius:12px; padding:2px 9px; font-size:12px; margin-left:6px;">${data.alerts.length}</span>
+                        </h3>
+                        <a href="/invoices?status=unpaid" style="font-size:12px; color:${isUrgent ? '#dc2626' : '#92400e'}; font-weight:600; text-decoration:none;">查看全部 →</a>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                    ${data.alerts.map(a => {
+                        const urgentColor = a.due_status === 'overdue' || a.due_status === 'due_today' ? '#dc2626' : '#92400e';
+                        const daysText = a.days_until_due < 0 ? `逾期 ${Math.abs(a.days_until_due)} 天`
+                            : a.days_until_due === 0 ? '今日到期'
+                            : `剩 ${a.days_until_due} 天`;
+                        return `<div onclick="window.location='/invoices/${a.id}'" style="background:white; border-radius:7px; padding:9px 13px; box-shadow:0 1px 4px rgba(0,0,0,0.07); display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                            <div>
+                                <div style="font-weight:700; font-size:13px; color:#333;">${a.customer_name}</div>
+                                <div style="font-size:11px; color:#888; margin-top:1px;">發票：${a.invoice_number}　到期日：${a.payment_due_date}</div>
+                            </div>
+                            <div style="text-align:right; flex-shrink:0; margin-left:12px;">
+                                <div style="font-size:16px; font-weight:800; color:#1d4ed8;">${fmt(a.total_amount)}</div>
+                                <div style="font-size:11px; color:${urgentColor}; font-weight:600;">${daysText}</div>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                    </div>
+                </div>`;
+                panel.innerHTML = html;
+                panel.style.display = 'block';
+            } catch (e) {
+                console.error('載入發票警示失敗:', e);
+            }
+        }
+
         // 頁面載入時載入通知
         loadLoanNotifications();
+        loadInvoiceAlerts();
         
         // 每5分鐘自動重新載入通知
         setInterval(loadLoanNotifications, 5 * 60 * 1000);
