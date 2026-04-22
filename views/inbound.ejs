@@ -323,21 +323,37 @@
                 <input type="date" id="inbound_date" name="inbound_date" required value="<%= today %>">
             </div>
             
-            <div class="form-group" id="return-section" style="display: none;">
+            <!-- 借測歸還 -->
+            <div class="form-group" id="return-section" style="display: none; padding:14px; background:#f0fff4; border:1px solid #6ee7b7; border-radius:8px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                     <input type="checkbox" id="is_return" name="is_return" style="width: auto; margin: 0;">
-                    <span style="font-weight: 600; color: #28a745;">📥 歸還（勾選此項表示此入庫為歸還借測的料件）</span>
+                    <span style="font-weight: 600; color: #065f46;">📥 歸還借測料件</span>
                 </label>
-                <div id="loan-records-info" style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 6px; display: none;">
+                <div id="loan-records-info" style="margin-top: 10px; padding: 10px; background-color: white; border-radius: 6px; display: none;">
                     <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">未歸還的借測記錄：</div>
                     <div id="loan-records-list"></div>
-                    <select id="return_outbound_id" name="return_outbound_id" style="margin-top: 10px; display: none;">
+                    <select id="return_outbound_id" name="return_outbound_id" style="margin-top: 10px; display: none; width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <option value="">-- 選擇要歸還的借測記錄 --</option>
                     </select>
                 </div>
-                <small style="color: #666; margin-top: 5px; display: block;">
-                    💡 提示：當掃描到有未歸還借測記錄的料件時，系統會自動顯示歸還選項。
-                </small>
+            </div>
+
+            <!-- 退回一般出庫 -->
+            <div class="form-group" id="outbound-return-section" style="display: none; padding:14px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="is_outbound_return" style="width: auto; margin: 0;">
+                    <span style="font-weight: 600; color: #78350f;">🔄 退回出庫料件（料件帶回公司重新入庫）</span>
+                </label>
+                <div id="outbound-records-info" style="margin-top: 12px; display: none;">
+                    <div style="font-size:13px; color:#92400e; margin-bottom:8px;">請選擇對應的出庫記錄，系統將自動連結，並在出入庫記錄中顯示「已退回」狀態。</div>
+                    <div id="outbound-records-list" style="margin-bottom:8px;"></div>
+                    <select id="outbound_return_record_id" style="width:100%; padding:8px; border:1px solid #fcd34d; border-radius:6px; background:#fffbeb;">
+                        <option value="">-- 選擇要退回的出庫記錄 --</option>
+                    </select>
+                    <input type="hidden" id="outbound_return_is_return_flag" value="">
+                    <input type="hidden" id="outbound_return_outbound_id_field" value="">
+                </div>
+                <small style="color:#92400e; margin-top:6px; display:block;">💡 若找不到對應出庫記錄，可直接以一般入庫方式記錄，不影響庫存計算。</small>
             </div>
             
             <div class="form-group">
@@ -510,25 +526,48 @@
             barcodeInput.focus();
         });
         
-        // 料件選擇改變時，查詢是否有未歸還的借測記錄
-        const returnSection = document.getElementById('return-section');
-        const isReturnCheckbox = document.getElementById('is_return');
-        const loanRecordsInfo = document.getElementById('loan-records-info');
-        const loanRecordsList = document.getElementById('loan-records-list');
-        const returnOutboundSelect = document.getElementById('return_outbound_id');
-        
+        // 料件選擇相關元素
+        const returnSection          = document.getElementById('return-section');
+        const isReturnCheckbox       = document.getElementById('is_return');
+        const loanRecordsInfo        = document.getElementById('loan-records-info');
+        const loanRecordsList        = document.getElementById('loan-records-list');
+        const returnOutboundSelect   = document.getElementById('return_outbound_id');
+
+        const outboundReturnSection  = document.getElementById('outbound-return-section');
+        const isOutboundReturnCb     = document.getElementById('is_outbound_return');
+        const outboundRecordsInfo    = document.getElementById('outbound-records-info');
+        const outboundRecordsList    = document.getElementById('outbound-records-list');
+        const outboundReturnSelect   = document.getElementById('outbound_return_record_id');
+        const hiddenIsReturn         = document.getElementById('outbound_return_is_return_flag');
+        const hiddenReturnOutboundId = document.getElementById('outbound_return_outbound_id_field');
+
+        function resetReturnSections() {
+            returnSection.style.display = 'none';
+            isReturnCheckbox.checked = false;
+            loanRecordsInfo.style.display = 'none';
+            returnOutboundSelect.style.display = 'none';
+            returnOutboundSelect.required = false;
+            returnOutboundSelect.value = '';
+
+            outboundReturnSection.style.display = 'none';
+            isOutboundReturnCb.checked = false;
+            outboundRecordsInfo.style.display = 'none';
+            outboundReturnSelect.value = '';
+            hiddenIsReturn.value = '';
+            hiddenReturnOutboundId.value = '';
+        }
+
         partSelect.addEventListener('change', async () => {
             const partId = partSelect.value;
             const stockBox = document.getElementById('stock-info-box');
             const stockText = document.getElementById('stock-info-text');
-            
+
+            resetReturnSections();
             if (!partId) {
-                returnSection.style.display = 'none';
-                isReturnCheckbox.checked = false;
                 if (stockBox) stockBox.style.display = 'none';
                 return;
             }
-            
+
             // 顯示即時庫存
             if (stockBox && stockText) {
                 try {
@@ -545,55 +584,110 @@
                     }
                 } catch(e) { stockBox.style.display = 'none'; }
             }
-            
+
+            // 查詢借測未歸還記錄
             try {
-                const response = await fetch(`/api/loan-records/${partId}`);
-                const data = await response.json();
-                
-                if (data.success && data.records && data.records.length > 0) {
-                    // 有未歸還的借測記錄，顯示歸還選項
+                const res1 = await fetch(`/api/loan-records/${partId}`);
+                const loan = await res1.json();
+                if (loan.success && loan.records && loan.records.length > 0) {
                     returnSection.style.display = 'block';
                     loanRecordsInfo.style.display = 'block';
-                    
-                    // 顯示借測記錄列表
                     let html = '';
                     returnOutboundSelect.innerHTML = '<option value="">-- 選擇要歸還的借測記錄 --</option>';
-                    
-                    data.records.forEach(record => {
-                        html += `<div style="padding: 8px; margin-bottom: 5px; background-color: white; border-left: 3px solid #667eea; border-radius: 4px;">
-                            <strong>借測日期：</strong>${record.outbound_date} | 
-                            <strong>數量：</strong>${record.quantity} | 
-                            <strong>未歸還：</strong>${record.remaining_quantity}
-                            ${record.note ? `<br><small style="color: #666;">備註：${record.note}</small>` : ''}
+                    loan.records.forEach(r => {
+                        html += `<div style="padding:7px 10px; margin-bottom:5px; background:white; border-left:3px solid #667eea; border-radius:4px; font-size:13px;">
+                            <strong>借測日期：</strong>${r.outbound_date} | <strong>數量：</strong>${r.quantity} | <strong>未歸還：</strong>${r.remaining_quantity}
+                            ${r.note ? `<br><small style="color:#666;">備註：${r.note}</small>` : ''}
                         </div>`;
-                        
-                        const option = document.createElement('option');
-                        option.value = record.id;
-                        option.textContent = `${record.outbound_date} - 數量：${record.quantity}（未歸還：${record.remaining_quantity}）`;
-                        returnOutboundSelect.appendChild(option);
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = `${r.outbound_date} - 數量：${r.quantity}（未歸還：${r.remaining_quantity}）`;
+                        returnOutboundSelect.appendChild(opt);
                     });
-                    
                     loanRecordsList.innerHTML = html;
-                } else {
-                    // 沒有未歸還的借測記錄，隱藏歸還選項
-                    returnSection.style.display = 'none';
-                    loanRecordsInfo.style.display = 'none';
-                    isReturnCheckbox.checked = false;
                 }
-            } catch (error) {
-                console.error('查詢借測記錄失敗:', error);
-            }
+            } catch(e) { console.error('查詢借測記錄失敗:', e); }
+
+            // 查詢一般出庫可退回記錄
+            try {
+                const res2 = await fetch(`/api/outbound-records/${partId}`);
+                const ob = await res2.json();
+                if (ob.success && ob.records && ob.records.length > 0) {
+                    outboundReturnSection.style.display = 'block';
+                    let html = '';
+                    outboundReturnSelect.innerHTML = '<option value="">-- 選擇要退回的出庫記錄 --</option>';
+                    ob.records.forEach(r => {
+                        html += `<div style="padding:7px 10px; margin-bottom:5px; background:white; border-left:3px solid #f59e0b; border-radius:4px; font-size:13px;">
+                            <strong>出庫日期：</strong>${r.outbound_date} | <strong>出庫數量：</strong>${r.quantity} | <strong>可退回：</strong><span style="color:#d97706; font-weight:700;">${r.remaining_qty}</span>
+                            ${r.note ? `<br><small style="color:#666;">備註：${r.note}</small>` : ''}
+                            ${r.created_by ? `<small style="color:#999; margin-left:8px;">操作人：${r.created_by}</small>` : ''}
+                        </div>`;
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = `${r.outbound_date} - 出庫 ${r.quantity}，可退回 ${r.remaining_qty}${r.note ? '（'+r.note+'）' : ''}`;
+                        outboundReturnSelect.appendChild(opt);
+                    });
+                    outboundRecordsList.innerHTML = html;
+                }
+            } catch(e) { console.error('查詢出庫記錄失敗:', e); }
         });
-        
-        // 歸還選項改變時，顯示/隱藏借測記錄選擇
+
+        // 借測歸還勾選事件
         isReturnCheckbox.addEventListener('change', () => {
             if (isReturnCheckbox.checked) {
+                // 互斥：取消退回出庫勾選
+                isOutboundReturnCb.checked = false;
+                outboundRecordsInfo.style.display = 'none';
+                hiddenIsReturn.value = '';
+                hiddenReturnOutboundId.value = '';
+
                 returnOutboundSelect.style.display = 'block';
                 returnOutboundSelect.required = true;
             } else {
                 returnOutboundSelect.style.display = 'none';
                 returnOutboundSelect.required = false;
                 returnOutboundSelect.value = '';
+            }
+        });
+
+        // 退回出庫勾選事件
+        isOutboundReturnCb.addEventListener('change', () => {
+            if (isOutboundReturnCb.checked) {
+                // 互斥：取消借測歸還勾選
+                isReturnCheckbox.checked = false;
+                returnOutboundSelect.style.display = 'none';
+                returnOutboundSelect.required = false;
+                returnOutboundSelect.value = '';
+
+                outboundRecordsInfo.style.display = 'block';
+                // 預設設定 hidden fields
+                hiddenIsReturn.value = 'on';
+            } else {
+                outboundRecordsInfo.style.display = 'none';
+                hiddenIsReturn.value = '';
+                hiddenReturnOutboundId.value = '';
+            }
+        });
+
+        // 退回出庫記錄選擇事件
+        outboundReturnSelect.addEventListener('change', () => {
+            hiddenReturnOutboundId.value = outboundReturnSelect.value || '';
+        });
+
+        // 表單送出前：退回出庫時動態填入共用欄位
+        document.querySelector('form').addEventListener('submit', function(e) {
+            if (isOutboundReturnCb.checked) {
+                if (!outboundReturnSelect.value) {
+                    e.preventDefault();
+                    alert('請選擇要退回的出庫記錄');
+                    outboundReturnSelect.focus();
+                    return;
+                }
+                // 把退回出庫的設定寫入借測歸還的共用欄位（is_return、return_outbound_id）
+                isReturnCheckbox.checked = true;
+                isReturnCheckbox.name = 'is_return';  // 確保 name 存在
+                returnOutboundSelect.value = outboundReturnSelect.value;
+                returnOutboundSelect.name = 'return_outbound_id';
             }
         });
         

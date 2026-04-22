@@ -2020,6 +2020,34 @@ app.get('/api/loan-records/:part_id', (req, res) => {
     }
 });
 
+// API: 查詢料件的可退回一般出庫記錄
+app.get('/api/outbound-records/:part_id', requireAuth, (req, res) => {
+    const { part_id } = req.params;
+    try {
+        const stmt = db.prepare(`
+            SELECT
+                o.id,
+                o.outbound_date,
+                o.quantity,
+                o.note,
+                o.created_by,
+                COALESCE(SUM(i.quantity), 0) as returned_qty,
+                o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_qty
+            FROM outbound_records o
+            LEFT JOIN inbound_records i ON i.return_outbound_id = o.id AND i.is_return = 1
+            WHERE o.part_id = ? AND (o.is_loan = 0 OR o.is_loan IS NULL)
+            GROUP BY o.id
+            HAVING remaining_qty > 0
+            ORDER BY o.outbound_date DESC
+            LIMIT 20
+        `);
+        const records = stmt.all(part_id);
+        res.json({ success: true, records });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // 入庫記錄查詢（保留舊路由以兼容）
 app.get('/inbound/records', (req, res) => {
     res.redirect('/transaction/records?type=inbound');
