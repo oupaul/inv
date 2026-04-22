@@ -712,6 +712,7 @@
                             <option value="outbound" <%= type === 'outbound' ? 'selected' : '' %>>出庫</option>
                             <option value="return" <%= type === 'return' ? 'selected' : '' %>>歸還</option>
                             <option value="loan" <%= type === 'loan' ? 'selected' : '' %>>借測</option>
+                            <option value="voided" <%= type === 'voided' ? 'selected' : '' %>>已作廢</option>
                         </select>
                     </div>
                     <div class="search-group">
@@ -748,14 +749,29 @@
                     <th>備註</th>
                     <th>特殊標記</th>
                     <th>記錄時間</th>
+                    <% if (user && user.role === 'admin') { %><th>操作</th><% } %>
                 </tr>
             </thead>
             <tbody>
                 <% records.forEach(function(record) { %>
-                <tr>
+                <%
+                    const isVoided = record.is_voided == 1;
+                    const isVoidReversal = record.is_void_reversal == 1;
+                    const isInboundSide = record.inbound_id != null;
+                    const isPositive = record.type === 'inbound' || record.type === 'return' ||
+                                       (record.type === 'void_reversal' && isInboundSide);
+                    const rowStyle = isVoided
+                        ? 'opacity:0.45; background:#f3f4f6; text-decoration:line-through;'
+                        : isVoidReversal
+                            ? 'background:#fffbeb;'
+                            : '';
+                %>
+                <tr style="<%= rowStyle %>">
                     <td><%= record.transaction_date %></td>
                     <td>
-                        <% if (record.type === 'inbound') { %>
+                        <% if (record.type === 'void_reversal') { %>
+                            <span class="type-badge" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:12px; padding:3px 10px; font-size:12px; font-weight:700;">⚙️ 作廢調整</span>
+                        <% } else if (record.type === 'inbound') { %>
                             <span class="type-badge inbound">📥 入庫</span>
                         <% } else if (record.type === 'outbound') { %>
                             <span class="type-badge outbound">📤 出庫</span>
@@ -767,31 +783,100 @@
                         <% } else if (record.type === 'loan') { %>
                             <span class="type-badge loan">📋 借測</span>
                         <% } %>
+                        <% if (isVoided) { %>
+                            <br><span style="background:#fee2e2; color:#991b1b; border-radius:8px; padding:2px 7px; font-size:11px; font-weight:700; text-decoration:none;">✕ 已作廢</span>
+                        <% } %>
                     </td>
                     <td><%= record.part_number %></td>
                     <td><%= record.part_name %></td>
-                    <td style="font-weight: bold; color: <%= record.type === 'inbound' || record.type === 'return' ? '#28a745' : '#dc3545' %>;">
-                        <%= record.type === 'inbound' || record.type === 'return' ? '+' : '-' %><%= record.quantity %>
+                    <td style="font-weight: bold; color: <%= isPositive ? '#28a745' : '#dc3545' %>;">
+                        <%= isPositive ? '+' : '-' %><%= record.quantity %>
                     </td>
                     <td><%= record.unit %></td>
                     <td style="color: #667eea; font-weight: 500;"><%= record.created_by || '系統' %></td>
                     <td><%= record.note || '-' %></td>
                     <td>
-                        <% if (record.type === 'outbound' && record.has_invoice) { %>
-                            <span style="color: #28a745; font-weight: 600; font-size: 12px;">✅ 已開發票</span>
-                            <% if (record.invoice_number) { %>
-                                <br><small style="color: #666; font-size: 11px;">📄 <%= record.invoice_number %></small>
+                        <% if (record.type === 'outbound') { %>
+                            <%
+                                const retQty = record.returned_quantity || 0;
+                                const outQty = record.quantity || 0;
+                                const isFullyReturned  = retQty >= outQty;
+                                const isPartialReturned = retQty > 0 && retQty < outQty;
+                            %>
+                            <% if (isFullyReturned) { %>
+                                <%# 已全數歸還，不顯示發票選項 %>
+                                <div style="display:flex; flex-direction:column; gap:3px;">
+                                    <span style="color:#1e40af; font-weight:700; font-size:12px; background:#dbeafe; border-radius:8px; padding:2px 8px; display:inline-block;">🔄 已全數歸還</span>
+                                    <% if (record.linked_invoice_id) { %>
+                                        <a href="/invoices/<%= record.linked_invoice_id %>" style="font-size:11px; color:#2563eb; font-weight:600; text-decoration:none;">→ 查看已開發票</a>
+                                    <% } %>
+                                </div>
+                            <% } else { %>
+                                <% if (isPartialReturned) { %>
+                                    <%# 部分歸還，顯示提示 %>
+                                    <div style="margin-bottom:4px;">
+                                        <span style="color:#92400e; font-weight:600; font-size:11px; background:#fef3c7; border-radius:6px; padding:2px 7px; display:inline-block;">⚠️ 部分歸還（已還 <%= retQty %>／共 <%= outQty %>）</span>
+                                    </div>
+                                <% } %>
+                                <% if (record.linked_invoice_id) { %>
+                                    <%# 已有完整發票管理記錄 %>
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <span style="color:#065f46; font-weight:700; font-size:12px; background:#d1fae5; border-radius:8px; padding:2px 8px; display:inline-block;">✅ 已建發票管理</span>
+                                        <% if (record.invoice_number) { %><small style="color:#666; font-size:11px;">📄 <%= record.invoice_number %></small><% } %>
+                                        <a href="/invoices/<%= record.linked_invoice_id %>" style="font-size:11px; color:#2563eb; font-weight:600; text-decoration:none;">→ 查看發票</a>
+                                    </div>
+                                <% } else if (record.has_invoice && record.invoice_number) { %>
+                                    <%# 出庫時有記錄號碼，但尚未建完整記錄 %>
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <span style="color:#92400e; font-weight:700; font-size:12px; background:#fef3c7; border-radius:8px; padding:2px 8px; display:inline-block;">🧾 <%= record.invoice_number %></span>
+                                        <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:2px;">
+                                            <button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="<%= record.has_invoice %>" data-invoice-number="<%= record.invoice_number || '' %>" style="background:#e5e7eb; color:#374151; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px;">修改號碼</button>
+                                            <a href="/invoices/add?outbound_ids=<%= record.outbound_id %>&invoice_number=<%= encodeURIComponent(record.invoice_number) %>" style="background:#10b981; color:white; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px; text-decoration:none; font-weight:600;">📋 建立發票</a>
+                                        </div>
+                                    </div>
+                                <% } else if (record.has_invoice) { %>
+                                    <%# 有勾選但無號碼 %>
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <span style="color:#92400e; font-size:12px; background:#fef3c7; border-radius:8px; padding:2px 8px; display:inline-block;">🧾 已開發票</span>
+                                        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                            <button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="1" data-invoice-number="" style="background:#e5e7eb; color:#374151; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px;">填入號碼</button>
+                                            <a href="/invoices/add?outbound_ids=<%= record.outbound_id %>" style="background:#10b981; color:white; border:none; padding:3px 7px; border-radius:5px; cursor:pointer; font-size:11px; text-decoration:none; font-weight:600;">📋 建立發票</a>
+                                        </div>
+                                    </div>
+                                <% } else { %>
+                                    <%# 未有任何發票資訊 %>
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <button class="btn-add-invoice" data-id="<%= record.outbound_id %>" style="background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:11px;">+ 記錄發票號碼</button>
+                                        <a href="/invoices/add?outbound_ids=<%= record.outbound_id %>" style="font-size:11px; color:#10b981; font-weight:600; text-decoration:none; padding:3px 0;">📋 直接建立發票</a>
+                                    </div>
+                                <% } %>
                             <% } %>
-                            <% if (record.outbound_id) { %>
-                                <br><button class="btn-edit-invoice" data-id="<%= record.outbound_id %>" data-has-invoice="<%= record.has_invoice %>" data-invoice-number="<%= record.invoice_number || '' %>" style="background-color: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px;">編輯</button>
-                            <% } %>
-                        <% } else if (record.type === 'outbound' && !record.has_invoice && record.outbound_id) { %>
-                            <button class="btn-add-invoice" data-id="<%= record.outbound_id %>" style="background-color: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">添加發票</button>
                         <% } else { %>
                             -
                         <% } %>
                     </td>
                     <td style="font-size: 12px; color: #999;"><%= record.created_at %></td>
+                    <% if (user && user.role === 'admin') { %>
+                    <td style="white-space:nowrap;">
+                        <% if (isVoided) { %>
+                            <div style="font-size:11px; color:#991b1b; line-height:1.6;">
+                                <div style="font-weight:700;">作廢原因：</div>
+                                <div><%= record.void_reason || '（未填寫）' %></div>
+                                <div style="color:#6b7280; margin-top:2px;"><%= record.voided_by %> · <%= record.voided_at ? record.voided_at.substring(0,16).replace('T',' ') : '' %></div>
+                            </div>
+                        <% } else if (!isVoidReversal) { %>
+                            <button class="btn-void-record"
+                                data-id="<%= record.inbound_id || record.outbound_id %>"
+                                data-type="<%= isInboundSide ? 'inbound' : 'outbound' %>"
+                                data-desc="<%= record.part_number %> - <%= record.part_name %> (<%= record.transaction_date %>)"
+                                style="background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                                ✕ 作廢
+                            </button>
+                        <% } else { %>
+                            <span style="font-size:11px; color:#92400e;">系統調整記錄</span>
+                        <% } %>
+                    </td>
+                    <% } %>
                 </tr>
                 <% }); %>
             </tbody>
@@ -804,6 +889,25 @@
         </div>
         <% } %>
     </div>
+
+    <!-- 作廢確認 Modal -->
+    <div id="voidModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:28px 32px; width:90%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 6px; color:#991b1b; font-size:18px;">⚠️ 確認作廢記錄</h3>
+            <p style="color:#6b7280; font-size:14px; margin:0 0 16px;">此操作不可逆，系統將自動建立一筆反向調整記錄以維持帳目正確。</p>
+            <div style="background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:13px; color:#7f1d1d;" id="voidRecordDesc"></div>
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600; color:#374151; font-size:14px; display:block; margin-bottom:6px;">作廢原因 <span style="color:#6b7280; font-weight:400;">（選填）</span></label>
+                <textarea id="voidReason" rows="3" placeholder="請輸入作廢原因（例：資料輸入錯誤、測試記錄）"
+                    style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; resize:vertical; box-sizing:border-box;"></textarea>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button onclick="closeVoidModal()" style="padding:9px 20px; border:1px solid #d1d5db; border-radius:8px; background:#fff; color:#374151; cursor:pointer; font-size:14px;">取消</button>
+                <button onclick="confirmVoid()" id="voidConfirmBtn" style="padding:9px 20px; border:none; border-radius:8px; background:#dc2626; color:#fff; cursor:pointer; font-size:14px; font-weight:600;">確認作廢</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         <%- include('_common-mobile-script') %>
     </script>
@@ -945,13 +1049,13 @@
                     modalSaveBtn.addEventListener('click', function() {
                         const recordId = document.getElementById('invoiceRecordId').value;
                         const hasInvoice = modalHasInvoice.checked;
-                        const invoiceNumber = modalInvoiceNumber.value.trim();
-                        
+                        const invoiceNumber = document.getElementById('modalInvoiceNumber').value.trim();
+
                         if (hasInvoice && !invoiceNumber) {
                             alert('請輸入發票號碼');
                             return;
                         }
-                        
+
                         saveInvoiceInfo(recordId, hasInvoice, invoiceNumber, modalSaveBtn);
                     });
                     
@@ -996,7 +1100,16 @@
                 })
                 .then(function(data) {
                     if (data.success) {
-                        alert('發票信息已更新');
+                        // 關閉 modal
+                        document.getElementById('invoiceModal').style.display = 'none';
+                        if (data.has_invoice && data.invoice_number) {
+                            // 儲存成功且有號碼，詢問是否建立完整發票
+                            const go = confirm('發票號碼已記錄：' + data.invoice_number + '\n\n是否立即建立完整的發票管理記錄？\n（可追蹤客戶、金額、付款狀態）');
+                            if (go) {
+                                window.location.href = '/invoices/add?outbound_ids=' + recordId + '&invoice_number=' + encodeURIComponent(data.invoice_number);
+                                return;
+                            }
+                        }
                         location.reload();
                     } else {
                         alert('更新失敗：' + (data.error || '未知錯誤'));
@@ -1029,6 +1142,69 @@
             });
         })();
     </script>
+
+    <% if (user && user.role === 'admin') { %>
+    <script>
+        let voidTargetId = null;
+        let voidTargetType = null;
+
+        function openVoidModal(id, type, desc) {
+            voidTargetId = id;
+            voidTargetType = type;
+            document.getElementById('voidRecordDesc').textContent = desc;
+            document.getElementById('voidReason').value = '';
+            const modal = document.getElementById('voidModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeVoidModal() {
+            document.getElementById('voidModal').style.display = 'none';
+            voidTargetId = null;
+            voidTargetType = null;
+        }
+
+        async function confirmVoid() {
+            if (!voidTargetId || !voidTargetType) return;
+            const reason = document.getElementById('voidReason').value.trim();
+            const btn = document.getElementById('voidConfirmBtn');
+            btn.disabled = true;
+            btn.textContent = '處理中...';
+            try {
+                const resp = await fetch(`/${voidTargetType}/${voidTargetId}/void`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ void_reason: reason })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    closeVoidModal();
+                    window.location.reload();
+                } else {
+                    alert('作廢失敗：' + data.message);
+                    btn.disabled = false;
+                    btn.textContent = '確認作廢';
+                }
+            } catch (e) {
+                alert('請求失敗，請重試');
+                btn.disabled = false;
+                btn.textContent = '確認作廢';
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('btn-void-record')) {
+                const id   = e.target.getAttribute('data-id');
+                const type = e.target.getAttribute('data-type');
+                const desc = e.target.getAttribute('data-desc');
+                openVoidModal(id, type, desc);
+            }
+        });
+
+        document.getElementById('voidModal').addEventListener('click', function(e) {
+            if (e.target === this) closeVoidModal();
+        });
+    </script>
+    <% } %>
 </body>
 </html>
 

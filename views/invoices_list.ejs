@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - 庫存管理系統</title>
+    <style>
+        <%- include('_common-styles') %>
+
+        .invoice-stats {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .inv-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 14px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .inv-stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+        .inv-stat-card.active { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(102,126,234,0.25); }
+
+        .inv-stat-value { font-size: 22px; font-weight: 800; color: var(--text-primary); }
+        .inv-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .inv-stat-card.overdue .inv-stat-value { color: #dc2626; }
+        .inv-stat-card.unpaid  .inv-stat-value { color: #d97706; }
+        .inv-stat-card.partial .inv-stat-value { color: #2563eb; }
+        .inv-stat-card.paid    .inv-stat-value { color: #16a34a; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-paid    { background: #d1fae5; color: #065f46; }
+        .badge-partial { background: #dbeafe; color: #1e40af; }
+        .badge-unpaid  { background: #fef3c7; color: #92400e; }
+        .badge-overdue { background: #fee2e2; color: #991b1b; }
+
+        .amount-col { text-align: right; font-variant-numeric: tabular-nums; }
+
+        @media (max-width: 768px) {
+            .invoice-stats { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <%- include('_common-nav') %>
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(msg => { %><div class="flash <%= msg.category %>"><%= msg.message %></div><% }); %>
+            </div>
+        <% } %>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <h1>🧾 發票管理</h1>
+            <a href="/invoices/add" class="btn btn-primary">＋ 新增發票</a>
+        </div>
+
+        <!-- 統計卡片 -->
+        <div class="invoice-stats">
+            <div class="inv-stat-card <%= !filters.status ? 'active' : '' %>" onclick="filterByStatus('')">
+                <div class="inv-stat-value"><%= stats.total %></div>
+                <div class="inv-stat-label">全部發票</div>
+            </div>
+            <div class="inv-stat-card overdue <%= filters.status === 'overdue' ? 'active' : '' %>" onclick="filterByStatus('overdue')">
+                <div class="inv-stat-value"><%= stats.overdue %></div>
+                <div class="inv-stat-label">⚠️ 逾期未付</div>
+            </div>
+            <div class="inv-stat-card unpaid <%= filters.status === 'unpaid' ? 'active' : '' %>" onclick="filterByStatus('unpaid')">
+                <div class="inv-stat-value"><%= stats.unpaid %></div>
+                <div class="inv-stat-label">未付款</div>
+            </div>
+            <div class="inv-stat-card partial <%= filters.status === 'partial' ? 'active' : '' %>" onclick="filterByStatus('partial')">
+                <div class="inv-stat-value"><%= stats.partial %></div>
+                <div class="inv-stat-label">部分付款</div>
+            </div>
+            <div class="inv-stat-card paid <%= filters.status === 'paid' ? 'active' : '' %>" onclick="filterByStatus('paid')">
+                <div class="inv-stat-value"><%= stats.paid %></div>
+                <div class="inv-stat-label">已付清</div>
+            </div>
+        </div>
+
+        <% if (stats.totalAmount > 0) { %>
+        <div style="background:linear-gradient(135deg,#fef3c7,#ffe0b2); border-left:4px solid #f59e0b; border-radius:10px; padding:12px 18px; margin-bottom:16px; font-size:14px; color:#78350f;">
+            💰 應收帳款總額（未付清）：<strong style="font-size:18px;">NT$ <%= stats.totalAmount.toLocaleString('zh-TW', {minimumFractionDigits:0, maximumFractionDigits:0}) %></strong>
+        </div>
+        <% } %>
+
+        <!-- 篩選列 -->
+        <form method="GET" action="/invoices" id="filterForm" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;">
+            <input type="hidden" name="status" id="statusInput" value="<%= filters.status %>">
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label>搜尋</label>
+                <input type="text" name="search" value="<%= filters.search %>" placeholder="發票號碼或客戶名稱">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>日期起</label>
+                <input type="date" name="date_from" value="<%= filters.date_from %>">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>日期訖</label>
+                <input type="date" name="date_to" value="<%= filters.date_to %>">
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button type="submit" class="btn btn-primary">🔍 搜尋</button>
+                <a href="/invoices" class="btn btn-secondary">清除</a>
+            </div>
+        </form>
+
+        <!-- 發票列表 -->
+        <% if (invoices && invoices.length > 0) { %>
+        <table>
+            <thead>
+                <tr>
+                    <th>發票號碼</th>
+                    <th>開立日期</th>
+                    <th>客戶名稱</th>
+                    <th>明細數</th>
+                    <th class="amount-col">未稅金額</th>
+                    <th class="amount-col">稅額</th>
+                    <th class="amount-col">含稅總額</th>
+                    <th>付款到期</th>
+                    <th>付款方式</th>
+                    <th>狀態</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% invoices.forEach(function(inv) {
+                    const isOverdue = inv.payment_status !== 'paid' && inv.payment_due_date && new Date(inv.payment_due_date) < new Date();
+                    let badgeClass = 'badge-unpaid';
+                    let badgeText = '未付款';
+                    if (inv.payment_status === 'paid')    { badgeClass = 'badge-paid';    badgeText = '已付清'; }
+                    else if (inv.payment_status === 'partial') { badgeClass = 'badge-partial'; badgeText = '部分付款'; }
+                    else if (isOverdue)                    { badgeClass = 'badge-overdue'; badgeText = '逾期未付'; }
+                    const methodMap = { transfer:'匯款', cash:'現金', check:'支票' };
+                %>
+                <tr style="cursor:pointer; <%= isOverdue ? 'background:#fff5f5;' : '' %>" onclick="window.location='/invoices/<%= inv.id %>'">
+                    <td><code style="font-size:12px;"><%= inv.invoice_number %></code></td>
+                    <td style="white-space:nowrap; color:#666;"><%= inv.invoice_date %></td>
+                    <td style="font-weight:600;"><%= inv.customer_name %></td>
+                    <td style="text-align:center; color:#888;"><%= inv.item_count %></td>
+                    <td class="amount-col" style="color:#555;">NT$ <%= (inv.subtotal||0).toLocaleString('zh-TW',{minimumFractionDigits:0}) %></td>
+                    <td class="amount-col" style="color:#888; font-size:12px;">NT$ <%= (inv.tax_amount||0).toLocaleString('zh-TW',{minimumFractionDigits:0}) %></td>
+                    <td class="amount-col" style="font-weight:700; color:#1e40af;">NT$ <%= (inv.total_amount||0).toLocaleString('zh-TW',{minimumFractionDigits:0}) %></td>
+                    <td style="white-space:nowrap; color:<%= isOverdue ? '#dc2626' : '#555' %>; font-weight:<%= isOverdue ? '700' : 'normal' %>;">
+                        <%= inv.payment_due_date || '-' %>
+                        <% if (isOverdue) { %><br><small style="color:#dc2626;">已逾期</small><% } %>
+                    </td>
+                    <td style="font-size:12px; color:#666;"><%= methodMap[inv.payment_method] || (inv.payment_method || '-') %></td>
+                    <td><span class="status-badge <%= badgeClass %>"><%= badgeText %></span></td>
+                    <td onclick="event.stopPropagation()" style="white-space:nowrap;">
+                        <a href="/invoices/<%= inv.id %>" class="btn btn-secondary" style="padding:4px 10px; font-size:12px;">詳情</a>
+                    </td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <p style="margin-top:10px; color:#999; font-size:13px;">共 <%= invoices.length %> 筆｜點擊列查看詳情</p>
+        <% } else { %>
+        <div class="empty-state">
+            <p>目前沒有符合條件的發票</p>
+            <a href="/invoices/add" class="btn btn-primary">新增第一張發票</a>
+        </div>
+        <% } %>
+    </div>
+
+    <script>
+        function filterByStatus(status) {
+            document.getElementById('statusInput').value = status;
+            document.getElementById('filterForm').submit();
+        }
+    </script>
+    <script>
+        <%- include('_common-mobile-script') %>
+        <%- include('_common-nav-script') %>
+    </script>
+</body>
+</html>

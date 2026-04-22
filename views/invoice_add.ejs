@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - 庫存管理系統</title>
+    <style>
+        <%- include('_common-styles') %>
+
+        .invoice-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .item-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .item-table th { background: #f8fafc; padding: 8px 10px; text-align: left; border-bottom: 2px solid var(--border); color: var(--text-secondary); font-size: 12px; }
+        .item-table td { padding: 6px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .item-table input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+        .item-table input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(102,126,234,0.15); }
+        .item-table .col-num  { width: 36px; text-align: center; color: #999; font-size: 12px; }
+        .item-table .col-del  { width: 36px; text-align: center; }
+
+        .del-btn { background: none; border: none; cursor: pointer; color: #dc2626; font-size: 18px; line-height: 1; padding: 0 4px; }
+        .del-btn:hover { color: #991b1b; }
+
+        .total-bar {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border: 1px solid #bfdbfe;
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 32px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .total-bar .total-item { text-align: right; }
+        .total-bar .total-item label { font-size: 12px; color: #64748b; display: block; margin-bottom: 2px; }
+        .total-bar .total-item .val { font-size: 18px; font-weight: 700; color: #1e40af; }
+        .total-bar .total-item.grand .val { font-size: 24px; color: #1d4ed8; }
+
+        /* 出庫記錄選擇器 */
+        .outbound-picker {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .outbound-search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+        .outbound-results { max-height: 260px; overflow-y: auto; }
+        .outbound-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.1s;
+        }
+        .outbound-row:hover { background: #e2e8f0; }
+        .outbound-row.selected { background: #dbeafe; }
+        .outbound-row input[type=checkbox] { flex-shrink: 0; width: 16px; height: 16px; cursor: pointer; }
+        .outbound-row .ob-meta { flex: 1; }
+        .outbound-row .ob-name { font-weight: 600; color: var(--text-primary); }
+        .outbound-row .ob-detail { font-size: 11px; color: #64748b; }
+        .outbound-row .ob-qty { font-weight: 700; color: var(--color-primary); white-space: nowrap; }
+
+        @media (max-width: 768px) {
+            .invoice-form-grid { grid-template-columns: 1fr; }
+            .total-bar { flex-direction: column; gap: 10px; align-items: flex-end; }
+        }
+    </style>
+</head>
+<body>
+    <%- include('_common-nav') %>
+    <div class="container">
+        <% if (messages && messages.length > 0) { %>
+            <div class="flash-messages">
+                <% messages.forEach(msg => { %><div class="flash <%= msg.category %>"><%= msg.message %></div><% }); %>
+            </div>
+        <% } %>
+
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+            <a href="/invoices" class="btn btn-secondary">← 返回清單</a>
+            <h1 style="margin:0;">🧾 新增發票</h1>
+        </div>
+
+        <form method="POST" action="/invoices/add" id="invoiceForm">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <!-- 基本資訊 -->
+            <div class="section-card">
+                <div class="section-title">📋 發票基本資訊</div>
+                <div class="invoice-form-grid">
+                    <div class="form-group">
+                        <label for="invoice_number">發票號碼 <span style="color:red">*</span></label>
+                        <input type="text" id="invoice_number" name="invoice_number" value="<%= invoiceNumber %>"
+                            <%= presetInvoiceNumber ? 'style="background:#f0fdf4; border-color:#6ee7b7; font-weight:700;"' : '' %> required>
+                        <% if (presetInvoiceNumber) { %>
+                        <small style="color:#059669; margin-top:4px; display:block;">
+                            ✅ 已從出庫記錄帶入發票號碼，可直接修改
+                        </small>
+                        <% } %>
+                    </div>
+                    <div class="form-group">
+                        <label for="invoice_date">開立日期 <span style="color:red">*</span></label>
+                        <input type="date" id="invoice_date" name="invoice_date" value="<%= new Date().toISOString().split('T')[0] %>" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_name">客戶名稱 <span style="color:red">*</span></label>
+                        <input type="text" id="customer_name" name="customer_name" placeholder="公司或個人名稱" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_contact">聯絡人</label>
+                        <input type="text" id="customer_contact" name="customer_contact" placeholder="聯絡人姓名">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_phone">聯絡電話</label>
+                        <input type="text" id="customer_phone" name="customer_phone" placeholder="電話號碼">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_email">Email</label>
+                        <input type="email" id="customer_email" name="customer_email" placeholder="email@example.com">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 付款資訊 -->
+            <div class="section-card">
+                <div class="section-title">💳 付款資訊</div>
+                <div class="invoice-form-grid">
+                    <div class="form-group">
+                        <label for="payment_due_date">付款到期日</label>
+                        <input type="date" id="payment_due_date" name="payment_due_date">
+                    </div>
+                    <div class="form-group">
+                        <label for="payment_method">付款方式</label>
+                        <select id="payment_method" name="payment_method">
+                            <option value="">請選擇</option>
+                            <option value="transfer">匯款</option>
+                            <option value="cash">現金</option>
+                            <option value="check">支票</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tax_rate">稅率</label>
+                        <select id="tax_rate" name="tax_rate" onchange="recalcTotals()">
+                            <option value="0.05" selected>5%（含稅）</option>
+                            <option value="0">0%（零稅率）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="note">備註</label>
+                        <input type="text" id="note" name="note" placeholder="付款說明或備註">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 選擇出庫記錄 -->
+            <div class="section-card">
+                <div class="section-title">📦 從出庫記錄帶入明細（選填）</div>
+                <div class="outbound-picker">
+                    <div class="outbound-search-bar">
+                        <input type="text" id="obSearch" placeholder="搜尋料件名稱、料號、備註..." style="flex:1; border:1px solid #e2e8f0; border-radius:8px; padding:7px 12px; font-size:13px;">
+                        <input type="date" id="obDateFrom" style="border:1px solid #e2e8f0; border-radius:8px; padding:7px 10px; font-size:13px;">
+                        <input type="date" id="obDateTo" style="border:1px solid #e2e8f0; border-radius:8px; padding:7px 10px; font-size:13px;">
+                        <button type="button" class="btn btn-secondary" onclick="searchOutbound()">搜尋</button>
+                    </div>
+                    <div class="outbound-results" id="outboundResults">
+                        <p style="color:#999; font-size:13px; text-align:center; padding:20px 0;">輸入關鍵字後點搜尋，或直接按搜尋顯示近期出庫記錄</p>
+                    </div>
+                    <div style="margin-top:8px; text-align:right;">
+                        <button type="button" class="btn btn-primary" onclick="addSelectedOutbound()">➕ 加入已選出庫記錄</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 發票明細 -->
+            <div class="section-card">
+                <div class="section-title">📝 發票明細</div>
+                <table class="item-table" id="itemTable">
+                    <thead>
+                        <tr>
+                            <th class="col-num">#</th>
+                            <th>料號</th>
+                            <th>品名</th>
+                            <th>規格</th>
+                            <th>單位</th>
+                            <th style="width:80px;">數量</th>
+                            <th style="width:110px;">單價（NT$）</th>
+                            <th style="width:110px; text-align:right;">小計</th>
+                            <th class="col-del"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemTbody">
+                        <%# 預載入出庫記錄帶入的明細 %>
+                        <% items.forEach(function(item, i) { %>
+                        <tr class="item-row">
+                            <td class="col-num"><%= i+1 %></td>
+                            <td><input type="text" name="item_part_number" value="<%= item.part_number %>">
+                                <input type="hidden" name="item_part_id" value="<%= item.part_id %>">
+                                <input type="hidden" name="item_outbound_id" value="<%= item.outbound_id %>">
+                            </td>
+                            <td><input type="text" name="item_part_name" value="<%= item.part_name %>"></td>
+                            <td><input type="text" name="item_specification" value="<%= item.specification || '' %>"></td>
+                            <td><input type="text" name="item_unit" value="<%= item.unit %>" style="width:60px;"></td>
+                            <td><input type="number" name="item_quantity" value="<%= item.quantity %>" min="1" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                            <td><input type="number" name="item_unit_price" value="0" min="0" step="0.01" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                            <td style="text-align:right; font-weight:600; color:#1e40af;" class="row-subtotal">NT$ 0</td>
+                            <td class="col-del"><button type="button" class="del-btn" onclick="removeRow(this)">×</button></td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+                <div style="margin-top:10px;">
+                    <button type="button" class="btn btn-secondary" onclick="addBlankRow()">＋ 手動新增一列</button>
+                </div>
+            </div>
+
+            <!-- 金額小計 -->
+            <div class="total-bar">
+                <div class="total-item">
+                    <label>未稅金額</label>
+                    <div class="val" id="displaySubtotal">NT$ 0</div>
+                </div>
+                <div class="total-item">
+                    <label>稅額（<span id="displayTaxRate">5</span>%）</label>
+                    <div class="val" id="displayTax">NT$ 0</div>
+                </div>
+                <div class="total-item grand">
+                    <label>含稅總額</label>
+                    <div class="val" id="displayTotal">NT$ 0</div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <a href="/invoices" class="btn btn-secondary">取消</a>
+                <button type="submit" class="btn btn-primary">✅ 儲存發票</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let rowCount = <%= items.length %>;
+
+        function addBlankRow() {
+            rowCount++;
+            const tbody = document.getElementById('itemTbody');
+            const tr = document.createElement('tr');
+            tr.className = 'item-row';
+            tr.innerHTML = `
+                <td class="col-num">${rowCount}</td>
+                <td><input type="text" name="item_part_number" placeholder="料號">
+                    <input type="hidden" name="item_part_id" value="">
+                    <input type="hidden" name="item_outbound_id" value=""></td>
+                <td><input type="text" name="item_part_name" placeholder="品名"></td>
+                <td><input type="text" name="item_specification" placeholder="規格"></td>
+                <td><input type="text" name="item_unit" placeholder="單位" style="width:60px;"></td>
+                <td><input type="number" name="item_quantity" value="1" min="1" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                <td><input type="number" name="item_unit_price" value="0" min="0" step="0.01" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                <td style="text-align:right; font-weight:600; color:#1e40af;" class="row-subtotal">NT$ 0</td>
+                <td class="col-del"><button type="button" class="del-btn" onclick="removeRow(this)">×</button></td>
+            `;
+            tbody.appendChild(tr);
+            recalcTotals();
+        }
+
+        function removeRow(btn) {
+            btn.closest('tr').remove();
+            renumberRows();
+            recalcTotals();
+        }
+
+        function renumberRows() {
+            document.querySelectorAll('#itemTbody .item-row').forEach((tr, i) => {
+                tr.querySelector('.col-num').textContent = i + 1;
+            });
+        }
+
+        function recalcRow(input) {
+            const tr = input.closest('tr');
+            const qty = parseFloat(tr.querySelector('[name=item_quantity]').value) || 0;
+            const price = parseFloat(tr.querySelector('[name=item_unit_price]').value) || 0;
+            const sub = qty * price;
+            tr.querySelector('.row-subtotal').textContent = 'NT$ ' + sub.toLocaleString('zh-TW', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            recalcTotals();
+        }
+
+        function recalcTotals() {
+            let subtotal = 0;
+            document.querySelectorAll('#itemTbody .item-row').forEach(tr => {
+                const qty = parseFloat(tr.querySelector('[name=item_quantity]').value) || 0;
+                const price = parseFloat(tr.querySelector('[name=item_unit_price]').value) || 0;
+                subtotal += qty * price;
+            });
+            const taxRate = parseFloat(document.getElementById('tax_rate').value) || 0;
+            const tax = Math.round(subtotal * taxRate * 100) / 100;
+            const total = subtotal + tax;
+            const fmt = n => 'NT$ ' + n.toLocaleString('zh-TW', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            document.getElementById('displaySubtotal').textContent = fmt(subtotal);
+            document.getElementById('displayTax').textContent = fmt(tax);
+            document.getElementById('displayTotal').textContent = fmt(total);
+            document.getElementById('displayTaxRate').textContent = Math.round(taxRate * 100);
+        }
+
+        // 搜尋出庫記錄
+        async function searchOutbound() {
+            const q = document.getElementById('obSearch').value;
+            const dateFrom = document.getElementById('obDateFrom').value;
+            const dateTo = document.getElementById('obDateTo').value;
+            const params = new URLSearchParams({ q, date_from: dateFrom, date_to: dateTo });
+            const res = await fetch('/api/invoices/outbound-search?' + params);
+            const data = await res.json();
+            const container = document.getElementById('outboundResults');
+            if (!data.success || !data.records.length) {
+                container.innerHTML = '<p style="color:#999; font-size:13px; text-align:center; padding:16px 0;">找不到符合的出庫記錄</p>';
+                return;
+            }
+            container.innerHTML = data.records.map(r => {
+                // 發票狀態標籤
+                let invTag = '';
+                if (r.linked_invoice_count > 0) {
+                    invTag = `<span style="background:#dbeafe; color:#1e40af; border-radius:8px; padding:1px 7px; font-size:10px; font-weight:600; flex-shrink:0;">✅ 已建發票</span>`;
+                } else if (r.has_invoice && r.ob_invoice_number) {
+                    invTag = `<span style="background:#fef3c7; color:#92400e; border-radius:8px; padding:1px 7px; font-size:10px; font-weight:600; flex-shrink:0;">🧾 ${escHtml(r.ob_invoice_number)}</span>`;
+                }
+                return `
+                <div class="outbound-row" onclick="toggleOutbound(this)" data-id="${r.id}"
+                    data-part-id="${r.part_id}" data-part-number="${escHtml(r.part_number)}"
+                    data-part-name="${escHtml(r.part_name)}" data-spec="${escHtml(r.specification||'')}"
+                    data-unit="${escHtml(r.unit)}" data-qty="${r.quantity}">
+                    <input type="checkbox" onclick="event.stopPropagation(); this.closest('.outbound-row').classList.toggle('selected', this.checked)">
+                    <div class="ob-meta">
+                        <div class="ob-name" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            ${escHtml(r.part_name)} <code style="font-size:11px; color:#888;">${escHtml(r.part_number)}</code>
+                            ${invTag}
+                        </div>
+                        <div class="ob-detail">出庫日期：${r.outbound_date}${r.note ? '　備註：' + escHtml(r.note) : ''}</div>
+                    </div>
+                    <div class="ob-qty">× ${r.quantity} ${escHtml(r.unit)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function escHtml(str) {
+            return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function toggleOutbound(row) {
+            const cb = row.querySelector('input[type=checkbox]');
+            cb.checked = !cb.checked;
+            row.classList.toggle('selected', cb.checked);
+        }
+
+        function addSelectedOutbound() {
+            const selected = document.querySelectorAll('#outboundResults .outbound-row.selected');
+            if (!selected.length) { alert('請先勾選出庫記錄'); return; }
+            selected.forEach(row => {
+                rowCount++;
+                const tbody = document.getElementById('itemTbody');
+                const tr = document.createElement('tr');
+                tr.className = 'item-row';
+                const d = row.dataset;
+                tr.innerHTML = `
+                    <td class="col-num">${rowCount}</td>
+                    <td><input type="text" name="item_part_number" value="${escHtml(d.partNumber)}">
+                        <input type="hidden" name="item_part_id" value="${d.partId}">
+                        <input type="hidden" name="item_outbound_id" value="${d.id}"></td>
+                    <td><input type="text" name="item_part_name" value="${escHtml(d.partName)}"></td>
+                    <td><input type="text" name="item_specification" value="${escHtml(d.spec)}"></td>
+                    <td><input type="text" name="item_unit" value="${escHtml(d.unit)}" style="width:60px;"></td>
+                    <td><input type="number" name="item_quantity" value="${d.qty}" min="1" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                    <td><input type="number" name="item_unit_price" value="0" min="0" step="0.01" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                    <td style="text-align:right; font-weight:600; color:#1e40af;" class="row-subtotal">NT$ 0</td>
+                    <td class="col-del"><button type="button" class="del-btn" onclick="removeRow(this)">×</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('outboundResults').innerHTML = '<p style="color:#16a34a; font-size:13px; text-align:center; padding:12px 0;">✅ 已加入 ' + selected.length + ' 筆記錄，請填寫各項單價</p>';
+            recalcTotals();
+        }
+
+        // 初始化計算
+        recalcTotals();
+    </script>
+    <script>
+        <%- include('_common-mobile-script') %>
+        <%- include('_common-nav-script') %>
+    </script>
+</body>
+</html>

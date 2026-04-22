@@ -291,7 +291,37 @@ function initDB() {
             console.error('添加 invoice_number 欄位失敗:', e.message);
         }
     }
-    
+
+    // 作廢功能欄位 - inbound_records
+    const inboundVoidCols = [
+        ['is_voided',        `ALTER TABLE inbound_records ADD COLUMN is_voided INTEGER DEFAULT 0`],
+        ['void_reason',      `ALTER TABLE inbound_records ADD COLUMN void_reason TEXT`],
+        ['voided_by',        `ALTER TABLE inbound_records ADD COLUMN voided_by TEXT`],
+        ['voided_at',        `ALTER TABLE inbound_records ADD COLUMN voided_at TIMESTAMP`],
+        ['is_void_reversal', `ALTER TABLE inbound_records ADD COLUMN is_void_reversal INTEGER DEFAULT 0`],
+        ['void_source_id',   `ALTER TABLE inbound_records ADD COLUMN void_source_id INTEGER`],
+    ];
+    inboundVoidCols.forEach(([col, sql]) => {
+        if (!columnExists('inbound_records', col)) {
+            try { db.exec(sql); } catch (e) { console.error(`添加 inbound_records.${col} 失敗:`, e.message); }
+        }
+    });
+
+    // 作廢功能欄位 - outbound_records
+    const outboundVoidCols = [
+        ['is_voided',        `ALTER TABLE outbound_records ADD COLUMN is_voided INTEGER DEFAULT 0`],
+        ['void_reason',      `ALTER TABLE outbound_records ADD COLUMN void_reason TEXT`],
+        ['voided_by',        `ALTER TABLE outbound_records ADD COLUMN voided_by TEXT`],
+        ['voided_at',        `ALTER TABLE outbound_records ADD COLUMN voided_at TIMESTAMP`],
+        ['is_void_reversal', `ALTER TABLE outbound_records ADD COLUMN is_void_reversal INTEGER DEFAULT 0`],
+        ['void_source_id',   `ALTER TABLE outbound_records ADD COLUMN void_source_id INTEGER`],
+    ];
+    outboundVoidCols.forEach(([col, sql]) => {
+        if (!columnExists('outbound_records', col)) {
+            try { db.exec(sql); } catch (e) { console.error(`添加 outbound_records.${col} 失敗:`, e.message); }
+        }
+    });
+
     // 盤點事件表（每個盤點事件代表一次完整的盤點作業）
     db.exec(`
         CREATE TABLE IF NOT EXISTS inventory_check_sessions (
@@ -502,7 +532,51 @@ function initDB() {
         VALUES (?, ?, ?)
     `);
     emailDefaults.forEach(([key, val, desc]) => insertEmailSetting.run(key, val, desc));
-    
+
+    // 發票主表
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_number TEXT NOT NULL UNIQUE,
+            invoice_date DATE NOT NULL,
+            customer_name TEXT NOT NULL,
+            customer_contact TEXT,
+            customer_phone TEXT,
+            customer_email TEXT,
+            subtotal REAL DEFAULT 0,
+            tax_rate REAL DEFAULT 0.05,
+            tax_amount REAL DEFAULT 0,
+            total_amount REAL DEFAULT 0,
+            payment_status TEXT DEFAULT 'unpaid',
+            payment_due_date DATE,
+            payment_date DATE,
+            payment_method TEXT,
+            payment_note TEXT,
+            note TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 發票明細表
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS invoice_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_id INTEGER NOT NULL,
+            outbound_id INTEGER,
+            part_id INTEGER,
+            part_number TEXT,
+            part_name TEXT,
+            specification TEXT,
+            unit TEXT,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            unit_price REAL NOT NULL DEFAULT 0,
+            subtotal REAL NOT NULL DEFAULT 0,
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+        )
+    `);
+
     // 插入預設角色
     const checkRoles = db.prepare('SELECT COUNT(*) as count FROM roles');
     const rolesCount = checkRoles.get();
@@ -1077,7 +1151,31 @@ app.get('/', requireAuth, (req, res) => {
     `);
     
     const inventory = stmt.all(...params);
-    
+
+    // 取得所有有效借出記錄（依料件分組，用於儀錶板顯示借出對象）
+    const loanDetailsStmt = db.prepare(`
+        SELECT
+            o.part_id,
+            o.note,
+            o.outbound_date,
+            o.loan_due_date,
+            o.created_by,
+            o.quantity,
+            o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity
+        FROM outbound_records o
+        LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
+        WHERE o.is_loan = 1
+        GROUP BY o.id
+        HAVING remaining_quantity > 0
+        ORDER BY o.outbound_date DESC
+    `);
+    const loanDetailsRows = loanDetailsStmt.all();
+    const loanDetailsByPart = {};
+    loanDetailsRows.forEach(row => {
+        if (!loanDetailsByPart[row.part_id]) loanDetailsByPart[row.part_id] = [];
+        loanDetailsByPart[row.part_id].push(row);
+    });
+
     // 低庫存警示（庫存 <= min_stock 且 min_stock > 0），用子查詢避免 HAVING 在非聚合查詢的限制
     const lowStockStmt = db.prepare(`
         SELECT * FROM (
@@ -1126,6 +1224,7 @@ app.get('/', requireAuth, (req, res) => {
         categories,
         lowStockItems,
         recentTransactions,
+        loanDetailsByPart,
         search: search || '',
         category_id: category_id || '',
         user: req.session.user,
@@ -1951,6 +2050,34 @@ app.get('/api/loan-records/:part_id', (req, res) => {
     }
 });
 
+// API: 查詢料件的可退回一般出庫記錄
+app.get('/api/outbound-records/:part_id', requireAuth, (req, res) => {
+    const { part_id } = req.params;
+    try {
+        const stmt = db.prepare(`
+            SELECT
+                o.id,
+                o.outbound_date,
+                o.quantity,
+                o.note,
+                o.created_by,
+                COALESCE(SUM(i.quantity), 0) as returned_qty,
+                o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_qty
+            FROM outbound_records o
+            LEFT JOIN inbound_records i ON i.return_outbound_id = o.id AND i.is_return = 1
+            WHERE o.part_id = ? AND (o.is_loan = 0 OR o.is_loan IS NULL)
+            GROUP BY o.id
+            HAVING remaining_qty > 0
+            ORDER BY o.outbound_date DESC
+            LIMIT 20
+        `);
+        const records = stmt.all(part_id);
+        res.json({ success: true, records });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // 入庫記錄查詢（保留舊路由以兼容）
 app.get('/inbound/records', (req, res) => {
     res.redirect('/transaction/records?type=inbound');
@@ -1966,8 +2093,10 @@ app.get('/transaction/records', requireAuth, (req, res) => {
     // 構建入庫記錄查詢
     let inboundQuery = `
         SELECT 
+            ir.id as inbound_id,
             ir.inbound_date as transaction_date,
             CASE 
+                WHEN ir.is_void_reversal = 1 THEN 'void_reversal'
                 WHEN ir.is_return = 1 THEN 'return'
                 ELSE 'inbound'
             END as type,
@@ -1977,7 +2106,12 @@ app.get('/transaction/records', requireAuth, (req, res) => {
             p.unit,
             ir.note,
             ir.created_by,
-            ir.created_at
+            ir.created_at,
+            ir.is_voided,
+            ir.void_reason,
+            ir.voided_by,
+            ir.voided_at,
+            ir.is_void_reversal
         FROM inbound_records ir
         JOIN parts p ON ir.part_id = p.id
         WHERE 1=1
@@ -1989,6 +2123,7 @@ app.get('/transaction/records', requireAuth, (req, res) => {
         SELECT 
             o.outbound_date as transaction_date,
             CASE 
+                WHEN o.is_void_reversal = 1 THEN 'void_reversal'
                 WHEN o.is_loan = 1 THEN 'loan'
                 ELSE 'outbound'
             END as type,
@@ -2002,7 +2137,14 @@ app.get('/transaction/records', requireAuth, (req, res) => {
             o.converted_from_loan,
             o.has_invoice,
             o.invoice_number,
-            o.id as outbound_id
+            o.id as outbound_id,
+            (SELECT ii.invoice_id FROM invoice_items ii WHERE ii.outbound_id = o.id LIMIT 1) as linked_invoice_id,
+            COALESCE((SELECT SUM(i.quantity) FROM inbound_records i WHERE i.return_outbound_id = o.id AND i.is_return = 1), 0) as returned_quantity,
+            o.is_voided,
+            o.void_reason,
+            o.voided_by,
+            o.voided_at,
+            o.is_void_reversal
         FROM outbound_records o
         JOIN parts p ON o.part_id = p.id
         WHERE 1=1
@@ -2034,23 +2176,26 @@ app.get('/transaction/records', requireAuth, (req, res) => {
     
     // 類型條件
     if (type === 'inbound') {
-        inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL)`;
+        inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL) AND (ir.is_void_reversal = 0 OR ir.is_void_reversal IS NULL) AND (ir.is_voided = 0 OR ir.is_voided IS NULL)`;
     } else if (type === 'outbound') {
-        outboundQuery += ` AND (o.is_loan = 0 OR o.is_loan IS NULL)`;
+        outboundQuery += ` AND (o.is_loan = 0 OR o.is_loan IS NULL) AND (o.is_void_reversal = 0 OR o.is_void_reversal IS NULL) AND (o.is_voided = 0 OR o.is_voided IS NULL)`;
     } else if (type === 'return') {
-        inboundQuery += ` AND ir.is_return = 1`;
+        inboundQuery += ` AND ir.is_return = 1 AND (ir.is_voided = 0 OR ir.is_voided IS NULL)`;
     } else if (type === 'loan') {
-        outboundQuery += ` AND o.is_loan = 1`;
+        outboundQuery += ` AND o.is_loan = 1 AND (o.is_voided = 0 OR o.is_voided IS NULL)`;
+    } else if (type === 'voided') {
+        inboundQuery  += ` AND ir.is_voided = 1`;
+        outboundQuery += ` AND o.is_voided = 1`;
     }
-    
+
     // 執行查詢
-    if (!type || type === 'inbound' || type === 'return') {
+    if (!type || type === 'inbound' || type === 'return' || type === 'voided') {
         const inboundStmt = db.prepare(inboundQuery);
         const inboundRecords = inboundStmt.all(...inboundParams);
         records = records.concat(inboundRecords);
     }
     
-    if (!type || type === 'outbound' || type === 'loan') {
+    if (!type || type === 'outbound' || type === 'loan' || type === 'voided') {
         const outboundStmt = db.prepare(outboundQuery);
         const outboundRecords = outboundStmt.all(...outboundParams);
         records = records.concat(outboundRecords);
@@ -2075,6 +2220,72 @@ app.get('/transaction/records', requireAuth, (req, res) => {
         user: req.session.user,
         title: PAGE_TITLE 
     });
+});
+
+// 作廢入庫記錄（僅管理員）
+app.post('/inbound/:id/void', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { void_reason } = req.body;
+    const voidedBy = req.session.user.full_name || req.session.user.username;
+    const now = new Date().toISOString();
+    const today = now.split('T')[0];
+
+    try {
+        const record = db.prepare('SELECT * FROM inbound_records WHERE id = ? AND is_voided = 0 AND is_void_reversal = 0').get(id);
+        if (!record) return res.json({ success: false, message: '記錄不存在、已作廢或為調整記錄' });
+
+        db.transaction(() => {
+            // 標記原記錄為已作廢
+            db.prepare(`UPDATE inbound_records SET is_voided=1, void_reason=?, voided_by=?, voided_at=? WHERE id=?`)
+              .run(void_reason || null, voidedBy, now, id);
+
+            // 建立反向出庫抵銷記錄
+            db.prepare(`INSERT INTO outbound_records (part_id, quantity, outbound_date, note, is_void_reversal, void_source_id, created_by)
+                        VALUES (?, ?, ?, ?, 1, ?, ?)`)
+              .run(record.part_id, record.quantity, today,
+                   `【作廢調整】原入庫 #${id}${void_reason ? '：' + void_reason : ''}`,
+                   record.id, voidedBy);
+        })();
+
+        logActivity(req, 'void', `作廢入庫記錄 #${id}${void_reason ? '：' + void_reason : ''}`, 'inbound_records', id);
+        res.json({ success: true, message: '入庫記錄已作廢，庫存已自動調整' });
+    } catch (e) {
+        console.error('作廢入庫失敗:', e);
+        res.json({ success: false, message: '作廢失敗：' + e.message });
+    }
+});
+
+// 作廢出庫記錄（僅管理員）
+app.post('/outbound/:id/void', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { void_reason } = req.body;
+    const voidedBy = req.session.user.full_name || req.session.user.username;
+    const now = new Date().toISOString();
+    const today = now.split('T')[0];
+
+    try {
+        const record = db.prepare('SELECT * FROM outbound_records WHERE id = ? AND is_voided = 0 AND is_void_reversal = 0').get(id);
+        if (!record) return res.json({ success: false, message: '記錄不存在、已作廢或為調整記錄' });
+
+        db.transaction(() => {
+            // 標記原記錄為已作廢
+            db.prepare(`UPDATE outbound_records SET is_voided=1, void_reason=?, voided_by=?, voided_at=? WHERE id=?`)
+              .run(void_reason || null, voidedBy, now, id);
+
+            // 建立反向入庫抵銷記錄
+            db.prepare(`INSERT INTO inbound_records (part_id, quantity, inbound_date, note, is_void_reversal, void_source_id, created_by)
+                        VALUES (?, ?, ?, ?, 1, ?, ?)`)
+              .run(record.part_id, record.quantity, today,
+                   `【作廢調整】原出庫 #${id}${void_reason ? '：' + void_reason : ''}`,
+                   record.id, voidedBy);
+        })();
+
+        logActivity(req, 'void', `作廢出庫記錄 #${id}${void_reason ? '：' + void_reason : ''}`, 'outbound_records', id);
+        res.json({ success: true, message: '出庫記錄已作廢，庫存已自動調整' });
+    } catch (e) {
+        console.error('作廢出庫失敗:', e);
+        res.json({ success: false, message: '作廢失敗：' + e.message });
+    }
 });
 
 // 出庫頁面
@@ -2123,7 +2334,15 @@ app.get('/outbound', (req, res) => {
     const categories = categoriesStmt.all();
     
     const today = new Date().toISOString().split('T')[0];
-    res.render('outbound', { parts, categories, today, title: PAGE_TITLE });
+    res.render('outbound', {
+        parts, categories, today,
+        query: req.query,
+        messages: req.session.flash || [],
+        user: req.session.user,
+        csrfToken: req.session.csrfToken,
+        title: PAGE_TITLE
+    });
+    req.session.flash = [];
 });
 
 // 出庫處理
@@ -2207,6 +2426,11 @@ app.post('/outbound', (req, res) => {
         
         logActivity(req, isLoan ? 'loan' : 'outbound', `${outTypeLabel}：${partInfo}，數量：${qty}`, 'outbound_record', result.lastInsertRowid);
         flash(req, 'success', isLoan ? '借測記錄成功！' : '出庫記錄成功！');
+
+        // 有記錄發票號碼時，跳回出庫頁並帶提示參數，引導建立完整發票管理記錄
+        if (!isLoan && hasInvoice && invoiceNumber) {
+            return res.redirect(`/outbound?inv_prompt=1&ob_id=${result.lastInsertRowid}&inv_no=${encodeURIComponent(invoiceNumber)}`);
+        }
         res.redirect('/');
 
         // 非同步發送 Email 通知
@@ -5139,6 +5363,291 @@ setInterval(checkBackupSchedule, 60 * 1000); // 每分鐘檢查一次
 
 // 伺服器啟動時立即檢查一次
 setTimeout(checkBackupSchedule, 10 * 1000); // 延遲10秒，確保資料庫已初始化
+
+// ========================================
+// 發票管理路由
+// ========================================
+
+// 輔助：產生發票號碼（INV-YYYYMMDD-XXXX）
+function generateInvoiceNumber() {
+    const now = new Date();
+    const dateStr = now.getFullYear().toString() +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0');
+    const last = db.prepare(`SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY id DESC LIMIT 1`).get(`INV-${dateStr}-%`);
+    let seq = 1;
+    if (last) {
+        const parts = last.invoice_number.split('-');
+        seq = parseInt(parts[parts.length - 1]) + 1;
+    }
+    return `INV-${dateStr}-${String(seq).padStart(4, '0')}`;
+}
+
+// 發票清單
+app.get('/invoices', requireAuth, (req, res) => {
+    logActivity(req, 'view', '查看發票清單', 'invoice', null);
+    const { status, search, date_from, date_to } = req.query;
+
+    let where = [];
+    let params = [];
+    if (status) { where.push(`i.payment_status = ?`); params.push(status); }
+    if (search) {
+        where.push(`(i.invoice_number LIKE ? OR i.customer_name LIKE ?)`);
+        params.push(`%${search}%`, `%${search}%`);
+    }
+    if (date_from) { where.push(`i.invoice_date >= ?`); params.push(date_from); }
+    if (date_to)   { where.push(`i.invoice_date <= ?`); params.push(date_to); }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const invoices = db.prepare(`
+        SELECT i.*,
+            COUNT(ii.id) as item_count,
+            CASE
+                WHEN i.payment_status = 'paid' THEN '已付清'
+                WHEN i.payment_status = 'partial' THEN '部分付款'
+                WHEN i.payment_due_date IS NOT NULL AND date(i.payment_due_date) < date('now') THEN '已逾期'
+                ELSE '未付款'
+            END as status_label,
+            CASE
+                WHEN i.payment_status = 'paid' THEN 3
+                WHEN i.payment_due_date IS NOT NULL AND date(i.payment_due_date) < date('now') THEN 0
+                WHEN i.payment_status = 'partial' THEN 1
+                ELSE 2
+            END as sort_order
+        FROM invoices i
+        LEFT JOIN invoice_items ii ON ii.invoice_id = i.id
+        ${whereClause}
+        GROUP BY i.id
+        ORDER BY sort_order ASC, i.invoice_date DESC
+    `).all(...params);
+
+    const stats = {
+        total: db.prepare(`SELECT COUNT(*) as c FROM invoices`).get().c,
+        unpaid: db.prepare(`SELECT COUNT(*) as c FROM invoices WHERE payment_status = 'unpaid'`).get().c,
+        partial: db.prepare(`SELECT COUNT(*) as c FROM invoices WHERE payment_status = 'partial'`).get().c,
+        paid: db.prepare(`SELECT COUNT(*) as c FROM invoices WHERE payment_status = 'paid'`).get().c,
+        overdue: db.prepare(`SELECT COUNT(*) as c FROM invoices WHERE payment_status != 'paid' AND payment_due_date IS NOT NULL AND date(payment_due_date) < date('now')`).get().c,
+        totalAmount: db.prepare(`SELECT COALESCE(SUM(total_amount),0) as s FROM invoices WHERE payment_status != 'paid'`).get().s,
+    };
+
+    res.render('invoices_list', {
+        invoices, stats,
+        filters: { status: status || '', search: search || '', date_from: date_from || '', date_to: date_to || '' },
+        user: req.session.user,
+        csrfToken: req.session.csrfToken,
+        messages: req.session.flash || [],
+        title: '發票管理'
+    });
+    req.session.flash = [];
+});
+
+// 新增發票（表單）
+app.get('/invoices/add', requireAuth, (req, res) => {
+    const outbound_ids = req.query.outbound_ids ? req.query.outbound_ids.split(',').map(Number).filter(Boolean) : [];
+    const presetInvoiceNumber = req.query.invoice_number || null;  // 從出庫帶入的發票號碼
+
+    let preloadedItems = [];
+    if (outbound_ids.length > 0) {
+        const placeholders = outbound_ids.map(() => '?').join(',');
+        preloadedItems = db.prepare(`
+            SELECT o.id as outbound_id, o.outbound_date, o.note, o.quantity,
+                p.id as part_id, p.part_number, p.part_name, p.specification, p.unit
+            FROM outbound_records o
+            JOIN parts p ON o.part_id = p.id
+            WHERE o.id IN (${placeholders}) AND o.is_loan = 0
+        `).all(...outbound_ids);
+    }
+    res.render('invoice_add', {
+        invoice: null,
+        items: preloadedItems,
+        invoiceNumber: presetInvoiceNumber || generateInvoiceNumber(),
+        presetInvoiceNumber,  // 標記是否為出庫帶入（前端用來鎖定欄位）
+        user: req.session.user,
+        csrfToken: req.session.csrfToken,
+        messages: req.session.flash || [],
+        title: '新增發票'
+    });
+    req.session.flash = [];
+});
+
+// 新增發票（送出）
+app.post('/invoices/add', requireAuth, (req, res) => {
+    const {
+        invoice_number, invoice_date, customer_name, customer_contact,
+        customer_phone, customer_email, tax_rate, payment_due_date,
+        payment_method, note,
+        item_outbound_id, item_part_id, item_part_number, item_part_name,
+        item_specification, item_unit, item_quantity, item_unit_price
+    } = req.body;
+
+    if (!invoice_number || !invoice_date || !customer_name) {
+        flash(req, 'error', '發票號碼、日期、客戶名稱為必填欄位');
+        return res.redirect('/invoices/add');
+    }
+
+    const taxRateVal = parseFloat(tax_rate) || 0;
+    const quantities  = Array.isArray(item_quantity)   ? item_quantity   : (item_quantity   ? [item_quantity]   : []);
+    const unitPrices  = Array.isArray(item_unit_price) ? item_unit_price : (item_unit_price ? [item_unit_price] : []);
+    const partIds     = Array.isArray(item_part_id)     ? item_part_id    : (item_part_id    ? [item_part_id]    : []);
+    const partNumbers = Array.isArray(item_part_number) ? item_part_number : (item_part_number ? [item_part_number] : []);
+    const partNames   = Array.isArray(item_part_name)   ? item_part_name  : (item_part_name  ? [item_part_name]  : []);
+    const specs       = Array.isArray(item_specification) ? item_specification : (item_specification ? [item_specification] : []);
+    const units       = Array.isArray(item_unit)        ? item_unit       : (item_unit       ? [item_unit]       : []);
+    const outboundIds = Array.isArray(item_outbound_id) ? item_outbound_id : (item_outbound_id ? [item_outbound_id] : []);
+
+    let subtotal = 0;
+    const lineItems = quantities.map((q, i) => {
+        const qty = parseInt(q) || 0;
+        const price = parseFloat(unitPrices[i]) || 0;
+        const sub = qty * price;
+        subtotal += sub;
+        return { qty, price, sub,
+            part_id: partIds[i] || null,
+            part_number: partNumbers[i] || '',
+            part_name: partNames[i] || '',
+            specification: specs[i] || '',
+            unit: units[i] || '',
+            outbound_id: parseInt(outboundIds[i]) || null
+        };
+    });
+    const taxAmount = Math.round(subtotal * taxRateVal * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+
+    try {
+        const invoiceStmt = db.prepare(`
+            INSERT INTO invoices (invoice_number, invoice_date, customer_name, customer_contact,
+                customer_phone, customer_email, subtotal, tax_rate, tax_amount, total_amount,
+                payment_status, payment_due_date, payment_method, note, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', ?, ?, ?, ?)
+        `);
+        const result = invoiceStmt.run(
+            invoice_number, invoice_date, customer_name,
+            customer_contact || null, customer_phone || null, customer_email || null,
+            subtotal, taxRateVal, taxAmount, totalAmount,
+            payment_due_date || null, payment_method || null, note || null,
+            req.session.user.username
+        );
+        const invoiceId = result.lastInsertRowid;
+
+        const itemStmt = db.prepare(`
+            INSERT INTO invoice_items (invoice_id, outbound_id, part_id, part_number, part_name, specification, unit, quantity, unit_price, subtotal)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        lineItems.forEach(item => {
+            if (item.qty > 0) {
+                itemStmt.run(invoiceId, item.outbound_id, item.part_id, item.part_number, item.part_name, item.specification, item.unit, item.qty, item.price, item.sub);
+            }
+        });
+
+        logActivity(req, 'create', `新增發票 ${invoice_number}，客戶：${customer_name}，金額：${totalAmount}`, 'invoice', invoiceId);
+        flash(req, 'success', `發票 ${invoice_number} 新增成功！`);
+        res.redirect(`/invoices/${invoiceId}`);
+    } catch (error) {
+        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            flash(req, 'error', `發票號碼 ${invoice_number} 已存在`);
+        } else {
+            flash(req, 'error', `新增失敗：${error.message}`);
+        }
+        res.redirect('/invoices/add');
+    }
+});
+
+// 發票詳情
+app.get('/invoices/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const invoice = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);
+    if (!invoice) { flash(req, 'error', '找不到該發票'); return res.redirect('/invoices'); }
+
+    const items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id`).all(id);
+    logActivity(req, 'view', `查看發票 ${invoice.invoice_number}`, 'invoice', id);
+
+    res.render('invoice_detail', {
+        invoice, items,
+        user: req.session.user,
+        csrfToken: req.session.csrfToken,
+        messages: req.session.flash || [],
+        title: `發票 ${invoice.invoice_number}`
+    });
+    req.session.flash = [];
+});
+
+// 更新付款狀態
+app.post('/invoices/:id/payment', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { payment_status, payment_date, payment_method, payment_note } = req.body;
+    const invoice = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);
+    if (!invoice) { flash(req, 'error', '找不到該發票'); return res.redirect('/invoices'); }
+
+    db.prepare(`
+        UPDATE invoices SET payment_status = ?, payment_date = ?, payment_method = ?,
+            payment_note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).run(payment_status, payment_date || null, payment_method || invoice.payment_method || null, payment_note || null, id);
+
+    logActivity(req, 'update', `更新發票 ${invoice.invoice_number} 付款狀態為 ${payment_status}`, 'invoice', id);
+    flash(req, 'success', '付款狀態已更新！');
+    res.redirect(`/invoices/${id}`);
+});
+
+// 刪除發票
+app.post('/invoices/:id/delete', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const invoice = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);
+    if (!invoice) { flash(req, 'error', '找不到該發票'); return res.redirect('/invoices'); }
+
+    db.prepare(`DELETE FROM invoice_items WHERE invoice_id = ?`).run(id);
+    db.prepare(`DELETE FROM invoices WHERE id = ?`).run(id);
+    logActivity(req, 'delete', `刪除發票 ${invoice.invoice_number}`, 'invoice', id);
+    flash(req, 'success', `發票 ${invoice.invoice_number} 已刪除`);
+    res.redirect('/invoices');
+});
+
+// API：搜尋出庫記錄（供新增發票時選擇）
+app.get('/api/invoices/outbound-search', requireAuth, (req, res) => {
+    const { q, date_from, date_to } = req.query;
+    let where = [`o.is_loan = 0`];
+    let params = [];
+    if (q) { where.push(`(p.part_name LIKE ? OR p.part_number LIKE ? OR o.note LIKE ?)`); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+    if (date_from) { where.push(`o.outbound_date >= ?`); params.push(date_from); }
+    if (date_to)   { where.push(`o.outbound_date <= ?`); params.push(date_to); }
+
+    const rows = db.prepare(`
+        SELECT o.id, o.outbound_date, o.quantity, o.note, o.created_by,
+            o.has_invoice, o.invoice_number as ob_invoice_number,
+            p.part_number, p.part_name, p.specification, p.unit,
+            p.id as part_id,
+            (SELECT COUNT(*) FROM invoice_items ii WHERE ii.outbound_id = o.id) as linked_invoice_count
+        FROM outbound_records o
+        JOIN parts p ON o.part_id = p.id
+        WHERE ${where.join(' AND ')}
+        ORDER BY o.outbound_date DESC
+        LIMIT 50
+    `).all(...params);
+    res.json({ success: true, records: rows });
+});
+
+// API：應收帳款到期警示（儀錶板用）
+app.get('/api/invoice-alerts', requireAuth, (req, res) => {
+    const alerts = db.prepare(`
+        SELECT id, invoice_number, customer_name, total_amount, payment_due_date,
+            CASE
+                WHEN date(payment_due_date) < date('now') THEN 'overdue'
+                WHEN date(payment_due_date) = date('now') THEN 'due_today'
+                ELSE 'due_soon'
+            END as due_status,
+            CAST(julianday(payment_due_date) - julianday('now') AS INTEGER) as days_until_due
+        FROM invoices
+        WHERE payment_status != 'paid'
+            AND payment_due_date IS NOT NULL
+            AND date(payment_due_date) <= date('now', '+7 days')
+        ORDER BY payment_due_date ASC
+        LIMIT 10
+    `).all();
+    res.json({ success: true, alerts });
+});
+
+// ========================================
+// 發票管理路由結束
+// ========================================
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 庫存管理系統已啟動！`);
