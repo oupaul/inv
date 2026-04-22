@@ -323,16 +323,20 @@
                 <input type="date" id="inbound_date" name="inbound_date" required value="<%= today %>">
             </div>
             
+            <!-- 最終送出用的 hidden inputs（唯一有 name 的歸還相關欄位） -->
+            <input type="hidden" id="final_is_return" name="is_return" value="">
+            <input type="hidden" id="final_return_outbound_id" name="return_outbound_id" value="">
+
             <!-- 借測歸還 -->
             <div class="form-group" id="return-section" style="display: none; padding:14px; background:#f0fff4; border:1px solid #6ee7b7; border-radius:8px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                    <input type="checkbox" id="is_return" name="is_return" style="width: auto; margin: 0;">
+                    <input type="checkbox" id="is_return" style="width: auto; margin: 0;">
                     <span style="font-weight: 600; color: #065f46;">📥 歸還借測料件</span>
                 </label>
                 <div id="loan-records-info" style="margin-top: 10px; padding: 10px; background-color: white; border-radius: 6px; display: none;">
                     <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">未歸還的借測記錄：</div>
                     <div id="loan-records-list"></div>
-                    <select id="return_outbound_id" name="return_outbound_id" style="margin-top: 10px; display: none; width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+                    <select id="return_outbound_id" style="margin-top: 10px; display: none; width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <option value="">-- 選擇要歸還的借測記錄 --</option>
                     </select>
                 </div>
@@ -350,8 +354,6 @@
                     <select id="outbound_return_record_id" style="width:100%; padding:8px; border:1px solid #fcd34d; border-radius:6px; background:#fffbeb;">
                         <option value="">-- 選擇要退回的出庫記錄 --</option>
                     </select>
-                    <input type="hidden" id="outbound_return_is_return_flag" value="">
-                    <input type="hidden" id="outbound_return_outbound_id_field" value="">
                 </div>
                 <small style="color:#92400e; margin-top:6px; display:block;">💡 若找不到對應出庫記錄，可直接以一般入庫方式記錄，不影響庫存計算。</small>
             </div>
@@ -538,23 +540,29 @@
         const outboundRecordsInfo    = document.getElementById('outbound-records-info');
         const outboundRecordsList    = document.getElementById('outbound-records-list');
         const outboundReturnSelect   = document.getElementById('outbound_return_record_id');
-        const hiddenIsReturn         = document.getElementById('outbound_return_is_return_flag');
-        const hiddenReturnOutboundId = document.getElementById('outbound_return_outbound_id_field');
+
+        // 唯一實際送出的 hidden inputs
+        const finalIsReturn        = document.getElementById('final_is_return');
+        const finalReturnOutboundId = document.getElementById('final_return_outbound_id');
+
+        function setFinalReturnFields(isReturn, outboundId) {
+            finalIsReturn.value        = isReturn ? 'on' : '';
+            finalReturnOutboundId.value = outboundId || '';
+        }
 
         function resetReturnSections() {
             returnSection.style.display = 'none';
             isReturnCheckbox.checked = false;
             loanRecordsInfo.style.display = 'none';
             returnOutboundSelect.style.display = 'none';
-            returnOutboundSelect.required = false;
             returnOutboundSelect.value = '';
 
             outboundReturnSection.style.display = 'none';
             isOutboundReturnCb.checked = false;
             outboundRecordsInfo.style.display = 'none';
             outboundReturnSelect.value = '';
-            hiddenIsReturn.value = '';
-            hiddenReturnOutboundId.value = '';
+
+            setFinalReturnFields(false, '');
         }
 
         partSelect.addEventListener('change', async () => {
@@ -638,15 +646,23 @@
                 // 互斥：取消退回出庫勾選
                 isOutboundReturnCb.checked = false;
                 outboundRecordsInfo.style.display = 'none';
-                hiddenIsReturn.value = '';
-                hiddenReturnOutboundId.value = '';
 
                 returnOutboundSelect.style.display = 'block';
                 returnOutboundSelect.required = true;
+                // 更新 final hidden fields
+                setFinalReturnFields(true, returnOutboundSelect.value);
             } else {
                 returnOutboundSelect.style.display = 'none';
                 returnOutboundSelect.required = false;
                 returnOutboundSelect.value = '';
+                setFinalReturnFields(false, '');
+            }
+        });
+
+        // 借測記錄選擇事件
+        returnOutboundSelect.addEventListener('change', () => {
+            if (isReturnCheckbox.checked) {
+                setFinalReturnFields(true, returnOutboundSelect.value);
             }
         });
 
@@ -660,22 +676,28 @@
                 returnOutboundSelect.value = '';
 
                 outboundRecordsInfo.style.display = 'block';
-                // 預設設定 hidden fields
-                hiddenIsReturn.value = 'on';
+                setFinalReturnFields(true, outboundReturnSelect.value);
             } else {
                 outboundRecordsInfo.style.display = 'none';
-                hiddenIsReturn.value = '';
-                hiddenReturnOutboundId.value = '';
+                setFinalReturnFields(false, '');
             }
         });
 
         // 退回出庫記錄選擇事件
         outboundReturnSelect.addEventListener('change', () => {
-            hiddenReturnOutboundId.value = outboundReturnSelect.value || '';
+            if (isOutboundReturnCb.checked) {
+                setFinalReturnFields(true, outboundReturnSelect.value);
+            }
         });
 
-        // 表單送出前：退回出庫時動態插入 hidden input 確保值正確送出
+        // 表單送出前驗證
         document.querySelector('form').addEventListener('submit', function(e) {
+            if (isReturnCheckbox.checked && !returnOutboundSelect.value) {
+                e.preventDefault();
+                alert('請選擇要歸還的借測記錄');
+                returnOutboundSelect.focus();
+                return;
+            }
             if (isOutboundReturnCb.checked) {
                 if (!outboundReturnSelect.value) {
                     e.preventDefault();
@@ -683,22 +705,8 @@
                     outboundReturnSelect.focus();
                     return;
                 }
-                // 移除原有借測歸還欄位的 name，避免衝突
-                isReturnCheckbox.removeAttribute('name');
-                returnOutboundSelect.removeAttribute('name');
-
-                // 動態插入正確的 hidden input
-                const hIsReturn = document.createElement('input');
-                hIsReturn.type = 'hidden';
-                hIsReturn.name = 'is_return';
-                hIsReturn.value = 'on';
-                this.appendChild(hIsReturn);
-
-                const hReturnId = document.createElement('input');
-                hReturnId.type = 'hidden';
-                hReturnId.name = 'return_outbound_id';
-                hReturnId.value = outboundReturnSelect.value;
-                this.appendChild(hReturnId);
+                // 確保最終 hidden inputs 為最新值
+                setFinalReturnFields(true, outboundReturnSelect.value);
             }
         });
         
