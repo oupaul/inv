@@ -291,7 +291,37 @@ function initDB() {
             console.error('添加 invoice_number 欄位失敗:', e.message);
         }
     }
-    
+
+    // 作廢功能欄位 - inbound_records
+    const inboundVoidCols = [
+        ['is_voided',        `ALTER TABLE inbound_records ADD COLUMN is_voided INTEGER DEFAULT 0`],
+        ['void_reason',      `ALTER TABLE inbound_records ADD COLUMN void_reason TEXT`],
+        ['voided_by',        `ALTER TABLE inbound_records ADD COLUMN voided_by TEXT`],
+        ['voided_at',        `ALTER TABLE inbound_records ADD COLUMN voided_at TIMESTAMP`],
+        ['is_void_reversal', `ALTER TABLE inbound_records ADD COLUMN is_void_reversal INTEGER DEFAULT 0`],
+        ['void_source_id',   `ALTER TABLE inbound_records ADD COLUMN void_source_id INTEGER`],
+    ];
+    inboundVoidCols.forEach(([col, sql]) => {
+        if (!columnExists('inbound_records', col)) {
+            try { db.exec(sql); } catch (e) { console.error(`添加 inbound_records.${col} 失敗:`, e.message); }
+        }
+    });
+
+    // 作廢功能欄位 - outbound_records
+    const outboundVoidCols = [
+        ['is_voided',        `ALTER TABLE outbound_records ADD COLUMN is_voided INTEGER DEFAULT 0`],
+        ['void_reason',      `ALTER TABLE outbound_records ADD COLUMN void_reason TEXT`],
+        ['voided_by',        `ALTER TABLE outbound_records ADD COLUMN voided_by TEXT`],
+        ['voided_at',        `ALTER TABLE outbound_records ADD COLUMN voided_at TIMESTAMP`],
+        ['is_void_reversal', `ALTER TABLE outbound_records ADD COLUMN is_void_reversal INTEGER DEFAULT 0`],
+        ['void_source_id',   `ALTER TABLE outbound_records ADD COLUMN void_source_id INTEGER`],
+    ];
+    outboundVoidCols.forEach(([col, sql]) => {
+        if (!columnExists('outbound_records', col)) {
+            try { db.exec(sql); } catch (e) { console.error(`添加 outbound_records.${col} 失敗:`, e.message); }
+        }
+    });
+
     // 盤點事件表（每個盤點事件代表一次完整的盤點作業）
     db.exec(`
         CREATE TABLE IF NOT EXISTS inventory_check_sessions (
@@ -2063,8 +2093,10 @@ app.get('/transaction/records', requireAuth, (req, res) => {
     // 構建入庫記錄查詢
     let inboundQuery = `
         SELECT 
+            ir.id as inbound_id,
             ir.inbound_date as transaction_date,
             CASE 
+                WHEN ir.is_void_reversal = 1 THEN 'void_reversal'
                 WHEN ir.is_return = 1 THEN 'return'
                 ELSE 'inbound'
             END as type,
@@ -2074,7 +2106,12 @@ app.get('/transaction/records', requireAuth, (req, res) => {
             p.unit,
             ir.note,
             ir.created_by,
-            ir.created_at
+            ir.created_at,
+            ir.is_voided,
+            ir.void_reason,
+            ir.voided_by,
+            ir.voided_at,
+            ir.is_void_reversal
         FROM inbound_records ir
         JOIN parts p ON ir.part_id = p.id
         WHERE 1=1
@@ -2086,6 +2123,7 @@ app.get('/transaction/records', requireAuth, (req, res) => {
         SELECT 
             o.outbound_date as transaction_date,
             CASE 
+                WHEN o.is_void_reversal = 1 THEN 'void_reversal'
                 WHEN o.is_loan = 1 THEN 'loan'
                 ELSE 'outbound'
             END as type,
@@ -2101,7 +2139,12 @@ app.get('/transaction/records', requireAuth, (req, res) => {
             o.invoice_number,
             o.id as outbound_id,
             (SELECT ii.invoice_id FROM invoice_items ii WHERE ii.outbound_id = o.id LIMIT 1) as linked_invoice_id,
-            COALESCE((SELECT SUM(i.quantity) FROM inbound_records i WHERE i.return_outbound_id = o.id AND i.is_return = 1), 0) as returned_quantity
+            COALESCE((SELECT SUM(i.quantity) FROM inbound_records i WHERE i.return_outbound_id = o.id AND i.is_return = 1), 0) as returned_quantity,
+            o.is_voided,
+            o.void_reason,
+            o.voided_by,
+            o.voided_at,
+            o.is_void_reversal
         FROM outbound_records o
         JOIN parts p ON o.part_id = p.id
         WHERE 1=1
@@ -2133,23 +2176,26 @@ app.get('/transaction/records', requireAuth, (req, res) => {
     
     // 類型條件
     if (type === 'inbound') {
-        inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL)`;
+        inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL) AND (ir.is_void_reversal = 0 OR ir.is_void_reversal IS NULL) AND (ir.is_voided = 0 OR ir.is_voided IS NULL)`;
     } else if (type === 'outbound') {
-        outboundQuery += ` AND (o.is_loan = 0 OR o.is_loan IS NULL)`;
+        outboundQuery += ` AND (o.is_loan = 0 OR o.is_loan IS NULL) AND (o.is_void_reversal = 0 OR o.is_void_reversal IS NULL) AND (o.is_voided = 0 OR o.is_voided IS NULL)`;
     } else if (type === 'return') {
-        inboundQuery += ` AND ir.is_return = 1`;
+        inboundQuery += ` AND ir.is_return = 1 AND (ir.is_voided = 0 OR ir.is_voided IS NULL)`;
     } else if (type === 'loan') {
-        outboundQuery += ` AND o.is_loan = 1`;
+        outboundQuery += ` AND o.is_loan = 1 AND (o.is_voided = 0 OR o.is_voided IS NULL)`;
+    } else if (type === 'voided') {
+        inboundQuery  += ` AND ir.is_voided = 1`;
+        outboundQuery += ` AND o.is_voided = 1`;
     }
-    
+
     // 執行查詢
-    if (!type || type === 'inbound' || type === 'return') {
+    if (!type || type === 'inbound' || type === 'return' || type === 'voided') {
         const inboundStmt = db.prepare(inboundQuery);
         const inboundRecords = inboundStmt.all(...inboundParams);
         records = records.concat(inboundRecords);
     }
     
-    if (!type || type === 'outbound' || type === 'loan') {
+    if (!type || type === 'outbound' || type === 'loan' || type === 'voided') {
         const outboundStmt = db.prepare(outboundQuery);
         const outboundRecords = outboundStmt.all(...outboundParams);
         records = records.concat(outboundRecords);
@@ -2174,6 +2220,72 @@ app.get('/transaction/records', requireAuth, (req, res) => {
         user: req.session.user,
         title: PAGE_TITLE 
     });
+});
+
+// 作廢入庫記錄（僅管理員）
+app.post('/inbound/:id/void', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { void_reason } = req.body;
+    const voidedBy = req.session.user.full_name || req.session.user.username;
+    const now = new Date().toISOString();
+    const today = now.split('T')[0];
+
+    try {
+        const record = db.prepare('SELECT * FROM inbound_records WHERE id = ? AND is_voided = 0 AND is_void_reversal = 0').get(id);
+        if (!record) return res.json({ success: false, message: '記錄不存在、已作廢或為調整記錄' });
+
+        db.transaction(() => {
+            // 標記原記錄為已作廢
+            db.prepare(`UPDATE inbound_records SET is_voided=1, void_reason=?, voided_by=?, voided_at=? WHERE id=?`)
+              .run(void_reason || null, voidedBy, now, id);
+
+            // 建立反向出庫抵銷記錄
+            db.prepare(`INSERT INTO outbound_records (part_id, quantity, outbound_date, note, is_void_reversal, void_source_id, created_by)
+                        VALUES (?, ?, ?, ?, 1, ?, ?)`)
+              .run(record.part_id, record.quantity, today,
+                   `【作廢調整】原入庫 #${id}${void_reason ? '：' + void_reason : ''}`,
+                   record.id, voidedBy);
+        })();
+
+        logActivity(req, 'void', `作廢入庫記錄 #${id}${void_reason ? '：' + void_reason : ''}`, 'inbound_records', id);
+        res.json({ success: true, message: '入庫記錄已作廢，庫存已自動調整' });
+    } catch (e) {
+        console.error('作廢入庫失敗:', e);
+        res.json({ success: false, message: '作廢失敗：' + e.message });
+    }
+});
+
+// 作廢出庫記錄（僅管理員）
+app.post('/outbound/:id/void', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { void_reason } = req.body;
+    const voidedBy = req.session.user.full_name || req.session.user.username;
+    const now = new Date().toISOString();
+    const today = now.split('T')[0];
+
+    try {
+        const record = db.prepare('SELECT * FROM outbound_records WHERE id = ? AND is_voided = 0 AND is_void_reversal = 0').get(id);
+        if (!record) return res.json({ success: false, message: '記錄不存在、已作廢或為調整記錄' });
+
+        db.transaction(() => {
+            // 標記原記錄為已作廢
+            db.prepare(`UPDATE outbound_records SET is_voided=1, void_reason=?, voided_by=?, voided_at=? WHERE id=?`)
+              .run(void_reason || null, voidedBy, now, id);
+
+            // 建立反向入庫抵銷記錄
+            db.prepare(`INSERT INTO inbound_records (part_id, quantity, inbound_date, note, is_void_reversal, void_source_id, created_by)
+                        VALUES (?, ?, ?, ?, 1, ?, ?)`)
+              .run(record.part_id, record.quantity, today,
+                   `【作廢調整】原出庫 #${id}${void_reason ? '：' + void_reason : ''}`,
+                   record.id, voidedBy);
+        })();
+
+        logActivity(req, 'void', `作廢出庫記錄 #${id}${void_reason ? '：' + void_reason : ''}`, 'outbound_records', id);
+        res.json({ success: true, message: '出庫記錄已作廢，庫存已自動調整' });
+    } catch (e) {
+        console.error('作廢出庫失敗:', e);
+        res.json({ success: false, message: '作廢失敗：' + e.message });
+    }
 });
 
 // 出庫頁面
