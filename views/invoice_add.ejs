@@ -116,7 +116,13 @@
                 <div class="invoice-form-grid">
                     <div class="form-group">
                         <label for="invoice_number">發票號碼 <span style="color:red">*</span></label>
-                        <input type="text" id="invoice_number" name="invoice_number" value="<%= invoiceNumber %>" required>
+                        <input type="text" id="invoice_number" name="invoice_number" value="<%= invoiceNumber %>"
+                            <%= presetInvoiceNumber ? 'style="background:#f0fdf4; border-color:#6ee7b7; font-weight:700;"' : '' %> required>
+                        <% if (presetInvoiceNumber) { %>
+                        <small style="color:#059669; margin-top:4px; display:block;">
+                            ✅ 已從出庫記錄帶入發票號碼，可直接修改
+                        </small>
+                        <% } %>
                     </div>
                     <div class="form-group">
                         <label for="invoice_date">開立日期 <span style="color:red">*</span></label>
@@ -332,19 +338,30 @@
                 container.innerHTML = '<p style="color:#999; font-size:13px; text-align:center; padding:16px 0;">找不到符合的出庫記錄</p>';
                 return;
             }
-            container.innerHTML = data.records.map(r => `
+            container.innerHTML = data.records.map(r => {
+                // 發票狀態標籤
+                let invTag = '';
+                if (r.linked_invoice_count > 0) {
+                    invTag = `<span style="background:#dbeafe; color:#1e40af; border-radius:8px; padding:1px 7px; font-size:10px; font-weight:600; flex-shrink:0;">✅ 已建發票</span>`;
+                } else if (r.has_invoice && r.ob_invoice_number) {
+                    invTag = `<span style="background:#fef3c7; color:#92400e; border-radius:8px; padding:1px 7px; font-size:10px; font-weight:600; flex-shrink:0;">🧾 ${escHtml(r.ob_invoice_number)}</span>`;
+                }
+                return `
                 <div class="outbound-row" onclick="toggleOutbound(this)" data-id="${r.id}"
                     data-part-id="${r.part_id}" data-part-number="${escHtml(r.part_number)}"
                     data-part-name="${escHtml(r.part_name)}" data-spec="${escHtml(r.specification||'')}"
                     data-unit="${escHtml(r.unit)}" data-qty="${r.quantity}">
                     <input type="checkbox" onclick="event.stopPropagation(); toggleOutbound(this.parentElement)">
                     <div class="ob-meta">
-                        <div class="ob-name">${escHtml(r.part_name)} <code style="font-size:11px; color:#888;">${escHtml(r.part_number)}</code></div>
+                        <div class="ob-name" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            ${escHtml(r.part_name)} <code style="font-size:11px; color:#888;">${escHtml(r.part_number)}</code>
+                            ${invTag}
+                        </div>
                         <div class="ob-detail">出庫日期：${r.outbound_date}${r.note ? '　備註：' + escHtml(r.note) : ''}</div>
                     </div>
                     <div class="ob-qty">× ${r.quantity} ${escHtml(r.unit)}</div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
 
         function escHtml(str) {

@@ -262,7 +262,35 @@
                 <% }); %>
             </div>
         <% } %>
-        
+
+        <%
+            // 出庫帶發票的提示卡片（從 URL query 參數取得）
+            const invPrompt  = typeof query !== 'undefined' && query.inv_prompt === '1';
+            const invObId    = typeof query !== 'undefined' ? (query.ob_id || '') : '';
+            const invNo      = typeof query !== 'undefined' ? (query.inv_no || '') : '';
+        %>
+        <% if (invPrompt && invObId) { %>
+        <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5); border:1px solid #6ee7b7; border-left:5px solid #10b981; border-radius:12px; padding:18px 22px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:flex-start; gap:14px;">
+                <span style="font-size:28px; flex-shrink:0;">🧾</span>
+                <div>
+                    <div style="font-weight:700; font-size:15px; color:#065f46; margin-bottom:4px;">出庫成功！已記錄發票號碼</div>
+                    <div style="font-size:20px; font-weight:800; color:#047857; letter-spacing:1px; margin-bottom:6px;"><%= invNo %></div>
+                    <div style="font-size:13px; color:#059669;">是否建立完整的發票管理記錄？（可追蹤付款狀態、稅額、客戶資訊）</div>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; flex-shrink:0;">
+                <a href="/invoices/add?outbound_ids=<%= invObId %>&invoice_number=<%= encodeURIComponent(invNo) %>"
+                   style="display:inline-flex; align-items:center; gap:6px; background:#10b981; color:white; border:none; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:600; text-decoration:none; cursor:pointer;">
+                    📋 建立完整發票記錄
+                </a>
+                <a href="/" style="display:inline-flex; align-items:center; background:white; color:#6b7280; border:1px solid #d1d5db; border-radius:8px; padding:10px 14px; font-size:14px; text-decoration:none;">
+                    稍後處理
+                </a>
+            </div>
+        </div>
+        <% } %>
+
         <h1>📤 料件出庫</h1>
 
         <!-- 無線掃描器使用提示 -->

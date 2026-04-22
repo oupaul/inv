@@ -2192,7 +2192,15 @@ app.get('/outbound', (req, res) => {
     const categories = categoriesStmt.all();
     
     const today = new Date().toISOString().split('T')[0];
-    res.render('outbound', { parts, categories, today, title: PAGE_TITLE });
+    res.render('outbound', {
+        parts, categories, today,
+        query: req.query,
+        messages: req.session.flash || [],
+        user: req.session.user,
+        csrfToken: req.session.csrfToken,
+        title: PAGE_TITLE
+    });
+    req.session.flash = [];
 });
 
 // 出庫處理
@@ -2276,6 +2284,11 @@ app.post('/outbound', (req, res) => {
         
         logActivity(req, isLoan ? 'loan' : 'outbound', `${outTypeLabel}：${partInfo}，數量：${qty}`, 'outbound_record', result.lastInsertRowid);
         flash(req, 'success', isLoan ? '借測記錄成功！' : '出庫記錄成功！');
+
+        // 有記錄發票號碼時，跳回出庫頁並帶提示參數，引導建立完整發票管理記錄
+        if (!isLoan && hasInvoice && invoiceNumber) {
+            return res.redirect(`/outbound?inv_prompt=1&ob_id=${result.lastInsertRowid}&inv_no=${encodeURIComponent(invoiceNumber)}`);
+        }
         res.redirect('/');
 
         // 非同步發送 Email 通知
@@ -5289,6 +5302,8 @@ app.get('/invoices', requireAuth, (req, res) => {
 // 新增發票（表單）
 app.get('/invoices/add', requireAuth, (req, res) => {
     const outbound_ids = req.query.outbound_ids ? req.query.outbound_ids.split(',').map(Number).filter(Boolean) : [];
+    const presetInvoiceNumber = req.query.invoice_number || null;  // 從出庫帶入的發票號碼
+
     let preloadedItems = [];
     if (outbound_ids.length > 0) {
         const placeholders = outbound_ids.map(() => '?').join(',');
@@ -5303,7 +5318,8 @@ app.get('/invoices/add', requireAuth, (req, res) => {
     res.render('invoice_add', {
         invoice: null,
         items: preloadedItems,
-        invoiceNumber: generateInvoiceNumber(),
+        invoiceNumber: presetInvoiceNumber || generateInvoiceNumber(),
+        presetInvoiceNumber,  // 標記是否為出庫帶入（前端用來鎖定欄位）
         user: req.session.user,
         csrfToken: req.session.csrfToken,
         messages: req.session.flash || [],
@@ -5454,8 +5470,10 @@ app.get('/api/invoices/outbound-search', requireAuth, (req, res) => {
 
     const rows = db.prepare(`
         SELECT o.id, o.outbound_date, o.quantity, o.note, o.created_by,
+            o.has_invoice, o.invoice_number as ob_invoice_number,
             p.part_number, p.part_name, p.specification, p.unit,
-            p.id as part_id
+            p.id as part_id,
+            (SELECT COUNT(*) FROM invoice_items ii WHERE ii.outbound_id = o.id) as linked_invoice_count
         FROM outbound_records o
         JOIN parts p ON o.part_id = p.id
         WHERE ${where.join(' AND ')}
