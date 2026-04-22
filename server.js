@@ -5554,6 +5554,109 @@ app.post('/invoices/add', requireAuth, (req, res) => {
 });
 
 // 發票詳情
+// 編輯發票（顯示）
+app.get('/invoices/:id/edit', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const invoice = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);
+    if (!invoice) { flash(req, 'error', '找不到該發票'); return res.redirect('/invoices'); }
+    const items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id`).all(id);
+    res.render('invoice_add', {
+        invoice,
+        items,
+        invoiceNumber: invoice.invoice_number,
+        presetInvoiceNumber: null,
+        user: req.session.user,
+        csrfToken: req.session.csrfToken,
+        messages: req.session.flash || [],
+        title: `編輯發票 ${invoice.invoice_number}`
+    });
+    req.session.flash = [];
+});
+
+// 編輯發票（儲存）
+app.post('/invoices/:id/edit', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const invoice = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);
+    if (!invoice) { flash(req, 'error', '找不到該發票'); return res.redirect('/invoices'); }
+
+    const {
+        invoice_number, invoice_date, customer_name, customer_contact,
+        customer_phone, customer_email, tax_rate, payment_due_date,
+        payment_method, note,
+        item_outbound_id, item_part_id, item_part_number, item_part_name,
+        item_specification, item_unit, item_quantity, item_unit_price
+    } = req.body;
+
+    if (!invoice_number || !invoice_date || !customer_name) {
+        flash(req, 'error', '發票號碼、日期、客戶名稱為必填欄位');
+        return res.redirect(`/invoices/${id}/edit`);
+    }
+
+    const taxRateVal  = parseFloat(tax_rate) || 0;
+    const quantities  = Array.isArray(item_quantity)      ? item_quantity      : (item_quantity      ? [item_quantity]      : []);
+    const unitPrices  = Array.isArray(item_unit_price)    ? item_unit_price    : (item_unit_price    ? [item_unit_price]    : []);
+    const partIds     = Array.isArray(item_part_id)       ? item_part_id       : (item_part_id       ? [item_part_id]       : []);
+    const partNumbers = Array.isArray(item_part_number)   ? item_part_number   : (item_part_number   ? [item_part_number]   : []);
+    const partNames   = Array.isArray(item_part_name)     ? item_part_name     : (item_part_name     ? [item_part_name]     : []);
+    const specs       = Array.isArray(item_specification) ? item_specification : (item_specification ? [item_specification] : []);
+    const units       = Array.isArray(item_unit)          ? item_unit          : (item_unit          ? [item_unit]          : []);
+    const outboundIds = Array.isArray(item_outbound_id)   ? item_outbound_id   : (item_outbound_id   ? [item_outbound_id]   : []);
+
+    let subtotal = 0;
+    const lineItems = quantities.map((q, i) => {
+        const qty   = parseInt(q) || 0;
+        const price = parseFloat(unitPrices[i]) || 0;
+        const sub   = qty * price;
+        subtotal += sub;
+        return { qty, price, sub,
+            part_id: partIds[i] || null,
+            part_number: partNumbers[i] || '',
+            part_name: partNames[i] || '',
+            specification: specs[i] || '',
+            unit: units[i] || '',
+            outbound_id: parseInt(outboundIds[i]) || null
+        };
+    });
+    const taxAmount   = Math.round(subtotal * taxRateVal * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+
+    try {
+        db.transaction(() => {
+            db.prepare(`
+                UPDATE invoices SET
+                    invoice_number=?, invoice_date=?, customer_name=?, customer_contact=?,
+                    customer_phone=?, customer_email=?, subtotal=?, tax_rate=?, tax_amount=?,
+                    total_amount=?, payment_due_date=?, payment_method=?, note=?
+                WHERE id=?
+            `).run(
+                invoice_number, invoice_date, customer_name,
+                customer_contact || null, customer_phone || null, customer_email || null,
+                subtotal, taxRateVal, taxAmount, totalAmount,
+                payment_due_date || null, payment_method || null, note || null,
+                id
+            );
+            // 刪除舊明細，重新插入
+            db.prepare(`DELETE FROM invoice_items WHERE invoice_id = ?`).run(id);
+            const itemStmt = db.prepare(`
+                INSERT INTO invoice_items (invoice_id, outbound_id, part_id, part_number, part_name, specification, unit, quantity, unit_price, subtotal)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            lineItems.forEach(item => {
+                if (item.qty > 0) {
+                    itemStmt.run(id, item.outbound_id, item.part_id, item.part_number, item.part_name, item.specification, item.unit, item.qty, item.price, item.sub);
+                }
+            });
+        })();
+
+        logActivity(req, 'update', `編輯發票 ${invoice_number}，金額：${totalAmount}`, 'invoice', id);
+        flash(req, 'success', `發票 ${invoice_number} 已更新！`);
+        res.redirect(`/invoices/${id}`);
+    } catch (error) {
+        flash(req, 'error', `更新失敗：${error.message}`);
+        res.redirect(`/invoices/${id}/edit`);
+    }
+});
+
 app.get('/invoices/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     const invoice = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(id);

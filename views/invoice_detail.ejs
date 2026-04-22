@@ -114,10 +114,11 @@
                 <h1 style="margin:0;">🧾 <%= invoice.invoice_number %></h1>
                 <span class="status-badge-lg <%= badgeClass %>"><%= badgeText %></span>
             </div>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <% if (invoice.payment_status !== 'paid') { %>
                 <button class="btn btn-primary" onclick="openPayModal()">💳 更新付款狀態</button>
                 <% } %>
+                <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">✏️ 編輯發票</a>
                 <% if (user && user.role === 'admin') { %>
                 <form method="POST" action="/invoices/<%= invoice.id %>/delete" onsubmit="return confirm('確定刪除此發票？此操作無法復原！')">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -102,12 +102,13 @@
             </div>
         <% } %>
 
+        <% const isEdit = invoice && invoice.id; %>
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
-            <a href="/invoices" class="btn btn-secondary">← 返回清單</a>
-            <h1 style="margin:0;">🧾 新增發票</h1>
+            <a href="<%= isEdit ? '/invoices/' + invoice.id : '/invoices' %>" class="btn btn-secondary">← 返回</a>
+            <h1 style="margin:0;">🧾 <%= isEdit ? '編輯發票' : '新增發票' %></h1>
         </div>
 
-        <form method="POST" action="/invoices/add" id="invoiceForm">
+        <form method="POST" action="<%= isEdit ? '/invoices/' + invoice.id + '/edit' : '/invoices/add' %>" id="invoiceForm">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
             <!-- 基本資訊 -->
@@ -126,23 +127,28 @@
                     </div>
                     <div class="form-group">
                         <label for="invoice_date">開立日期 <span style="color:red">*</span></label>
-                        <input type="date" id="invoice_date" name="invoice_date" value="<%= new Date().toISOString().split('T')[0] %>" required>
+                        <input type="date" id="invoice_date" name="invoice_date"
+                            value="<%= isEdit ? invoice.invoice_date : new Date().toISOString().split('T')[0] %>" required>
                     </div>
                     <div class="form-group">
                         <label for="customer_name">客戶名稱 <span style="color:red">*</span></label>
-                        <input type="text" id="customer_name" name="customer_name" placeholder="公司或個人名稱" required>
+                        <input type="text" id="customer_name" name="customer_name"
+                            value="<%= isEdit ? invoice.customer_name : '' %>" placeholder="公司或個人名稱" required>
                     </div>
                     <div class="form-group">
                         <label for="customer_contact">聯絡人</label>
-                        <input type="text" id="customer_contact" name="customer_contact" placeholder="聯絡人姓名">
+                        <input type="text" id="customer_contact" name="customer_contact"
+                            value="<%= isEdit ? (invoice.customer_contact || '') : '' %>" placeholder="聯絡人姓名">
                     </div>
                     <div class="form-group">
                         <label for="customer_phone">聯絡電話</label>
-                        <input type="text" id="customer_phone" name="customer_phone" placeholder="電話號碼">
+                        <input type="text" id="customer_phone" name="customer_phone"
+                            value="<%= isEdit ? (invoice.customer_phone || '') : '' %>" placeholder="電話號碼">
                     </div>
                     <div class="form-group">
                         <label for="customer_email">Email</label>
-                        <input type="email" id="customer_email" name="customer_email" placeholder="email@example.com">
+                        <input type="email" id="customer_email" name="customer_email"
+                            value="<%= isEdit ? (invoice.customer_email || '') : '' %>" placeholder="email@example.com">
                     </div>
                 </div>
             </div>
@@ -153,27 +159,29 @@
                 <div class="invoice-form-grid">
                     <div class="form-group">
                         <label for="payment_due_date">付款到期日</label>
-                        <input type="date" id="payment_due_date" name="payment_due_date">
+                        <input type="date" id="payment_due_date" name="payment_due_date"
+                            value="<%= isEdit ? (invoice.payment_due_date || '') : '' %>">
                     </div>
                     <div class="form-group">
                         <label for="payment_method">付款方式</label>
                         <select id="payment_method" name="payment_method">
                             <option value="">請選擇</option>
-                            <option value="transfer">匯款</option>
-                            <option value="cash">現金</option>
-                            <option value="check">支票</option>
+                            <option value="transfer" <%= isEdit && invoice.payment_method === 'transfer' ? 'selected' : '' %>>匯款</option>
+                            <option value="cash"     <%= isEdit && invoice.payment_method === 'cash'     ? 'selected' : '' %>>現金</option>
+                            <option value="check"    <%= isEdit && invoice.payment_method === 'check'    ? 'selected' : '' %>>支票</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="tax_rate">稅率</label>
                         <select id="tax_rate" name="tax_rate" onchange="recalcTotals()">
-                            <option value="0.05" selected>5%（含稅）</option>
-                            <option value="0">0%（零稅率）</option>
+                            <option value="0.05" <%= !isEdit || Math.abs((invoice.tax_rate||0) - 0.05) < 0.001 ? 'selected' : '' %>>5%（含稅）</option>
+                            <option value="0"    <%= isEdit  && invoice.tax_rate === 0 ? 'selected' : '' %>>0%（零稅率）</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="note">備註</label>
-                        <input type="text" id="note" name="note" placeholder="付款說明或備註">
+                        <input type="text" id="note" name="note"
+                            value="<%= isEdit ? (invoice.note || '') : '' %>" placeholder="付款說明或備註">
                     </div>
                 </div>
             </div>
@@ -215,20 +223,20 @@
                         </tr>
                     </thead>
                     <tbody id="itemTbody">
-                        <%# 預載入出庫記錄帶入的明細 %>
+                        <%# 預載入出庫記錄帶入的明細（新增）或現有明細（編輯） %>
                         <% items.forEach(function(item, i) { %>
                         <tr class="item-row">
                             <td class="col-num"><%= i+1 %></td>
-                            <td><input type="text" name="item_part_number" value="<%= item.part_number %>">
-                                <input type="hidden" name="item_part_id" value="<%= item.part_id %>">
-                                <input type="hidden" name="item_outbound_id" value="<%= item.outbound_id %>">
+                            <td><input type="text" name="item_part_number" value="<%= item.part_number || '' %>">
+                                <input type="hidden" name="item_part_id" value="<%= item.part_id || '' %>">
+                                <input type="hidden" name="item_outbound_id" value="<%= item.outbound_id || '' %>">
                             </td>
-                            <td><input type="text" name="item_part_name" value="<%= item.part_name %>"></td>
+                            <td><input type="text" name="item_part_name" value="<%= item.part_name || '' %>"></td>
                             <td><input type="text" name="item_specification" value="<%= item.specification || '' %>"></td>
-                            <td><input type="text" name="item_unit" value="<%= item.unit %>" style="width:60px;"></td>
-                            <td><input type="number" name="item_quantity" value="<%= item.quantity %>" min="1" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
-                            <td><input type="number" name="item_unit_price" value="0" min="0" step="0.01" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
-                            <td style="text-align:right; font-weight:600; color:#1e40af;" class="row-subtotal">NT$ 0</td>
+                            <td><input type="text" name="item_unit" value="<%= item.unit || '' %>" style="width:60px;"></td>
+                            <td><input type="number" name="item_quantity" value="<%= item.quantity || 1 %>" min="1" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                            <td><input type="number" name="item_unit_price" value="<%= item.unit_price != null ? item.unit_price : 0 %>" min="0" step="0.01" onchange="recalcRow(this)" oninput="recalcRow(this)"></td>
+                            <td style="text-align:right; font-weight:600; color:#1e40af;" class="row-subtotal">NT$ <%= item.subtotal != null ? (item.subtotal||0).toLocaleString('zh-TW') : 0 %></td>
                             <td class="col-del"><button type="button" class="del-btn" onclick="removeRow(this)">×</button></td>
                         </tr>
                         <% }); %>
