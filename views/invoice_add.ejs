@@ -351,7 +351,7 @@
                     data-part-id="${r.part_id}" data-part-number="${escHtml(r.part_number)}"
                     data-part-name="${escHtml(r.part_name)}" data-spec="${escHtml(r.specification||'')}"
                     data-unit="${escHtml(r.unit)}" data-qty="${r.quantity}">
-                    <input type="checkbox" onclick="event.stopPropagation(); toggleOutbound(this.parentElement)">
+                    <input type="checkbox" onclick="event.stopPropagation(); this.closest('.outbound-row').classList.toggle('selected', this.checked)">
                     <div class="ob-meta">
                         <div class="ob-name" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                             ${escHtml(r.part_name)} <code style="font-size:11px; color:#888;">${escHtml(r.part_number)}</code>
