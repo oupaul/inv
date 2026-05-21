@@ -172,6 +172,15 @@ function initDB() {
             console.error('添加 min_stock 欄位失敗:', e.message);
         }
     }
+
+    // 料件圖片路徑
+    if (!columnExists('parts', 'image_path')) {
+        try {
+            db.exec(`ALTER TABLE parts ADD COLUMN image_path TEXT`);
+        } catch (e) {
+            console.error('添加 image_path 欄位失敗:', e.message);
+        }
+    }
     
     // 入庫記錄表
     db.exec(`
@@ -677,10 +686,34 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
+// 料件圖片上傳專用 multer
+const PART_IMG_DIR = path.join(__dirname, 'public', 'uploads', 'parts');
+const uploadPartImage = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, PART_IMG_DIR),
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+            cb(null, `part_${req.params.id}${ext}`);
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (allowed.includes(file.mimetype)) cb(null, true);
+        else cb(new Error('只允許上傳圖片（jpg/png/webp/gif）'));
+    },
+    limits: { fileSize: 3 * 1024 * 1024 } // 3MB
+});
+
 // 確保上傳目錄存在
 if (!fs.existsSync('uploads')) {
     fs.mkdirSync('uploads');
 }
+if (!fs.existsSync(PART_IMG_DIR)) {
+    fs.mkdirSync(PART_IMG_DIR, { recursive: true });
+}
+// 靜態檔案服務（料件圖片）
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key-here-change-in-production',
     resave: false,
@@ -1644,6 +1677,42 @@ app.post('/parts/add', (req, res) => {
         }
         res.redirect('/parts/add');
     }
+});
+
+// API：上傳料件圖片
+app.post('/parts/:id/upload-image', requireAuth, (req, res) => {
+    uploadPartImage.single('part_image')(req, res, (err) => {
+        if (err) return res.json({ success: false, error: err.message });
+        if (!req.file) return res.json({ success: false, error: '未收到圖片檔案' });
+        const { id } = req.params;
+        const part = db.prepare('SELECT id, image_path FROM parts WHERE id = ?').get(id);
+        if (!part) return res.json({ success: false, error: '料件不存在' });
+
+        // 刪除舊圖片（不同副檔名）
+        if (part.image_path) {
+            const oldPath = path.join(__dirname, 'public', part.image_path);
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+
+        const relativePath = `/uploads/parts/${req.file.filename}`;
+        db.prepare('UPDATE parts SET image_path = ? WHERE id = ?').run(relativePath, id);
+        logActivity(req, 'update', `上傳料件圖片 (ID: ${id})`, 'part', id);
+        res.json({ success: true, image_path: relativePath });
+    });
+});
+
+// API：刪除料件圖片
+app.post('/parts/:id/delete-image', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const part = db.prepare('SELECT id, image_path FROM parts WHERE id = ?').get(id);
+    if (!part) return res.json({ success: false, error: '料件不存在' });
+    if (part.image_path) {
+        const imgPath = path.join(__dirname, 'public', part.image_path);
+        if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+    }
+    db.prepare('UPDATE parts SET image_path = NULL WHERE id = ?').run(id);
+    logActivity(req, 'update', `刪除料件圖片 (ID: ${id})`, 'part', id);
+    res.json({ success: true });
 });
 
 // API：料件詳情（含庫存量與近期出入庫記錄，供 Modal 使用）

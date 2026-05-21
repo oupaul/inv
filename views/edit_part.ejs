@@ -383,9 +383,81 @@
                 </small>
             </div>
             
-            <button type="submit">更新料件</button>
+            <!-- 料件圖片 -->
+            <div class="form-group">
+                <label>料件圖片</label>
+                <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+                    <div>
+                        <% if (part.image_path) { %>
+                        <img id="editPartImgPreview" src="/public<%= part.image_path %>" alt="料件圖片"
+                            style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;display:block;margin-bottom:8px;">
+                        <% } else { %>
+                        <div id="editPartImgPreview" style="width:120px;height:120px;border:2px dashed #d1d5db;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:28px;margin-bottom:8px;">📷</div>
+                        <% } %>
+                    </div>
+                    <div style="flex:1; min-width:200px;">
+                        <label style="display:inline-block; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:8px 14px; font-size:13px; color:#166534; cursor:pointer; font-weight:600; margin-bottom:8px;">
+                            📷 <%= part.image_path ? '更換圖片' : '上傳圖片' %>
+                            <input type="file" id="editPartImageInput" accept="image/*" style="display:none;" onchange="previewEditPartImage(this)">
+                        </label>
+                        <% if (part.image_path) { %>
+                        <button type="button" style="display:block; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; font-weight:600;" onclick="deleteEditPartImage(<%= part.id %>)">🗑️ 刪除圖片</button>
+                        <% } %>
+                        <small style="color:#666; margin-top:8px; display:block;">支援 JPG、PNG、WebP，最大 3MB。圖片儲存在點擊「更新料件」後立即上傳。</small>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" id="editPartSubmitBtn">更新料件</button>
             <a href="/parts" style="margin-left: 10px; color: #666; text-decoration: none;">取消</a>
         </form>
+
+        <script>
+            function previewEditPartImage(input) {
+                if (!input.files || !input.files[0]) return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const prev = document.getElementById('editPartImgPreview');
+                    if (prev.tagName === 'IMG') {
+                        prev.src = e.target.result;
+                    } else {
+                        const img = document.createElement('img');
+                        img.id = 'editPartImgPreview';
+                        img.src = e.target.result;
+                        img.style = 'width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;display:block;margin-bottom:8px;';
+                        prev.replaceWith(img);
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+
+            // 先送出主表單，再上傳圖片
+            document.getElementById('partForm').addEventListener('submit', async function(e) {
+                const fileInput = document.getElementById('editPartImageInput');
+                if (!fileInput || !fileInput.files || !fileInput.files[0]) return; // 無圖片直接送出
+                e.preventDefault();
+                const btn = document.getElementById('editPartSubmitBtn');
+                btn.disabled = true; btn.textContent = '處理中…';
+                // 先上傳圖片
+                const formData = new FormData();
+                formData.append('part_image', fileInput.files[0]);
+                try {
+                    await fetch('/parts/<%= part.id %>/upload-image', { method: 'POST', body: formData });
+                } catch(err) { console.error('圖片上傳失敗', err); }
+                // 再送出主表單
+                this.submit();
+            });
+
+            function deleteEditPartImage(partId) {
+                if (!confirm('確定刪除此料件圖片？')) return;
+                fetch('/parts/' + partId + '/delete-image', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) location.reload();
+                    else alert('刪除失敗：' + (data.error || '未知錯誤'));
+                });
+            }
+        </script>
         
         <script>
             const { BrowserMultiFormatReader } = ZXing;
