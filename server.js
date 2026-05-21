@@ -1503,6 +1503,7 @@ app.get('/parts', (req, res) => {
     // 主查詢（含庫存量計算）
     const baseQuery = `
         SELECT p.id, p.part_number, p.part_name, p.specification, p.unit, p.barcode, p.created_at,
+               p.image_path,
                c.name as category_name,
                COALESCE(p.is_active, 1) as is_active,
                (
