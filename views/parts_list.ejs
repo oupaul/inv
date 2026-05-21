@@ -150,6 +150,34 @@
         .page-btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); font-weight: 700; }
         .page-btn:disabled, .page-btn.disabled { opacity: 0.4; pointer-events: none; }
 
+        /* ── QR Code 隔離（避免全域 table CSS 干擾）── */
+        #qrcode {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            min-width: 220px;
+            min-height: 220px;
+            margin: 0 auto 12px;
+        }
+        #qrcode canvas,
+        #qrcode img {
+            display: block !important;
+            width: 220px !important;
+            height: 220px !important;
+            max-width: none !important;
+        }
+        #qrcode table {
+            display: table !important;
+            width: auto !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            border-collapse: collapse !important;
+            white-space: normal !important;
+            overflow: visible !important;
+        }
+        #qrcode table tr { display: table-row !important; }
+        #qrcode table td { display: table-cell !important; border: none !important; padding: 0 !important; }
+
         /* ── Modal ── */
         .modal-overlay {
             display: none;
