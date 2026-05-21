@@ -484,6 +484,7 @@
                     <td>
                         <div class="action-btns">
                             <a href="/parts/edit/<%= part.id %>" class="btn-sm btn-edit">編輯</a>
+                            <button type="button" class="btn-sm" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); showQrModal(<%= part.id %>, '<%= part.part_number.replace(/'/g,"\\'") %>', '<%= part.part_name.replace(/'/g,"\\'") %>')">🔳 QR</button>
                             <% if (user && user.role === 'admin') { %>
                                 <% if (part.is_active === 0) { %>
                                 <button type="button" class="btn-sm btn-activate" data-part-id="<%= part.id %>" data-part-name="<%= part.part_name %>">啟用</button>
