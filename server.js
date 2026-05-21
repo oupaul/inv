@@ -10,6 +10,7 @@ const multer = require('multer');
 const fs = require('fs');
 const argon2 = require('argon2');
 const nodemailer = require('nodemailer');
+const QRCodeGen = require('qrcode');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1715,6 +1716,23 @@ app.post('/parts/:id/delete-image', requireAuth, (req, res) => {
     db.prepare('UPDATE parts SET image_path = NULL WHERE id = ?').run(id);
     logActivity(req, 'update', `刪除料件圖片 (ID: ${id})`, 'part', id);
     res.json({ success: true });
+});
+
+// API：產生 QR Code PNG（伺服器端）
+app.get('/api/qr', requireAuth, async (req, res) => {
+    const { text } = req.query;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    try {
+        const dataUrl = await QRCodeGen.toDataURL(text, {
+            width: 300,
+            margin: 2,
+            color: { dark: '#1e293b', light: '#ffffff' },
+            errorCorrectionLevel: 'M'
+        });
+        res.json({ dataUrl });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // API：料件詳情（含庫存量與近期出入庫記錄，供 Modal 使用）

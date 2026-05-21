@@ -150,33 +150,15 @@
         .page-btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); font-weight: 700; }
         .page-btn:disabled, .page-btn.disabled { opacity: 0.4; pointer-events: none; }
 
-        /* ── QR Code 隔離（避免全域 table CSS 干擾）── */
+        /* ── QR Code 容器 ── */
         #qrcode {
-            display: flex !important;
+            display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 220px;
             min-height: 220px;
             margin: 0 auto 12px;
         }
-        #qrcode canvas,
-        #qrcode img {
-            display: block !important;
-            width: 220px !important;
-            height: 220px !important;
-            max-width: none !important;
-        }
-        #qrcode table {
-            display: table !important;
-            width: auto !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-            border-collapse: collapse !important;
-            white-space: normal !important;
-            overflow: visible !important;
-        }
-        #qrcode table tr { display: table-row !important; }
-        #qrcode table td { display: table-cell !important; border: none !important; padding: 0 !important; }
+        #qrcode img { max-width: none !important; }
 
         /* ── Modal ── */
         .modal-overlay {
@@ -595,7 +577,6 @@
         </div>
     </div>
 
-    <script><%- include('_qrcode-js') %></script>
     <script>
         <%- include('_common-mobile-script') %>
     </script>
@@ -820,46 +801,47 @@
         .catch(() => alert('操作失敗，請稍後再試'));
     }
 
-    // ── QR Code Modal ──
+    // ── QR Code Modal（伺服器端產生）──
+    let _qrCurrentDataUrl = null;
     function showQrModal(partId, partNumber, partName) {
         const baseUrl = window.location.origin;
-        const qrContent = `料號：${partNumber}\n${baseUrl}/parts?search=${encodeURIComponent(partNumber)}`;
+        const qrText = partNumber + '|' + baseUrl + '/parts?search=' + encodeURIComponent(partNumber);
         document.getElementById('qrModalTitle').textContent = partName + '（' + partNumber + '）';
-        document.getElementById('qrcode').innerHTML = '';
-        document.getElementById('qrModal').classList.add('open');
-        setTimeout(() => {
-            new QRCode(document.getElementById('qrcode'), {
-                text: qrContent,
-                width: 220,
-                height: 220,
-                colorDark: '#1e293b',
-                colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.M
-            });
-        }, 50);
         document.getElementById('qrPartInfo').textContent = partNumber + '　' + partName;
+        const qrDiv = document.getElementById('qrcode');
+        qrDiv.innerHTML = '<div style="color:#aaa;font-size:13px;padding:20px;">產生中...</div>';
+        _qrCurrentDataUrl = null;
+        document.getElementById('qrModal').classList.add('open');
+
+        fetch('/api/qr?text=' + encodeURIComponent(qrText))
+            .then(r => r.json())
+            .then(data => {
+                if (!data.dataUrl) throw new Error('no dataUrl');
+                _qrCurrentDataUrl = data.dataUrl;
+                qrDiv.innerHTML = '<img src="' + data.dataUrl + '" style="width:220px;height:220px;display:block;" alt="QR Code">';
+            })
+            .catch(() => {
+                qrDiv.innerHTML = '<div style="color:#dc2626;font-size:13px;">QR Code 產生失敗</div>';
+            });
+
         document.getElementById('qrDownloadBtn').onclick = function() {
-            setTimeout(() => {
-                const canvas = document.querySelector('#qrcode canvas');
-                if (!canvas) { alert('QR Code 尚未產生，請稍後再試'); return; }
-                const link = document.createElement('a');
-                link.download = 'QR_' + partNumber + '.png';
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-            }, 100);
+            if (!_qrCurrentDataUrl) { alert('QR Code 尚未產生，請稍後再試'); return; }
+            const link = document.createElement('a');
+            link.download = 'QR_' + partNumber + '.png';
+            link.href = _qrCurrentDataUrl;
+            link.click();
         };
         document.getElementById('qrPrintBtn').onclick = function() {
-            const canvas = document.querySelector('#qrcode canvas');
-            if (!canvas) { alert('QR Code 尚未產生，請稍後再試'); return; }
+            if (!_qrCurrentDataUrl) { alert('QR Code 尚未產生，請稍後再試'); return; }
             const win = window.open('', '_blank', 'width=400,height=500');
             win.document.write(`<!DOCTYPE html><html><head><title>QR Code - ${partNumber}</title>
             <style>body{font-family:sans-serif;text-align:center;padding:30px;}
             .label{font-size:18px;font-weight:700;margin-bottom:8px;}
             .sub{font-size:13px;color:#555;margin-bottom:16px;}
-            img{max-width:220px;}</style></head><body>
+            img{width:220px;height:220px;}</style></head><body>
             <div class="label">${partNumber}</div>
             <div class="sub">${partName}</div>
-            <img src="${canvas.toDataURL()}" alt="QR Code">
+            <img src="${_qrCurrentDataUrl}" alt="QR Code">
             <script>window.onload=function(){window.print();window.close();}<\/script>
             </body></html>`);
             win.document.close();
