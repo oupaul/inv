@@ -751,18 +751,33 @@
 
     function uploadPartImage(partId, input) {
         if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        const MAX_MB = 15;
+        if (file.size > MAX_MB * 1024 * 1024) {
+            alert(`圖片太大（${(file.size/1024/1024).toFixed(1)} MB），請壓縮後再上傳（上限 ${MAX_MB} MB）`);
+            input.value = '';
+            return;
+        }
+        // 顯示上傳中提示
+        const label = input.closest('label');
+        const origText = label ? label.childNodes[0]?.textContent?.trim() : '';
+        if (label) label.style.opacity = '0.6';
         const formData = new FormData();
-        formData.append('part_image', input.files[0]);
+        formData.append('part_image', file);
         fetch('/parts/' + partId + '/upload-image', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(data => {
+            if (label) label.style.opacity = '';
             if (data.success) {
-                openPartModal(partId); // 重新載入 modal
+                openPartModal(partId);
             } else {
                 alert('上傳失敗：' + (data.error || '未知錯誤'));
             }
         })
-        .catch(() => alert('上傳發生錯誤，請稍後再試'));
+        .catch(() => {
+            if (label) label.style.opacity = '';
+            alert('上傳發生錯誤，請確認網路連線後再試');
+        });
     }
 
     function deletePartImage(partId) {

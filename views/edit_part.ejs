@@ -403,7 +403,7 @@
                         <% if (part.image_path) { %>
                         <button type="button" style="display:block; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; font-weight:600;" onclick="deleteEditPartImage(<%= part.id %>)">🗑️ 刪除圖片</button>
                         <% } %>
-                        <small style="color:#666; margin-top:8px; display:block;">支援 JPG、PNG、WebP，最大 3MB。圖片儲存在點擊「更新料件」後立即上傳。</small>
+                        <small style="color:#666; margin-top:8px; display:block;">支援 JPG、PNG、WebP，最大 15MB（手機拍照直接上傳）。圖片在點擊「更新料件」後儲存。</small>
                     </div>
                 </div>
             </div>
@@ -435,16 +435,27 @@
             document.getElementById('partForm').addEventListener('submit', async function(e) {
                 const fileInput = document.getElementById('editPartImageInput');
                 if (!fileInput || !fileInput.files || !fileInput.files[0]) return; // 無圖片直接送出
+                const file = fileInput.files[0];
+                const MAX_MB = 15;
+                if (file.size > MAX_MB * 1024 * 1024) {
+                    alert(`圖片太大（${(file.size/1024/1024).toFixed(1)} MB），請壓縮後再上傳（上限 ${MAX_MB} MB）`);
+                    return;
+                }
                 e.preventDefault();
                 const btn = document.getElementById('editPartSubmitBtn');
-                btn.disabled = true; btn.textContent = '處理中…';
-                // 先上傳圖片
+                btn.disabled = true; btn.textContent = '上傳圖片中…';
                 const formData = new FormData();
-                formData.append('part_image', fileInput.files[0]);
+                formData.append('part_image', file);
                 try {
-                    await fetch('/parts/<%= part.id %>/upload-image', { method: 'POST', body: formData });
-                } catch(err) { console.error('圖片上傳失敗', err); }
-                // 再送出主表單
+                    const res = await fetch('/parts/<%= part.id %>/upload-image', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (!data.success) alert('圖片上傳失敗：' + (data.error || '未知錯誤'));
+                } catch(err) {
+                    alert('圖片上傳發生錯誤，請確認網路連線');
+                    btn.disabled = false; btn.textContent = '更新料件';
+                    return;
+                }
+                btn.textContent = '儲存中…';
                 this.submit();
             });
 

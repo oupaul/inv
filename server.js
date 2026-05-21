@@ -701,7 +701,7 @@ const uploadPartImage = multer({
         if (allowed.includes(file.mimetype)) cb(null, true);
         else cb(new Error('只允許上傳圖片（jpg/png/webp/gif）'));
     },
-    limits: { fileSize: 3 * 1024 * 1024 } // 3MB
+    limits: { fileSize: 15 * 1024 * 1024 } // 15MB（手機相機照片）
 });
 
 // 確保上傳目錄存在
