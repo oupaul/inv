@@ -4,6 +4,40 @@
 
 ---
 
+### 2026-05-21 — 料件圖片上傳、QR Code 產生、發票編輯、庫存縮圖
+
+#### 新增功能
+
+**1. 料件圖片上傳**
+- 每個料件可上傳一張主圖（`parts.image_path` 欄位）
+- 圖片存放路徑：`public/uploads/parts/<partId>_<timestamp>.<ext>`
+- 支援 JPEG / PNG / GIF / WebP，檔案大小上限 15 MB
+- 更換圖片時自動刪除舊檔；刪除圖片時同步清除 DB 欄位
+- 操作入口：
+  - 料件管理清單 → 點開料件詳情 Modal → 上傳/更換/刪除
+  - 編輯料件頁（`/parts/edit/:id`）→ 圖片上傳區塊，含即時預覽
+- 手機相機拍照後直接上傳（NGINX `client_max_body_size` 需設為 `20M` 以上）
+
+**2. 料件 QR Code（伺服器端產生）**
+- 使用 `qrcode` npm 套件在伺服器端產生 PNG data URI（`GET /api/qr?text=...`）
+- QR Code 內容：`料號|系統連結`（掃碼可直接開啟料件查詢頁面）
+- 操作入口：料件管理清單 → 每列「🔳 QR」按鈕 → 彈出 Modal 顯示 QR Code
+- Modal 功能：⬇️ 下載 PNG、🖨️ 列印標籤（開新視窗自動列印）
+- 採伺服器端產生，完全不依賴前端 CDN 或 canvas，相容性最佳
+
+**3. 發票編輯**
+- 已儲存的發票可再次編輯（`GET /invoices/:id/edit`、`POST /invoices/:id/edit`）
+- 編輯時以 DB transaction 保證原子性：更新表頭 → 刪除舊明細 → 新增新明細
+- 發票詳情頁（`/invoices/:id`）加入「✏️ 編輯發票」按鈕
+
+**4. 庫存查詢頁料件縮圖**
+- 首頁（`/`）庫存列表加入縮圖欄
+- 有圖片：顯示 36×36 圓角縮圖
+- 無圖片：顯示灰色虛線佔位格（📷）
+- SQL 查詢加入 `p.image_path` 欄位
+
+---
+
 ### 2026-04-21 — 發票管理、退回出庫、作廢記錄、入庫類型篩選、儀表板強化
 
 #### 新增功能
@@ -69,6 +103,11 @@
 ---
 
 ## 資料庫 Schema 重要欄位說明
+
+### `parts`
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `image_path` | TEXT | 料件圖片相對路徑（如 `/uploads/parts/1_xxx.jpg`），NULL 表示無圖片 |
 
 ### `inbound_records`
 | 欄位 | 類型 | 說明 |
@@ -145,6 +184,23 @@
 | GET | `/invoices/:id` | 發票詳情 |
 | POST | `/invoices/:id/status` | 更新發票狀態 |
 
+### 發票相關（新增編輯功能）
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/invoices/:id/edit` | 發票編輯頁面（預填現有資料） |
+| POST | `/invoices/:id/edit` | 更新發票（transaction 保證原子性） |
+
+### 料件圖片相關
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| POST | `/parts/:id/upload-image` | 上傳/更換料件圖片（multer，15 MB 上限） |
+| POST | `/parts/:id/delete-image` | 刪除料件圖片並清除 DB 欄位 |
+
+### QR Code 相關
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/qr?text=...` | 伺服器端產生 QR Code，回傳 PNG data URI（JSON） |
+
 ### 通知相關
 | 方法 | 路徑 | 說明 |
 |------|------|------|
@@ -170,3 +226,7 @@
 - 所有資料庫 schema 變更採用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 模式，透過 `columnExists()` 函數檢查，確保不破壞現有資料。
 - 作廢操作使用 `db.transaction()` 包裝，確保標記作廢與建立反向記錄的原子性。
 - 入庫表單使用固定 hidden input（`final_is_return`、`final_return_outbound_id`）作為實際送出欄位，其他同名 UI 元素不帶 `name` 屬性，避免表單多值衝突。
+- 圖片上傳需於 NGINX 設定 `client_max_body_size 20M;` 及適當的 `proxy_read_timeout`，否則大檔案（手機拍照）會在到達 Node.js 之前被 NGINX 拒絕（HTTP 413）。
+- QR Code 改用伺服器端 `qrcode` npm 套件產生，避免前端 canvas/table 渲染受全域 CSS 干擾。
+- 靜態檔案（料件圖片）透過 `app.use('/public', express.static(...))` 提供，圖片 URL 格式為 `/public/uploads/parts/<filename>`。
+- `views/_qrcode-js.ejs` 為舊版前端 QR Code 函式庫備份，目前已改用伺服器端產生，此檔案保留備用。
