@@ -1167,6 +1167,7 @@ app.get('/', requireAuth, (req, res) => {
             p.unit,
             p.barcode,
             p.min_stock,
+            p.image_path,
             c.name as category_name,
             COALESCE(p.is_active, 1) as is_active,
             COALESCE((SELECT SUM(quantity) FROM inbound_records WHERE part_id = p.id AND (is_return = 0 OR is_return IS NULL)), 0) - 

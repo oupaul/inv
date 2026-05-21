@@ -432,6 +432,7 @@
             <table id="inventoryTable">
                 <thead>
                     <tr>
+                        <th style="width:48px;"></th>
                         <th>料號</th>
                         <th>料件名稱</th>
                         <th>類型</th>
@@ -457,6 +458,14 @@
                         style="cursor:pointer; <%= rowStyle %>"
                         onclick="window.location='/parts?search=<%= encodeURIComponent(item.part_number) %>'"
                         title="點擊進入料件管理">
+                        <td style="padding:3px 6px;">
+                            <% if (item.image_path) { %>
+                            <img src="/public<%= item.image_path %>" alt=""
+                                style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid #e2e8f0;display:block;">
+                            <% } else { %>
+                            <div style="width:36px;height:36px;border-radius:5px;border:1px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;color:#e2e8f0;font-size:14px;">📷</div>
+                            <% } %>
+                        </td>
                         <td><code style="font-size:12px;"><%= item.part_number %></code></td>
                         <td style="font-weight:600;">
                             <%= item.part_name %>
