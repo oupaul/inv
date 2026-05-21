@@ -218,6 +218,42 @@
         .type-loan     { background: #fff3cd; color: #856404; }
         .modal-empty { text-align: center; padding: 30px; color: #aaa; }
 
+        /* ── Modal 頂部圖片 + 資訊雙欄 ── */
+        .modal-top-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 14px;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+        .modal-img-block {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .modal-img-block img,
+        .modal-img-placeholder {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            display: block;
+        }
+        .modal-img-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #d1d5db;
+            color: #9ca3af;
+            font-size: 26px;
+        }
+        /* 表格內縮圖欄在手機隱藏 */
+        .col-thumb { min-width: 52px; }
+        @media (max-width: 600px) {
+            .col-thumb { display: none; }
+        }
+
         /* ── 狀態徽章 ── */
         .status-badge {
             display: inline-block;
@@ -250,7 +286,15 @@
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .search-row { flex-direction: column; }
             .modal-info-grid { grid-template-columns: repeat(2, 1fr); }
-            .modal-top-grid { grid-template-columns: 1fr !important; }
+            /* 手機上圖片欄縮小 */
+            .modal-top-grid { grid-template-columns: 100px 1fr; gap: 10px; }
+        }
+        @media (max-width: 540px) {
+            /* 超小螢幕改為垂直疊排 */
+            .modal-top-grid { grid-template-columns: 1fr; }
+            .modal-img-block { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; }
+            .modal-img-block img, .modal-img-placeholder { width: 72px; aspect-ratio: 1; flex-shrink: 0; }
+            .modal-info-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; }
@@ -377,7 +421,7 @@
                         <%= label %><span class="sort-icon"></span>
                     </th>
                     <% } %>
-                    <th style="width:52px;"></th>
+                    <th class="col-thumb"></th>
                     <%= sortLink('part_number', '料號') %>
                     <%= sortLink('part_name',   '料件名稱') %>
                     <%= sortLink('category_name','類型') %>
@@ -396,7 +440,7 @@
                     <% if (typeof canDelete !== 'undefined' && canDelete) { %>
                     <td><input type="checkbox" class="part-checkbox" value="<%= part.id %>" style="width:16px;height:16px;cursor:pointer;"></td>
                     <% } %>
-                    <td style="padding:4px 6px;">
+                    <td class="col-thumb" style="padding:4px 6px;">
                         <% if (part.image_path) { %>
                         <img src="/public<%= part.image_path %>" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="openPartModal(<%= part.id %>)">
                         <% } else { %>
@@ -634,40 +678,38 @@
             // 圖片區塊
             const imgSrc = p.image_path ? '/public' + p.image_path : null;
             const imgHtml = imgSrc
-                ? `<img id="modalPartImg" src="${imgSrc}" alt="料件圖片" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:8px;display:block;margin:0 auto 8px;">`
-                : `<div style="width:100%;height:120px;border:2px dashed #d1d5db;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:14px;margin-bottom:8px;" id="modalPartImg">📷 尚未上傳圖片</div>`;
+                ? `<img id="modalPartImg" src="${imgSrc}" alt="料件圖片">`
+                : `<div class="modal-img-placeholder" id="modalPartImg">📷</div>`;
             const delBtnHtml = imgSrc
-                ? `<button type="button" class="btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;font-size:12px;padding:4px 10px;border-radius:6px;" onclick="deletePartImage(${partId})">🗑️ 刪除圖片</button>`
+                ? `<button type="button" class="btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;font-size:12px;padding:4px 10px;border-radius:6px;white-space:nowrap;" onclick="deletePartImage(${partId})">🗑️ 刪除</button>`
                 : '';
 
             let html = `
-                <div style="display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:start;margin-bottom:16px;" class="modal-top-grid">
-                    <div>
+                <div class="modal-top-grid">
+                    <div class="modal-img-block">
                         ${imgHtml}
-                        <div style="display:flex;flex-direction:column;gap:6px;">
-                            <label style="display:block;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px;font-size:12px;color:#166534;cursor:pointer;text-align:center;font-weight:600;">
-                                📷 ${imgSrc ? '更換圖片' : '上傳圖片'}
-                                <input type="file" accept="image/*" style="display:none;" onchange="uploadPartImage(${partId}, this)">
-                            </label>
-                            ${delBtnHtml}
-                            <button type="button" class="btn-sm" style="background:#eff6ff;color:#1d4ed8;border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;font-weight:600;" onclick="showQrModal(${partId}, '${escJs(p.part_number)}', '${escJs(p.part_name)}')">
-                                🔳 顯示 QR Code
-                            </button>
-                        </div>
+                        <label style="display:block;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:5px 8px;font-size:11px;color:#166534;cursor:pointer;text-align:center;font-weight:600;white-space:nowrap;">
+                            📷 ${imgSrc ? '更換' : '上傳圖片'}
+                            <input type="file" accept="image/*" style="display:none;" onchange="uploadPartImage(${partId}, this)">
+                        </label>
+                        ${delBtnHtml}
+                        <button type="button" class="btn-sm" style="background:#eff6ff;color:#1d4ed8;border:none;cursor:pointer;font-size:11px;padding:5px 8px;border-radius:8px;font-weight:600;white-space:nowrap;" onclick="showQrModal(${partId}, '${escJs(p.part_number)}', '${escJs(p.part_name)}')">
+                            🔳 QR Code
+                        </button>
                     </div>
                     <div class="modal-info-grid" style="margin:0;">
-                        <div class="modal-info-item"><div class="label">料號</div><div class="value" style="font-size:14px;">${p.part_number}</div></div>
+                        <div class="modal-info-item"><div class="label">料號</div><div class="value" style="font-size:13px;">${p.part_number}</div></div>
                         <div class="modal-info-item highlight"><div class="label">目前庫存</div><div class="value ${stockCls}">${p.current_stock}</div></div>
-                        <div class="modal-info-item"><div class="label">借測中數量</div><div class="value" style="font-size:16px; color:#fd7e14;">${p.loaned_quantity}</div></div>
-                        <div class="modal-info-item"><div class="label">類型</div><div class="value" style="font-size:14px;">${p.category_name || '-'}</div></div>
-                        <div class="modal-info-item"><div class="label">單位</div><div class="value" style="font-size:14px;">${p.unit}</div></div>
-                        <div class="modal-info-item"><div class="label">規格</div><div class="value" style="font-size:13px; word-break:break-all;">${p.specification || '-'}</div></div>
+                        <div class="modal-info-item"><div class="label">借測中數量</div><div class="value" style="font-size:15px; color:#fd7e14;">${p.loaned_quantity}</div></div>
+                        <div class="modal-info-item"><div class="label">類型</div><div class="value" style="font-size:13px;">${p.category_name || '-'}</div></div>
+                        <div class="modal-info-item"><div class="label">單位</div><div class="value" style="font-size:13px;">${p.unit}</div></div>
+                        <div class="modal-info-item"><div class="label">規格</div><div class="value" style="font-size:12px; word-break:break-all;">${p.specification || '-'}</div></div>
                     </div>
                 </div>
                 <div class="modal-records-title">📋 近期出入庫記錄（最近 10 筆）</div>`;
 
             if (data.records && data.records.length > 0) {
-                html += `<table class="modal-records-table">
+                html += `<div style="overflow-x:auto;"><table class="modal-records-table">
                     <thead><tr><th>日期</th><th>類型</th><th>數量</th><th>備註</th><th>操作人員</th></tr></thead><tbody>`;
                 data.records.forEach(r => {
                     const typeMap = { inbound: ['入庫','type-inbound'], return: ['歸還','type-return'], outbound: ['出庫','type-outbound'], loan: ['借測','type-loan'] };
@@ -681,7 +723,7 @@
                         <td style="font-size:12px; color:#888;">${r.created_by || '-'}</td>
                     </tr>`;
                 });
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
             } else {
                 html += '<div class="modal-empty">尚無出入庫記錄</div>';
             }
