@@ -24,7 +24,7 @@ module.exports = function mountUserRoutes(ctx) {
     app.get('/users/add', requireAdmin, (req, res) => {
         try {
             const roles = db.prepare('SELECT * FROM roles ORDER BY is_system DESC, display_name').all();
-            res.render('add_user', { title: PAGE_TITLE, roles });
+            res.render('add_user', { title: PAGE_TITLE, roles, ssoEnabled: config.SSO_ENABLED });
         } catch (error) {
             logger.error('載入新增使用者頁面錯誤:', error);
             flash(req, 'error', '載入頁面失敗');
@@ -69,7 +69,7 @@ module.exports = function mountUserRoutes(ctx) {
                 return res.redirect('/users');
             }
             const roles = db.prepare('SELECT * FROM roles ORDER BY is_system DESC, display_name').all();
-            res.render('edit_user', { user, title: PAGE_TITLE, roles });
+            res.render('edit_user', { user, title: PAGE_TITLE, roles, ssoEnabled: config.SSO_ENABLED });
         } catch (error) {
             logger.error('載入編輯使用者頁面錯誤:', error);
             flash(req, 'error', '載入頁面失敗');

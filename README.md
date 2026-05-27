@@ -156,6 +156,35 @@ chmod +x uninstall.sh
 npm run dev
 ```
 
+## 測試
+
+```bash
+npm test               # 單元測試（任何 Node 環境可跑）
+npm run test:integration   # 整合測試（需 better-sqlite3 原生編譯環境，如 Linux/CI）
+npm run test:all           # 全部
+```
+
+CI：`.github/workflows/ci.yml` 會在 push/PR 時自動執行測試與 `npm audit`。
+
+## M365 / Microsoft 365 SSO（可選）
+
+系統支援 Microsoft Entra ID（Azure AD）的 OpenID Connect 單一登入，與帳密登入並存。
+
+1. 在 Entra 建立 App Registration，取得 Tenant/Client ID 與 Client Secret，Redirect URI 設為 `https://你的網域/auth/callback`
+2. `.env` 設定：
+   ```bash
+   SSO_TENANT_ID=...
+   SSO_CLIENT_ID=...
+   SSO_CLIENT_SECRET=...
+   SSO_REDIRECT_URI=https://你的網域/auth/callback
+   COOKIE_SECURE=true
+   NODE_ENV=production
+   ```
+3. `npm install` 後重啟，登入頁即出現「使用 Microsoft 365 登入」
+4. 在「人員管理」將使用者的**電子郵件**設為其 M365 信箱即可綁定（須事先建立，不自動建帳號）
+
+> 詳細設定與環境變數清單見 [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md)。
+
 ## 使用說明
 
 ### 1. 新增料件

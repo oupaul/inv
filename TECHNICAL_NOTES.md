@@ -4,6 +4,69 @@
 
 ---
 
+### 2026-05-27 — 安全強化、模組化重構、台灣時區、M365 SSO、測試與 CI
+
+這是一次大型的安全性、可維護性與功能強化。**所有變更均為相容更新，不需資料庫遷移。**
+
+#### 1. 安全性強化
+- **Session 機密**：`SESSION_SECRET` 未設定時，生產環境直接 fail-fast（不再用寫死的後備值）
+- **CSRF 防護**：Cookie `SameSite` + 所有非 GET 請求的 Origin/Referer 來源檢查（`lib/security.js`）
+- **登入頻率限制**：同 IP+帳號 15 分鐘內超過上限回 429（防暴力破解）
+- **安全 HTTP 標頭**：`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、HSTS（HTTPS 時）
+- **全域認證守門**：白名單（`/login`、`/logout`、`/healthz`、`/auth/*`、`/public/*`）外的所有路由一律要求登入
+- **上傳檔名**：改用隨機 UUID 命名，避免路徑穿越
+- **輸入驗證**：`lib/validators.js` 對登入、料件、出入庫、發票、使用者等寫入端點做格式/長度/型別檢查
+- **Email XSS**：通知信 HTML 內所有使用者輸入經 `escapeHtml()` 跳脫
+- **相依套件**：升級 `multer` 2.x、`nodemailer` 8.x，session store 改用 `better-sqlite3-session-store`，`npm audit` **0 漏洞**
+
+#### 2. 架構模組化（server.js 5948 → 1248 行）
+- 共用邏輯抽到 `lib/`：`config`、`logger`、`sql`、`helpers`、`email`、`uploads`、`auth`、`security`、`validators`、`sso`
+- 路由依領域抽到 `routes/`：`auth`、`sso`、`dashboard`、`parts`、`movements`、`inventory-check`、`invoices`、`reports`、`users`、`roles`、`settings`、`activity-logs`、`backup`、`categories`、`units`、`system`
+- `server.js` 僅保留：DB 初始化、middleware 組裝、認證守門、排程、路由掛載、優雅關閉、`/healthz`
+
+#### 3. 庫存計算 bug 修正（重要）
+- 修正「一般出庫被退回後，庫存沒有加回」的計算錯誤
+- 統一庫存公式（`lib/sql.js`）：
+  - **物理庫存** = `SUM(inbound) − SUM(outbound)`（依靠 void+reversal 雙邊登錄自動抵銷）
+  - **擁有量**（儀表板總庫存，含借出）/ **借出中** 各有對應 SQL helper
+- 之前若曾因此 bug 手動補過庫存，升級後數字可能偏多，建議上線後做一次盤點對帳
+
+#### 4. 全系統改用台灣時間（UTC+8）
+- `process.env.TZ = 'Asia/Taipei'`（`lib/config.js` 最上方設定）→ 所有 JS `new Date()`/`toLocaleString()` 用台北時間
+- DB 仍存 UTC（標準做法），**顯示時**以 `datetime(col, '+8 hours')` 轉 CST（出入庫記錄、盤點、料件/使用者列表等）
+- 到期判斷（借測、發票逾期）改用 `date('now', '+8 hours')` 對齊台灣日曆
+- 純顯示層調整，舊資料自動正確顯示，無重複加時風險
+
+#### 5. M365 / Entra ID SSO 登入（OpenID Connect）
+- 使用 `@azure/msal-node` 授權碼流程（`lib/sso.js`、`routes/sso.js`）
+- 與帳密登入**並存**；登入頁顯示「使用 Microsoft 365 登入」按鈕（僅在設定齊全時）
+- **比對政策**：以 M365 信箱比對 `users.email`（不分大小寫、`is_active=1`），**須事先由管理員建立帳號**，找不到即拒絕，不自動建帳號
+- 因 SSO 回呼為跨站 top-level 導向，session cookie `SameSite` 預設改為 `lax`（CSRF 仍由 Origin 檢查把關）
+- 設定方式見下方「M365 SSO 設定」章節
+
+#### 6. 營運強化
+- **Session 持久化**：寫入 `sessions.db`，重啟服務不會把使用者登出（`force_logout_minutes` 仍控制最長登入時間）
+- **公開健康檢查**：`GET /healthz`（不需登入，供負載平衡/監控）
+- **優雅關閉**：SIGINT/SIGTERM 時清理計時器、關閉 DB
+- **備份保留策略**：`backup.sh` 與自動備份排程清理舊備份（預設保留 30 天 / 至少 7 份）
+- **operation log 自動清理**：`activity_logs` 預設保留 90 天，每日 03:00 自動清理（管理員可手動觸發 `POST /api/admin/cleanup-activity-logs`）
+- **DB 索引**：對庫存計算、發票、操作紀錄等高頻查詢欄位建立索引
+
+#### 7. 儀表板「近期出入庫記錄」改善
+- 新增**單據號碼**欄（記錄 ID 加類型前綴：`IN-`/`RT-`/`OUT-`/`LN-`）
+- 連動上方類別/搜尋篩選（篩鋼品只看鋼品記錄）
+- 修正排序：同日多筆改以實際登錄時間 `created_at` 為次序
+
+#### 8. 測試與 CI
+- **單元測試**（`tests/*.test.js`）：config、validators、security、stock-formula、email-escape、sso — 47 項
+- **整合測試**（`tests/integration/*.test.js`）：auth、public-routes、stock-flow、invoices、inventory-check、reports、dashboard、timezone、sso
+- **CI**（`.github/workflows/ci.yml`）：push/PR 自動跑 `npm run test:all` + `npm audit`（Node 18/20）
+  - 指令：`npm test`（單元）、`npm run test:integration`、`npm run test:all`
+
+> 註：整合測試需 `better-sqlite3` 原生編譯環境（Windows 無 Visual Studio 時跑不了，Linux/CI 可）。
+
+---
+
 ### 2026-05-21 — 料件圖片上傳、QR Code 產生、發票編輯、庫存縮圖
 
 #### 新增功能
@@ -99,6 +162,83 @@
 - `_common-styles.ejs`：設計系統 v3.0（CSS 變數 + 響應式佈局）
 - `_common-nav-script.ejs`：側邊欄互動腳本
 - `_common-mobile-script`：手機版表格轉卡片通用腳本
+
+---
+
+## 專案結構
+
+```
+inv/
+├── server.js              主程式：DB 初始化、middleware、排程、路由掛載、優雅關閉
+├── lib/                   共用模組
+│   ├── config.js          設定載入（env）+ 啟動驗證 + 時區設定
+│   ├── logger.js          結構化 logger（level、可選 log file）
+│   ├── sql.js             庫存計算 SQL 片段 + prepared statement 快取
+│   ├── helpers.js         flash / logActivity / 系統設定 / 權限
+│   ├── email.js           escapeHtml / buildEmailHtml / 寄信
+│   ├── uploads.js         multer（Excel 匯入 / 料件圖片）
+│   ├── auth.js            requireAuth / requireAdmin / 全域守門 / buildSessionUser
+│   ├── security.js        Origin 檢查 / 登入 rate limit / 安全標頭
+│   ├── validators.js      輸入驗證規則
+│   └── sso.js             M365/Entra OIDC（MSAL）+ email 比對
+├── routes/                依領域分檔的路由（auth/sso/dashboard/parts/movements/
+│                          inventory-check/invoices/reports/users/roles/settings/
+│                          activity-logs/backup/categories/units/system）
+├── tests/                 單元測試
+│   └── integration/       整合測試（supertest + :memory: SQLite）
+├── views/                 EJS 模板
+└── .github/workflows/ci.yml   GitHub Actions CI
+```
+
+---
+
+## 環境變數（.env）
+
+| 變數 | 預設 | 說明 |
+|------|------|------|
+| `PORT` | 5000 | 監聽埠 |
+| `NODE_ENV` | development | `production` 時 SESSION_SECRET 必填、cookie 預設 secure |
+| `SESSION_SECRET` | （開發隨機） | 生產環境必填，長度 ≥ 32（`openssl rand -hex 32`） |
+| `SESSION_MAX_AGE_MINUTES` | 1440 | session cookie 有效時間 |
+| `COOKIE_SECURE` | prod=true | cookie 僅走 HTTPS |
+| `COOKIE_SAMESITE` | lax | SSO 回呼需 `lax`；可設 strict/lax/none |
+| `DB_FILE` | inventory.db | 主資料庫檔；測試用 `:memory:` |
+| `SESSION_DB_FILE` | sessions.db | session 持久化檔 |
+| `BACKUP_DIR` | ./backups | 備份目錄 |
+| `BACKUP_RETENTION_DAYS` / `BACKUP_RETENTION_MIN_FILES` | 30 / 7 | 備份保留策略 |
+| `ACTIVITY_LOG_RETENTION_DAYS` | 90 | 操作紀錄保留天數（0=不清理） |
+| `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 900000 / 10 | 登入頻率限制 |
+| `ALLOWED_HOSTS` | （空） | Origin 檢查額外容許 host（逗號分隔；反向代理 host 不一致時用） |
+| `LOG_FILE` / `LOG_LEVEL` | null / info | log 寫檔路徑 / 等級 |
+| `TZ` | Asia/Taipei | 時區（一般不需改） |
+| `SSO_TENANT_ID` | — | Entra 租戶 ID（設齊四項才啟用 SSO） |
+| `SSO_CLIENT_ID` | — | Entra 應用程式（用戶端）ID |
+| `SSO_CLIENT_SECRET` | — | Entra 用戶端密碼 |
+| `SSO_REDIRECT_URI` | — | 重新導向 URI，需與 Entra 設定完全一致 |
+
+---
+
+## M365 SSO 設定
+
+### Entra App Registration
+1. Azure Portal → Microsoft Entra ID → App registrations → New registration
+2. **Redirect URI**（平台選 Web）填 `https://你的網域/auth/callback`，需與 `SSO_REDIRECT_URI` 完全一致
+3. API permissions：Microsoft Graph 委派權限 `openid`、`profile`、`email`（通常預設已有）
+4. Certificates & secrets → New client secret → 複製密碼值
+
+### 系統設定
+1. `.env` 填入 `SSO_TENANT_ID`、`SSO_CLIENT_ID`、`SSO_CLIENT_SECRET`、`SSO_REDIRECT_URI`
+2. `npm install`（安裝 `@azure/msal-node`）後重啟
+3. 登入頁會出現「使用 Microsoft 365 登入」按鈕
+
+### 綁定使用者
+- 在「人員管理」新增/編輯使用者，將**電子郵件**欄位填入該員的 **M365 登入信箱**
+- SSO 登入時以此 email 比對（不分大小寫），相符且帳號啟用中才放行
+- 政策：不自動建帳號；建議至少保留一個本地 admin 帳號當後門
+
+### 注意
+- SSO 實務上必須 HTTPS（Entra 除 `localhost` 外只接受 https Redirect URI）
+- 反向代理終結 TLS 時，`server.js` 已設 `app.set('trust proxy', 1)`
 
 ---
 
@@ -205,6 +345,21 @@
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | GET | `/api/loan-notifications` | 取得借測到期通知列表 |
+
+### 認證 / SSO
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET/POST | `/login` | 帳密登入頁 / 處理（含 rate limit） |
+| POST | `/logout` | 登出 |
+| GET | `/auth/sso` | 發起 M365 SSO（導向 Entra；未啟用時導回登入頁） |
+| GET | `/auth/callback` | M365 OIDC 回呼（驗 state → 換 token → 比對 email → 建 session） |
+
+### 系統 / 維運
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/healthz` | 公開健康檢查（不需登入，回 `{ok,ts}`） |
+| GET | `/health` | 系統健康狀態頁（管理員） |
+| POST | `/api/admin/cleanup-activity-logs` | 手動清理操作紀錄（管理員） |
 
 ---
 

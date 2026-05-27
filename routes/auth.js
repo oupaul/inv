@@ -2,6 +2,7 @@
 const argon2 = require('argon2');
 const logger = require('../lib/logger');
 const validators = require('../lib/validators');
+const { buildSessionUser } = require('../lib/auth');
 
 module.exports = function mountAuthRoutes(ctx) {
     const { app, db, config, flash, logActivity, loginRateLimiter } = ctx;
@@ -10,7 +11,7 @@ module.exports = function mountAuthRoutes(ctx) {
     // 登入頁面（不需要認證；由全域 PUBLIC_PATHS 放行）
     app.get('/login', (req, res) => {
         if (req.session.user) return res.redirect('/');
-        res.render('login', { title: PAGE_TITLE, user: null });
+        res.render('login', { title: PAGE_TITLE, user: null, ssoEnabled: config.SSO_ENABLED });
     });
 
     // 登入處理（前置 rate limiter）
@@ -42,26 +43,8 @@ module.exports = function mountAuthRoutes(ctx) {
                 return res.redirect('/login');
             }
 
-            // 取得角色權限
-            let userPermissions = {};
-            if (user.role) {
-                const role = db.prepare('SELECT permissions FROM roles WHERE role_name = ?').get(user.role);
-                if (role && role.permissions) {
-                    try { userPermissions = JSON.parse(role.permissions); }
-                    catch (e) { logger.error('解析權限失敗:', e); userPermissions = {}; }
-                }
-            }
-
-            req.session.user = {
-                id: user.id,
-                username: user.username,
-                full_name: user.full_name,
-                email: user.email,
-                role: user.role,
-                permissions: userPermissions,
-                loginTime: Date.now(),
-                mustChangePassword: user.force_password_change === 1
-            };
+            req.session.user = buildSessionUser(db, user);
+            req.session.user.authMethod = 'password';
 
             logActivity(req, 'login', `使用者 ${user.username} 登入系統`, 'user', user.id);
 

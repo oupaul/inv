@@ -758,7 +758,7 @@ app.use(session({
     cookie: {
         maxAge: config.SESSION_MAX_AGE_MS,
         httpOnly: true,
-        sameSite: 'strict',
+        sameSite: config.COOKIE_SAMESITE,   // 預設 'lax'：SSO 回呼跨站導向需要；CSRF 另由 Origin 檢查把關
         secure: config.COOKIE_SECURE
     }
 }));
@@ -794,7 +794,7 @@ const allowedExtraHosts = (process.env.ALLOWED_HOSTS || '')
 app.use(originCheck({ allowedHosts: allowedExtraHosts }));
 
 // 全域認證守門：白名單外的路徑一律需要登入
-const PUBLIC_PATHS = ['/login', '/logout', '/healthz', '/favicon.ico'];
+const PUBLIC_PATHS = ['/login', '/logout', '/healthz', '/favicon.ico', '/auth/sso', '/auth/callback'];
 const PUBLIC_PREFIXES = ['/public/'];
 app.use(makeGlobalAuthGuard({ publicPaths: PUBLIC_PATHS, publicPrefixes: PUBLIC_PREFIXES }));
 
@@ -815,6 +815,9 @@ app.get('/healthz', (req, res) => {
 require('./routes/auth')({
     app, db, config, flash, logActivity, loginRateLimiter
 });
+
+// M365 / Entra ID SSO 路由（見 routes/sso；未設定 SSO_* 時自動停用）
+require('./routes/sso')({ app, db, flash, logActivity });
 
 // 全局認證保護（除了登入和登出路由）
 app.use((req, res, next) => {
