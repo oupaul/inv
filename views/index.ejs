@@ -512,15 +512,16 @@
                 <table style="font-size:13px;">
                     <thead>
                         <tr>
-                            <th>日期</th><th>類型</th><th>料號</th><th>料件名稱</th><th>數量</th><th>操作人員</th>
+                            <th>單據號碼</th><th>日期</th><th>類型</th><th>料號</th><th>料件名稱</th><th>數量</th><th>操作人員</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <% recentTransactions.forEach(function(t) { 
+                        <% recentTransactions.forEach(function(t) {
                             const typeMap = { inbound: ['入庫','#d4edda','#155724'], return: ['歸還','#cce5ff','#004085'], outbound: ['出庫','#f8d7da','#721c24'], loan: ['借測','#fff3cd','#856404'] };
                             const [label, bg, fg] = typeMap[t.type] || [t.type, '#eee', '#333'];
                         %>
                         <tr>
+                            <td style="white-space:nowrap;"><code style="font-size:11px; color:#667eea;"><%= t.doc_no %></code></td>
                             <td style="white-space:nowrap; color:#888;"><%= t.transaction_date %></td>
                             <td><span style="background:<%= bg %>; color:<%= fg %>; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;"><%= label %></span></td>
                             <td style="font-size:11px; color:#888;"><code><%= t.part_number %></code></td>

@@ -1,0 +1,32 @@
+node_modules/
+package-lock.json
+
+# 資料庫
+inventory.db
+inventory.db-*
+sessions.db
+sessions.db-*
+
+# 備份
+backups/
+*.backup.*
+*.db.restore
+
+# 上傳檔案
+uploads/
+public/uploads/
+
+# Log
+*.log
+logs/
+
+# 環境變數
+.env
+.env.local
+.env.*.local
+
+# 編輯器
+.vscode/
+.idea/
+*.swp
+.DS_Store

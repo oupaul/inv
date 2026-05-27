@@ -197,7 +197,54 @@ if cp "$DB_FILE" "$BACKUP_PATH" 2>/dev/null; then
     
     # 注意：不再備份 WAL 和 SHM 檔案，因為已經執行 checkpoint 合併到主資料庫
     # 備份單一的 .db 檔案即可包含所有資料
-    
+
+    # ===== 保留策略：清理舊備份 =====
+    # 預設：保留最近 30 天，且至少保留最近 7 份（取較多者）
+    # 可用環境變數覆蓋：BACKUP_RETENTION_DAYS、BACKUP_RETENTION_MIN_FILES
+    RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
+    RETENTION_MIN_FILES="${BACKUP_RETENTION_MIN_FILES:-7}"
+
+    if [ "$RETENTION_DAYS" -gt 0 ] || [ "$RETENTION_MIN_FILES" -gt 0 ]; then
+        echo -e "${YELLOW}🧹 清理舊備份（保留策略：${RETENTION_DAYS} 天 / 至少 ${RETENTION_MIN_FILES} 份）...${NC}"
+
+        # 列出此前綴的備份檔案，依時間新到舊排序
+        # 注意：限定 BACKUP_PREFIX 開頭，絕不刪到其他檔案
+        cd "$BACKUP_DIR" || exit 0
+        ALL_BACKUPS=$(ls -1t "${BACKUP_PREFIX}"_*.db 2>/dev/null)
+        TOTAL=$(echo "$ALL_BACKUPS" | grep -c .)
+        DELETED=0
+
+        if [ "$TOTAL" -le "$RETENTION_MIN_FILES" ]; then
+            echo "  目前 ${TOTAL} 份備份 ≤ 最低保留 ${RETENTION_MIN_FILES} 份，不刪除"
+        else
+            # 跳過前 N 份最新的（至少保留），其餘按天數判斷
+            INDEX=0
+            for f in $ALL_BACKUPS; do
+                INDEX=$((INDEX+1))
+                if [ "$INDEX" -le "$RETENTION_MIN_FILES" ]; then
+                    continue  # 保留最近 N 份不管多舊
+                fi
+                # 取得檔案修改時間（mtime）距今的天數
+                # GNU stat (Linux) 與 BSD stat (macOS) 不同，兩者都試
+                MTIME=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)
+                if [ -z "$MTIME" ]; then continue; fi
+                NOW=$(date +%s)
+                AGE_DAYS=$(( (NOW - MTIME) / 86400 ))
+                if [ "$AGE_DAYS" -gt "$RETENTION_DAYS" ]; then
+                    rm -f "$f"
+                    echo "  - 刪除 $f（${AGE_DAYS} 天前）"
+                    DELETED=$((DELETED+1))
+                fi
+            done
+            if [ "$DELETED" -eq 0 ]; then
+                echo "  沒有超過 ${RETENTION_DAYS} 天的舊備份"
+            else
+                echo -e "${GREEN}✓ 已清理 ${DELETED} 份舊備份${NC}"
+            fi
+        fi
+        cd "$SCRIPT_DIR" || true
+    fi
+
     exit 0
 else
     echo -e "${RED}❌ 備份失敗！${NC}"
