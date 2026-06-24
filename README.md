@@ -53,23 +53,39 @@
 - ✅ 系統健康監測
 - ✅ **Email 通知**（庫存異動、借測到期自動發送）
 
-## 🚀 快速部署（推薦）
+## 🚀 一鍵腳本總覽
 
-### 一鍵自動部署
+系統提供完整的一鍵管理腳本，所有日常運維都不用手動下指令：
 
-在專案目錄中執行以下指令即可完成所有設置：
+| 用途 | 指令 | 說明 |
+|---|---|---|
+| **一鍵部署到新主機** | `./deploy.sh` | 互動式安裝（Node 檢查、依賴、防火牆、systemd 服務、自動啟動）|
+| **一鍵更新代碼** | `sudo ./update.sh` | `git pull → npm install → 重啟服務 → /healthz 健康檢查`；任一步失敗自動回滾到前一個 commit |
+| **一鍵備份資料庫** | `sudo ./backup.sh` | 含 WAL checkpoint、完整性驗證、自動清理舊備份（預設保留 30 天 / 至少 7 份）|
+| **一鍵還原備份** | `sudo ./restore.sh` | 互動式選擇備份檔還原 |
+| **卸載系統** | `sudo ./uninstall.sh` | 移除安裝目錄與 systemd 服務 |
+| **重設 admin 密碼** | `node reset-admin-password.js` | 忘記管理員密碼時用 |
+
+**自動排程備份**：登入後到 `/backup` 管理頁面可設定每天/每週/每月自動備份，背景排程每分鐘檢查一次。
+
+每個指令的細節見下方對應章節。
+
+---
+
+## 🚀 一鍵部署到新主機
 
 ```bash
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
-部署腳本會自動完成：
-- ✅ 檢查並安裝 Node.js
-- ✅ 安裝專案依賴
+部署腳本會互動式詢問並自動完成：
+- ✅ 安裝目錄、port、瀏覽器標題、備份目錄
+- ✅ 檢查並安裝 Node.js（若未安裝）
+- ✅ 安裝專案依賴（`npm install`）
 - ✅ 設定防火牆（可選）
-- ✅ 建立 systemd 服務（可選）
-- ✅ 啟動系統
+- ✅ 建立 systemd 服務（服務名 = 安裝目錄名）
+- ✅ 啟動系統與健康檢查
 
 ## 📋 手動安裝說明
 
@@ -215,6 +231,28 @@ CI：`.github/workflows/ci.yml` 會在 push/PR 時自動執行測試與 `npm aud
 - 點擊「入庫記錄」
 - 可查看最近 100 筆入庫記錄
 
+## 📸 條碼掃描
+
+系統支援兩種掃描方式：
+- **手機相機**（內建 [ZXing](https://github.com/zxing-js/library) 解碼，免裝 App）
+- **USB / 藍芽條碼槍**（DK-ONE 系列等，HID 鍵盤模式輸入）
+
+### 多組條碼共存的精準度問題
+
+工業包裝上常同時印有多組條碼（產品條碼、廠商料號、序號、批號、認證標章…），雷射條碼槍會掃到「**最先解碼成功的那一組**」，不一定是你要的料件碼。常見症狀：每次掃都得遮蓋其他條碼、掃到錯的、掃到查不到。
+
+**最有效的解法 ✅**：用條碼槍的設定手冊，**關閉用不到的條碼符號（symbology）**，只保留你料件實際使用的那一種（通常是 **Code 128** 或 **EAN-13**）。設定完後，即使雷射線跨到其他條碼，掃描器會直接無視——**遮蓋的動作可以完全省掉**。
+
+設定步驟與測試方法見：
+- [DK-ONE 掃描器使用指南](DK-ONE掃描器使用指南.md)
+- [DK-ONE 掃描器測試清單](DK-ONE掃描器測試清單.md)
+- [更新說明：無線掃描器支援](更新說明_無線掃描器支援.md)
+
+**進階建議**：對掃描精度要求高的場景，可考慮升級到「**十字準星**」或「**2D 區域掃描器**」（如 Honeywell Voyager / Zebra DS2208 / Datalogic QuickScan 系列），物理瞄準就精確、不靠軟體湊。
+
+### 不確定料件用哪種條碼符號？
+最快方法：對著條碼用本系統「料件管理 → 編輯料件 → 條碼欄位旁的相機按鈕」（內建 ZXing 相機掃描）掃一次，瀏覽器 console 會顯示偵測到的 symbology 名稱。
+
 ## 資料庫
 
 系統使用 SQLite 資料庫，檔案名稱為 `database.db`，會自動在首次啟動時建立。支援自動 schema 遷移（新欄位會自動 ALTER TABLE，不影響現有資料）。
@@ -289,59 +327,6 @@ CI：`.github/workflows/ci.yml` 會在 push/PR 時自動執行測試與 `npm aud
 │   ├── outbound.ejs         # 料件出庫
 │   └── ...（30+ 頁面）
 └── inventory.db          # SQLite 資料庫（自動生成）
-```
-
-## 停止系統
-
-在終端機中按 `Ctrl + C` 即可停止系統。
-
-## 背景執行（可選）
-
-如果您想讓系統在背景執行：
-
-```bash
-# 使用 nohup
-nohup npm start > output.log 2>&1 &
-
-# 查看執行狀態
-ps aux | grep node
-
-# 停止背景程序
-kill <PID>
-```
-
-## 設定開機自動啟動（可選）
-
-建立 systemd 服務檔案：
-
-```bash
-sudo nano /etc/systemd/system/inventory.service
-```
-
-內容如下：
-
-```ini
-[Unit]
-Description=Inventory Management System
-After=network.target
-
-[Service]
-Type=simple
-User=你的使用者名稱
-WorkingDirectory=/path/to/庫存管理系統
-ExecStart=/usr/bin/npm start
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-啟用服務：
-
-```bash
-sudo systemctl enable inventory.service
-sudo systemctl start inventory.service
-sudo systemctl status inventory.service
 ```
 
 ## 注意事項
