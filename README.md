@@ -114,38 +114,47 @@ npm start
 http://localhost:5000
 ```
 
-## 🛠️ 管理腳本
+## 🛠️ 管理操作
 
-系統提供了多個管理腳本，讓您輕鬆管理系統：
+`deploy.sh` 會建立 systemd 服務（服務名 = 你選的安裝目錄名，例如安裝到 `/opt/inv-prod` 則服務名為 `inv-prod.service`）。以下將 `<服務名>` 替換為你的實際服務名。
 
-### 快速啟動
+### 啟動 / 停止 / 重啟 / 查看狀態
 ```bash
-chmod +x quick-start.sh
-./quick-start.sh
+sudo systemctl start   <服務名>
+sudo systemctl stop    <服務名>
+sudo systemctl restart <服務名>
+sudo systemctl status  <服務名>
+sudo journalctl -u <服務名> -f         # 即時查看日誌
+sudo journalctl -u <服務名> -n 100     # 看最近 100 行
 ```
 
-### 停止系統
+### 更新系統（拉取最新代碼）
 ```bash
-chmod +x stop.sh
-./stop.sh
+cd /opt/<安裝目錄>
+sudo ./update.sh                       # 自動：git pull → npm install → 重啟服務 → 健康檢查
 ```
+`update.sh` 會自動從目前所在目錄名推導服務名；失敗時會自動嘗試回滾到前一個 commit。
 
-### 查看狀態
+### 備份 / 還原
 ```bash
-chmod +x status.sh
-./status.sh
+sudo ./backup.sh                       # 手動備份（含保留策略）
+sudo ./restore.sh                      # 還原備份（互動式選擇）
 ```
+管理員也可在系統內 `/backup` 頁面操作，並設定自動排程備份。
 
-### 更新系統
+### 重置 admin 密碼
+忘記管理員密碼時：
 ```bash
-chmod +x update.sh
-./update.sh
+cd /opt/<安裝目錄>
+sudo systemctl stop <服務名>
+node reset-admin-password.js
+sudo systemctl start <服務名>
 ```
 
 ### 卸載系統
 ```bash
 chmod +x uninstall.sh
-./uninstall.sh
+sudo ./uninstall.sh
 ```
 
 ## 開發模式（可選）
