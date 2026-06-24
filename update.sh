@@ -52,12 +52,24 @@ PORT=${PORT:-5000}
 PREV_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 log_info "目前版本：$PREV_COMMIT"
 
-# 工作目錄乾淨度檢查（避免 git pull 撞到本機未提交變更）
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-    log_warn "工作目錄有未提交變更："
-    git status --short
-    log_warn "請先處理（commit / stash / 還原）後再執行 update.sh，以免 git pull 失敗或衝突"
-    exit 1
+# 在這個 repo 內忽略檔案權限位元變更（chmod +x 不會被視為「修改」）
+git config core.fileMode false 2>/dev/null || true
+
+# 工作目錄乾淨度檢查：只擋 tracked 檔案有實質內容變更或衝突
+# - 忽略 mode-only 變更（透過 core.fileMode=false 已過濾）
+# - 忽略 untracked 檔案（git pull 不會碰它們，例如 backup-schedule.json）
+# - 用 SKIP_DIRTY_CHECK=1 可跳過整段檢查
+if [ -z "$SKIP_DIRTY_CHECK" ]; then
+    DIRTY_FILES=$(git diff --name-only HEAD 2>/dev/null)
+    STAGED_FILES=$(git diff --cached --name-only 2>/dev/null)
+    if [ -n "$DIRTY_FILES" ] || [ -n "$STAGED_FILES" ]; then
+        log_warn "工作目錄有未提交的 tracked 檔案變更："
+        [ -n "$STAGED_FILES" ] && echo "已暫存：" && echo "$STAGED_FILES" | sed 's/^/  /'
+        [ -n "$DIRTY_FILES" ]  && echo "未暫存：" && echo "$DIRTY_FILES" | sed 's/^/  /'
+        log_warn "請先處理（commit / stash / 還原）後再執行 update.sh，以免 git pull 失敗或衝突"
+        log_warn "（若確定變更可拋棄，可：git checkout -- . 然後重跑）"
+        exit 1
+    fi
 fi
 
 # 更新前先備份（除非設 SKIP_BACKUP=1）

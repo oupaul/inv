@@ -12,6 +12,9 @@ backups/
 *.backup.*
 *.db.restore
 
+# 執行階段設定（透過系統介面產生，每個部署不同）
+backup-schedule.json
+
 # 上傳檔案
 uploads/
 public/uploads/
