@@ -29,6 +29,22 @@ if [ ! -d ".git" ]; then
     exit 1
 fi
 
+# 檢查當前分支與 upstream 是否為 origin/main
+# 多數常見錯誤：主機卡在舊的 feature 分支、或 upstream 指向已刪除的遠端分支
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "DETACHED")
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "")
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    log_warn "目前分支為 '$CURRENT_BRANCH'，不是 main"
+    log_warn "建議切到 main 主線：git fetch origin && git checkout -B main origin/main"
+    log_warn "若要繼續以目前分支更新，請設 ALLOW_NON_MAIN=1 後重跑"
+    [ -z "$ALLOW_NON_MAIN" ] && exit 1
+fi
+if [ -n "$UPSTREAM" ] && ! git ls-remote --exit-code --heads origin "${UPSTREAM#origin/}" > /dev/null 2>&1; then
+    log_warn "目前分支的 upstream ($UPSTREAM) 在遠端已不存在"
+    log_warn "建議重置追蹤：git branch --set-upstream-to=origin/main"
+    exit 1
+fi
+
 # 推導服務名：可由 SERVICE_NAME 覆寫，否則用目錄名 + .service
 if [ -z "$SERVICE_NAME" ]; then
     SERVICE_NAME="$(basename "$SCRIPT_DIR").service"
