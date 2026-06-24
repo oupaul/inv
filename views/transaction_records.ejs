@@ -749,7 +749,7 @@
                     <th>備註</th>
                     <th>特殊標記</th>
                     <th>記錄時間</th>
-                    <% if (user && user.role === 'admin') { %><th>操作</th><% } %>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -856,7 +856,13 @@
                         <% } %>
                     </td>
                     <td style="font-size: 12px; color: #999;"><%= record.created_at %></td>
-                    <% if (user && user.role === 'admin') { %>
+                    <%
+                        // 編輯備註權限：建立者本人或管理員，且記錄非作廢、非作廢反向
+                        const currentUserName = user ? (user.full_name || user.username) : '';
+                        const isAdmin = user && user.role === 'admin';
+                        const canEditNote = !isVoided && !isVoidReversal &&
+                            (isAdmin || (currentUserName && currentUserName === record.created_by));
+                    %>
                     <td style="white-space:nowrap;">
                         <% if (isVoided) { %>
                             <div style="font-size:11px; color:#991b1b; line-height:1.6;">
@@ -864,19 +870,32 @@
                                 <div><%= record.void_reason || '（未填寫）' %></div>
                                 <div style="color:#6b7280; margin-top:2px;"><%= record.voided_by %> · <%= record.voided_at ? record.voided_at.substring(0,16).replace('T',' ') : '' %></div>
                             </div>
-                        <% } else if (!isVoidReversal) { %>
-                            <button class="btn-void-record"
-                                data-id="<%= record.inbound_id || record.outbound_id %>"
-                                data-type="<%= isInboundSide ? 'inbound' : 'outbound' %>"
-                                data-desc="<%= record.part_number %> - <%= record.part_name %> (<%= record.transaction_date %>)"
-                                style="background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
-                                ✕ 作廢
-                            </button>
-                        <% } else { %>
+                        <% } else if (isVoidReversal) { %>
                             <span style="font-size:11px; color:#92400e;">系統調整記錄</span>
+                        <% } else { %>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <% if (canEditNote) { %>
+                                <button class="btn-edit-note"
+                                    data-id="<%= record.inbound_id || record.outbound_id %>"
+                                    data-type="<%= isInboundSide ? 'inbound' : 'outbound' %>"
+                                    data-desc="<%= record.part_number %> - <%= record.part_name %> (<%= record.transaction_date %>)"
+                                    data-note="<%= record.note || '' %>"
+                                    style="background:#e0e7ff; color:#3730a3; border:1px solid #a5b4fc; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                                    ✏️ 備註
+                                </button>
+                                <% } %>
+                                <% if (isAdmin) { %>
+                                <button class="btn-void-record"
+                                    data-id="<%= record.inbound_id || record.outbound_id %>"
+                                    data-type="<%= isInboundSide ? 'inbound' : 'outbound' %>"
+                                    data-desc="<%= record.part_number %> - <%= record.part_name %> (<%= record.transaction_date %>)"
+                                    style="background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                                    ✕ 作廢
+                                </button>
+                                <% } %>
+                            </div>
                         <% } %>
                     </td>
-                    <% } %>
                 </tr>
                 <% }); %>
             </tbody>
@@ -907,6 +926,83 @@
             </div>
         </div>
     </div>
+
+    <!-- 編輯備註 Modal -->
+    <div id="noteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:28px 32px; width:90%; max-width:480px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 6px; color:#3730a3; font-size:18px;">✏️ 編輯備註</h3>
+            <p style="color:#6b7280; font-size:13px; margin:0 0 14px;">只修改備註欄位，不影響數量、日期或庫存。修改會記入操作紀錄。</p>
+            <div style="background:#eef2ff; border:1px solid #c7d2fe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; color:#3730a3;" id="noteRecordDesc"></div>
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600; color:#374151; font-size:14px; display:block; margin-bottom:6px;">備註 <span style="color:#6b7280; font-weight:400;">（最多 1000 字元，可清空）</span></label>
+                <textarea id="noteText" rows="4" maxlength="1000"
+                    style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; resize:vertical; box-sizing:border-box;"></textarea>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button onclick="closeNoteModal()" style="padding:9px 20px; border:1px solid #d1d5db; border-radius:8px; background:#fff; color:#374151; cursor:pointer; font-size:14px;">取消</button>
+                <button onclick="confirmNoteSave()" id="noteSaveBtn" style="padding:9px 20px; border:none; border-radius:8px; background:#4f46e5; color:#fff; cursor:pointer; font-size:14px; font-weight:600;">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 編輯備註 =====
+        let noteTargetId = null;
+        let noteTargetType = null;
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-edit-note');
+            if (!btn) return;
+            noteTargetId = btn.dataset.id;
+            noteTargetType = btn.dataset.type;
+            document.getElementById('noteRecordDesc').textContent = btn.dataset.desc || '';
+            document.getElementById('noteText').value = btn.dataset.note || '';
+            const modal = document.getElementById('noteModal');
+            modal.style.display = 'flex';
+            setTimeout(() => document.getElementById('noteText').focus(), 50);
+        });
+
+        function closeNoteModal() {
+            document.getElementById('noteModal').style.display = 'none';
+            noteTargetId = null;
+            noteTargetType = null;
+        }
+
+        async function confirmNoteSave() {
+            if (!noteTargetId || !noteTargetType) return;
+            const btn = document.getElementById('noteSaveBtn');
+            const newNote = document.getElementById('noteText').value;
+            btn.disabled = true;
+            btn.textContent = '儲存中...';
+            try {
+                const res = await fetch('/' + noteTargetType + '/' + noteTargetId + '/note', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: newNote })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeNoteModal();
+                    location.reload();
+                } else {
+                    alert('儲存失敗：' + (data.error || '未知錯誤'));
+                    btn.disabled = false;
+                    btn.textContent = '儲存';
+                }
+            } catch (err) {
+                alert('儲存失敗：' + err.message);
+                btn.disabled = false;
+                btn.textContent = '儲存';
+            }
+        }
+
+        // ESC 關閉 modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('noteModal').style.display === 'flex') {
+                closeNoteModal();
+            }
+        });
+    </script>
 
     <script>
         <%- include('_common-mobile-script') %>

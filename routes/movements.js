@@ -347,7 +347,55 @@ module.exports = function mountMovementRoutes(ctx) {
             res.json({ success: false, message: '作廢失敗：' + e.message });
         }
     });
-    
+
+    // 編輯出入庫記錄的備註（建立者或管理員）
+    // 已作廢 / 作廢反向 記錄不可編輯
+    function userCanEditNote(reqUser, record) {
+        if (!reqUser || !record) return false;
+        if (reqUser.role === 'admin') return true;
+        const currentName = reqUser.full_name || reqUser.username;
+        return currentName && currentName === record.created_by;
+    }
+
+    function buildNoteRoute(tableName, label) {
+        return (req, res) => {
+            const { id } = req.params;
+            const newNote = (req.body && typeof req.body.note === 'string') ? req.body.note : '';
+            if (newNote.length > 1000) {
+                return res.json({ success: false, error: '備註長度不可超過 1000 字元' });
+            }
+            try {
+                const record = db.prepare(
+                    `SELECT id, note, created_by, is_voided, is_void_reversal FROM ${tableName} WHERE id = ?`
+                ).get(id);
+                if (!record) return res.json({ success: false, error: '記錄不存在' });
+                if (record.is_voided == 1) return res.json({ success: false, error: '已作廢的記錄不可編輯' });
+                if (record.is_void_reversal == 1) return res.json({ success: false, error: '作廢調整記錄不可編輯' });
+                if (!userCanEditNote(req.session.user, record)) {
+                    return res.status(403).json({ success: false, error: '沒有權限編輯此筆備註（須為建立者或管理員）' });
+                }
+
+                const trimmedNew = newNote.trim();
+                const oldNote = record.note || '';
+                if (trimmedNew === oldNote.trim()) {
+                    return res.json({ success: true, note: oldNote, unchanged: true });
+                }
+
+                db.prepare(`UPDATE ${tableName} SET note = ? WHERE id = ?`).run(trimmedNew || null, id);
+                logActivity(req, 'update',
+                    `修改${label}備註 #${id}：${oldNote ? `「${oldNote}」` : '（空）'} → ${trimmedNew ? `「${trimmedNew}」` : '（空）'}`,
+                    tableName, parseInt(id));
+                res.json({ success: true, note: trimmedNew });
+            } catch (e) {
+                logger.error(`修改${label}備註失敗:`, e);
+                res.json({ success: false, error: e.message });
+            }
+        };
+    }
+
+    app.post('/inbound/:id/note',  buildNoteRoute('inbound_records',  '入庫'));
+    app.post('/outbound/:id/note', buildNoteRoute('outbound_records', '出庫'));
+
     // 出庫頁面
     app.get('/outbound', (req, res) => {
         // 可出庫數量 = 物理庫存 = SUM(inbound) - SUM(outbound)
