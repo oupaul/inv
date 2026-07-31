@@ -716,6 +716,17 @@
                         </select>
                     </div>
                     <div class="search-group">
+                        <label for="category_id">料件類型</label>
+                        <select id="category_id" name="category_id">
+                            <option value="">全部類型</option>
+                            <% if (categories && categories.length > 0) { %>
+                            <% categories.forEach(function(cat) { %>
+                            <option value="<%= cat.id %>" <%= category_id == cat.id ? 'selected' : '' %>><%= cat.name %></option>
+                            <% }); %>
+                            <% } %>
+                        </select>
+                    </div>
+                    <div class="search-group">
                         <label for="date_from">開始日期</label>
                         <input type="date" id="date_from" name="date_from" value="<%= date_from || '' %>">
                     </div>
@@ -726,7 +737,7 @@
                     <div class="search-buttons">
                         <button type="submit">🔍 搜尋</button>
                         <a href="/transaction/records" class="btn btn-clear">清除</a>
-                        <a href="/export/transaction-records?search=<%= encodeURIComponent(search || '') %>&type=<%= encodeURIComponent(type || '') %>&date_from=<%= encodeURIComponent(date_from || '') %>&date_to=<%= encodeURIComponent(date_to || '') %>" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">📊 匯出報表</a>
+                        <a href="/export/transaction-records?search=<%= encodeURIComponent(search || '') %>&type=<%= encodeURIComponent(type || '') %>&date_from=<%= encodeURIComponent(date_from || '') %>&date_to=<%= encodeURIComponent(date_to || '') %>&category_id=<%= encodeURIComponent(category_id || '') %>" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">📊 匯出報表</a>
                     </div>
                 </div>
             </form>
@@ -749,6 +760,7 @@
                     <th>備註</th>
                     <th>特殊標記</th>
                     <th>記錄時間</th>
+                    <th>料件類型</th>
                     <th>操作</th>
                 </tr>
             </thead>
@@ -856,6 +868,7 @@
                         <% } %>
                     </td>
                     <td style="font-size: 12px; color: #999;"><%= record.created_at %></td>
+                    <td><%= record.category_name || '-' %></td>
                     <%
                         // 編輯備註權限：建立者本人或管理員，且記錄非作廢、非作廢反向
                         const currentUserName = user ? (user.full_name || user.username) : '';

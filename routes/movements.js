@@ -146,7 +146,7 @@ module.exports = function mountMovementRoutes(ctx) {
     // 合併的出入庫記錄查詢（含搜尋功能）
     app.get('/transaction/records', (req, res) => {
         logActivity(req, 'view', '查看交易記錄', 'transaction_records', null);
-        const { search, type, date_from, date_to } = req.query;
+        const { search, type, date_from, date_to, category_id } = req.query;
         
         let records = [];
         
@@ -171,9 +171,11 @@ module.exports = function mountMovementRoutes(ctx) {
                 ir.void_reason,
                 ir.voided_by,
                 datetime(ir.voided_at, '+8 hours') as voided_at,
-                ir.is_void_reversal
+                ir.is_void_reversal,
+                c.name as category_name
             FROM inbound_records ir
             JOIN parts p ON ir.part_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
             WHERE 1=1
         `;
         let inboundParams = [];
@@ -204,9 +206,11 @@ module.exports = function mountMovementRoutes(ctx) {
                 o.void_reason,
                 o.voided_by,
                 datetime(o.voided_at, '+8 hours') as voided_at,
-                o.is_void_reversal
+                o.is_void_reversal,
+                c.name as category_name
             FROM outbound_records o
             JOIN parts p ON o.part_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
             WHERE 1=1
         `;
         let outboundParams = [];
@@ -233,7 +237,15 @@ module.exports = function mountMovementRoutes(ctx) {
             outboundQuery += ` AND o.outbound_date <= ?`;
             outboundParams.push(date_to);
         }
-        
+
+        // 料件類型
+        if (category_id) {
+            inboundQuery += ` AND p.category_id = ?`;
+            inboundParams.push(category_id);
+            outboundQuery += ` AND p.category_id = ?`;
+            outboundParams.push(category_id);
+        }
+
         // 類型條件
         if (type === 'inbound') {
             inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL) AND (ir.is_void_reversal = 0 OR ir.is_void_reversal IS NULL) AND (ir.is_voided = 0 OR ir.is_voided IS NULL)`;
@@ -270,15 +282,19 @@ module.exports = function mountMovementRoutes(ctx) {
         
         // 限制數量
         records = records.slice(0, 500);
-        
-        res.render('transaction_records', { 
-            records, 
+
+        const categories = db.prepare('SELECT id, name FROM categories ORDER BY name').all();
+
+        res.render('transaction_records', {
+            records,
             search: search || '',
             type: type || '',
             date_from: date_from || '',
             date_to: date_to || '',
+            category_id: category_id || '',
+            categories,
             user: req.session.user,
-            title: PAGE_TITLE 
+            title: PAGE_TITLE
         });
     });
     

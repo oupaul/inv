@@ -151,20 +151,21 @@ module.exports = function mountReportRoutes(ctx) {
     // Excel 匯出 - 出入庫記錄
     app.get('/export/transaction-records', async (req, res) => {
         logActivity(req, 'export', '匯出出入庫記錄', 'export', null);
-        const { search, type, date_from, date_to } = req.query;
-        
+        const { search, type, date_from, date_to, category_id } = req.query;
+
         let records = [];
-        
+
         // 構建入庫記錄查詢
         let inboundQuery = `
-            SELECT 
+            SELECT
                 ir.inbound_date as '日期',
-                CASE 
+                CASE
                     WHEN ir.is_return = 1 THEN '歸還'
                     ELSE '入庫'
                 END as '類型',
                 p.part_number as '料號',
                 p.part_name as '料件名稱',
+                c.name as '料件類型',
                 ir.quantity as '數量',
                 p.unit as '單位',
                 ir.note as '備註',
@@ -175,36 +176,39 @@ module.exports = function mountReportRoutes(ctx) {
                 '' as '發票號碼'
             FROM inbound_records ir
             JOIN parts p ON ir.part_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
             WHERE 1=1
         `;
         let inboundParams = [];
-        
+
         // 構建出庫記錄查詢
         let outboundQuery = `
-            SELECT 
+            SELECT
                 o.outbound_date as '日期',
-                CASE 
+                CASE
                     WHEN o.is_loan = 1 THEN '借測'
                     ELSE '出庫'
                 END as '類型',
                 p.part_number as '料號',
                 p.part_name as '料件名稱',
+                c.name as '料件類型',
                 o.quantity as '數量',
                 p.unit as '單位',
                 o.note as '備註',
                 o.created_by as '操作人員',
                 o.created_at as '記錄時間',
-                CASE 
+                CASE
                     WHEN o.converted_from_loan = 1 THEN '是'
                     ELSE '否'
                 END as '借測轉換',
-                CASE 
+                CASE
                     WHEN o.has_invoice = 1 THEN '已開發票'
                     ELSE '未開發票'
                 END as '發票狀態',
                 COALESCE(o.invoice_number, '') as '發票號碼'
             FROM outbound_records o
             JOIN parts p ON o.part_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
             WHERE 1=1
         `;
         let outboundParams = [];
@@ -231,7 +235,15 @@ module.exports = function mountReportRoutes(ctx) {
             outboundQuery += ` AND o.outbound_date <= ?`;
             outboundParams.push(date_to);
         }
-        
+
+        // 料件類型
+        if (category_id) {
+            inboundQuery += ` AND p.category_id = ?`;
+            inboundParams.push(category_id);
+            outboundQuery += ` AND p.category_id = ?`;
+            outboundParams.push(category_id);
+        }
+
         // 類型條件
         if (type === 'inbound') {
             inboundQuery += ` AND (ir.is_return = 0 OR ir.is_return IS NULL)`;
@@ -275,6 +287,7 @@ module.exports = function mountReportRoutes(ctx) {
             { header: '類型', key: '類型', width: 10 },
             { header: '料號', key: '料號', width: 15 },
             { header: '料件名稱', key: '料件名稱', width: 25 },
+            { header: '料件類型', key: '料件類型', width: 15 },
             { header: '數量', key: '數量', width: 10 },
             { header: '單位', key: '單位', width: 8 },
             { header: '備註', key: '備註', width: 30 },
