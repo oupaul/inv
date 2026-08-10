@@ -174,7 +174,24 @@ function initDB() {
             logger.error('添加 image_path 欄位失敗:', e.message);
         }
     }
-    
+
+    // 成本價（僅管理者可見）與售價，皆為選填
+    if (!columnExists('parts', 'cost_price')) {
+        try {
+            db.exec(`ALTER TABLE parts ADD COLUMN cost_price REAL`);
+        } catch (e) {
+            logger.error('添加 cost_price 欄位失敗:', e.message);
+        }
+    }
+
+    if (!columnExists('parts', 'sell_price')) {
+        try {
+            db.exec(`ALTER TABLE parts ADD COLUMN sell_price REAL`);
+        } catch (e) {
+            logger.error('添加 sell_price 欄位失敗:', e.message);
+        }
+    }
+
     // 入庫記錄表
     db.exec(`
         CREATE TABLE IF NOT EXISTS inbound_records (

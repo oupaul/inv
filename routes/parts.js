@@ -39,11 +39,13 @@ module.exports = function mountPartRoutes(ctx) {
         else if (status !== 'all') whereConditions.push('COALESCE(p.is_active, 1) = 1');
 
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        const isAdmin = req.session.user && req.session.user.role === 'admin';
 
         const baseQuery = `
             SELECT p.id, p.part_number, p.part_name, p.specification, p.unit, p.barcode,
                    datetime(p.created_at, '+8 hours') as created_at,
-                   p.image_path,
+                   p.image_path, p.sell_price,
+                   ${isAdmin ? 'p.cost_price,' : ''}
                    c.name as category_name,
                    COALESCE(p.is_active, 1) as is_active,
                    (${physicalStockSql('p.id')}) as current_stock
@@ -109,11 +111,14 @@ module.exports = function mountPartRoutes(ctx) {
 
     app.post('/parts/add', (req, res) => {
         const { part_number, part_name, specification, unit, category_id, barcode, new_category_name, new_unit_name } = req.body;
+        const isAdmin = req.session.user && req.session.user.role === 'admin';
         const v = validators.check([
             ['part_number', validators.rules.partNumber(part_number)],
             ['part_name', validators.rules.partName(part_name)],
             ['barcode', validators.rules.barcode(barcode)],
-            ['min_stock', validators.rules.nonNegativeInt(req.body.min_stock, { optional: true })]
+            ['min_stock', validators.rules.nonNegativeInt(req.body.min_stock, { optional: true })],
+            ['sell_price', validators.rules.nonNegativeNumber(req.body.sell_price)],
+            ...(isAdmin ? [['cost_price', validators.rules.nonNegativeNumber(req.body.cost_price)]] : [])
         ]);
         if (!v.ok) {
             flash(req, 'error', v.errors[0].message);
@@ -138,15 +143,18 @@ module.exports = function mountPartRoutes(ctx) {
                     }
                     finalUnit = unitName;
                 }
+                const sellPrice = (req.body.sell_price !== undefined && req.body.sell_price !== '') ? parseFloat(req.body.sell_price) : null;
+                const costPrice = (isAdmin && req.body.cost_price !== undefined && req.body.cost_price !== '') ? parseFloat(req.body.cost_price) : null;
                 const result = db.prepare(`
-                    INSERT INTO parts (part_number, part_name, specification, unit, category_id, barcode, min_stock)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO parts (part_number, part_name, specification, unit, category_id, barcode, min_stock, sell_price, cost_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).run(
                     part_number.trim(), part_name.trim(),
                     specification || null,
                     finalUnit, finalCategoryId,
                     (barcode && barcode.trim()) || null,
-                    parseInt(req.body.min_stock) || 0
+                    parseInt(req.body.min_stock) || 0,
+                    sellPrice, costPrice
                 );
                 return result.lastInsertRowid;
             });
@@ -230,9 +238,13 @@ module.exports = function mountPartRoutes(ctx) {
     // 料件詳情（含庫存量與近期出入庫記錄，供 Modal 使用）
     app.get('/api/parts/:id/detail', (req, res) => {
         const { id } = req.params;
+        const isAdmin = req.session.user && req.session.user.role === 'admin';
         try {
             const part = db.prepare(`
-                SELECT p.*, c.name as category_name,
+                SELECT p.id, p.part_number, p.part_name, p.specification, p.unit, p.category_id,
+                    p.barcode, p.created_at, p.image_path, p.min_stock, p.sell_price,
+                    ${isAdmin ? 'p.cost_price,' : ''}
+                    c.name as category_name,
                     COALESCE(p.is_active, 1) as is_active,
                     (${physicalStockSql('p.id')}) as current_stock,
                     (${loanedQtySql('p.id')}) as loaned_quantity
@@ -280,12 +292,15 @@ module.exports = function mountPartRoutes(ctx) {
     app.post('/parts/edit/:id', (req, res) => {
         const { id } = req.params;
         const { part_number, part_name, specification, unit, category_id, barcode, new_category_name, new_unit_name, min_stock } = req.body;
+        const isAdmin = req.session.user && req.session.user.role === 'admin';
         const v = validators.check([
             ['id', validators.rules.positiveInt(id)],
             ['part_number', validators.rules.partNumber(part_number)],
             ['part_name', validators.rules.partName(part_name)],
             ['barcode', validators.rules.barcode(barcode)],
-            ['min_stock', validators.rules.nonNegativeInt(min_stock, { optional: true })]
+            ['min_stock', validators.rules.nonNegativeInt(min_stock, { optional: true })],
+            ['sell_price', validators.rules.nonNegativeNumber(req.body.sell_price)],
+            ...(isAdmin ? [['cost_price', validators.rules.nonNegativeNumber(req.body.cost_price)]] : [])
         ]);
         if (!v.ok) {
             flash(req, 'error', v.errors[0].message);
@@ -309,18 +324,38 @@ module.exports = function mountPartRoutes(ctx) {
                     }
                     finalUnit = unitName;
                 }
-                db.prepare(`
-                    UPDATE parts
-                    SET part_number = ?, part_name = ?, specification = ?, unit = ?, category_id = ?, barcode = ?, min_stock = ?
-                    WHERE id = ?
-                `).run(
-                    part_number.trim(), part_name.trim(),
-                    specification || null,
-                    finalUnit, finalCategoryId,
-                    (barcode && barcode.trim()) || null,
-                    parseInt(min_stock) || 0,
-                    id
-                );
+                const sellPrice = (req.body.sell_price !== undefined && req.body.sell_price !== '') ? parseFloat(req.body.sell_price) : null;
+                // 非管理員的表單不含成本價欄位，維持原值，不覆蓋成 NULL
+                if (isAdmin) {
+                    const costPrice = (req.body.cost_price !== undefined && req.body.cost_price !== '') ? parseFloat(req.body.cost_price) : null;
+                    db.prepare(`
+                        UPDATE parts
+                        SET part_number = ?, part_name = ?, specification = ?, unit = ?, category_id = ?, barcode = ?, min_stock = ?, sell_price = ?, cost_price = ?
+                        WHERE id = ?
+                    `).run(
+                        part_number.trim(), part_name.trim(),
+                        specification || null,
+                        finalUnit, finalCategoryId,
+                        (barcode && barcode.trim()) || null,
+                        parseInt(min_stock) || 0,
+                        sellPrice, costPrice,
+                        id
+                    );
+                } else {
+                    db.prepare(`
+                        UPDATE parts
+                        SET part_number = ?, part_name = ?, specification = ?, unit = ?, category_id = ?, barcode = ?, min_stock = ?, sell_price = ?
+                        WHERE id = ?
+                    `).run(
+                        part_number.trim(), part_name.trim(),
+                        specification || null,
+                        finalUnit, finalCategoryId,
+                        (barcode && barcode.trim()) || null,
+                        parseInt(min_stock) || 0,
+                        sellPrice,
+                        id
+                    );
+                }
             });
             txn();
             logActivity(req, 'update', `編輯料件：${part_number} - ${part_name}`, 'part', parseInt(id));
@@ -416,8 +451,12 @@ module.exports = function mountPartRoutes(ctx) {
     // 條碼查詢 API
     app.get('/api/barcode/:barcode', (req, res) => {
         const { barcode } = req.params;
+        const isAdmin = req.session.user && req.session.user.role === 'admin';
         const part = db.prepare(`
-            SELECT p.*, c.name as category_name, c.id as category_id
+            SELECT p.id, p.part_number, p.part_name, p.specification, p.unit, p.barcode,
+                p.created_at, p.image_path, p.min_stock, p.sell_price,
+                ${isAdmin ? 'p.cost_price,' : ''}
+                c.name as category_name, c.id as category_id
             FROM parts p
             LEFT JOIN categories c ON p.category_id = c.id
             WHERE p.barcode = ?

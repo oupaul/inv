@@ -99,24 +99,27 @@ module.exports = function mountReportRoutes(ctx) {
     
     // Excel 匯出 - 料件列表
     app.get('/export/parts', async (req, res) => {
+        const isAdmin = req.session.user && req.session.user.role === 'admin';
         const stmt = db.prepare(`
-            SELECT 
+            SELECT
                 p.part_number as '料號',
                 p.part_name as '料件名稱',
                 c.name as '類型',
                 p.specification as '規格',
                 p.barcode as '條碼',
                 p.unit as '單位',
+                p.sell_price as '售價',
+                ${isAdmin ? "p.cost_price as '成本價'," : ''}
                 p.created_at as '建立時間'
             FROM parts p
             LEFT JOIN categories c ON p.category_id = c.id
             ORDER BY p.part_number
         `);
         const data = stmt.all();
-        
+
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('料件列表');
-        
+
         // 設定欄位標題
         worksheet.columns = [
             { header: '料號', key: '料號', width: 15 },
@@ -125,6 +128,8 @@ module.exports = function mountReportRoutes(ctx) {
             { header: '規格', key: '規格', width: 20 },
             { header: '條碼', key: '條碼', width: 20 },
             { header: '單位', key: '單位', width: 10 },
+            { header: '售價', key: '售價', width: 12 },
+            ...(isAdmin ? [{ header: '成本價', key: '成本價', width: 12 }] : []),
             { header: '建立時間', key: '建立時間', width: 20 }
         ];
         

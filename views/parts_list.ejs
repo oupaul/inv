@@ -445,6 +445,8 @@
                     <th>規格</th>
                     <th>條碼</th>
                     <th>單位</th>
+                    <th>售價</th>
+                    <% if (user && user.role === 'admin') { %><th>成本價</th><% } %>
                     <%= sortLink('current_stock','目前庫存') %>
                     <th>狀態</th>
                     <%= sortLink('created_at',  '建立時間') %>
@@ -474,6 +476,10 @@
                     <td style="font-size:12px; color:#666;"><%= part.specification || '-' %></td>
                     <td style="font-size:12px; color:#888;"><%= part.barcode || '-' %></td>
                     <td><%= part.unit %></td>
+                    <td style="white-space:nowrap;"><%= (part.sell_price !== null && part.sell_price !== undefined) ? Number(part.sell_price).toLocaleString('zh-TW') : '-' %></td>
+                    <% if (user && user.role === 'admin') { %>
+                    <td style="white-space:nowrap;"><%= (part.cost_price !== null && part.cost_price !== undefined) ? Number(part.cost_price).toLocaleString('zh-TW') : '-' %></td>
+                    <% } %>
                     <%
                     const minStock = part.min_stock || 0;
                     const isLow = minStock > 0 && part.current_stock <= minStock;
@@ -723,6 +729,8 @@
                         <div class="modal-info-item"><div class="label">類型</div><div class="value" style="font-size:13px;">${p.category_name || '-'}</div></div>
                         <div class="modal-info-item"><div class="label">單位</div><div class="value" style="font-size:13px;">${p.unit}</div></div>
                         <div class="modal-info-item"><div class="label">規格</div><div class="value" style="font-size:12px; word-break:break-all;">${p.specification || '-'}</div></div>
+                        <div class="modal-info-item"><div class="label">售價</div><div class="value" style="font-size:13px;">${(p.sell_price !== null && p.sell_price !== undefined) ? Number(p.sell_price).toLocaleString('zh-TW') : '-'}</div></div>
+                        ${p.cost_price !== undefined ? `<div class="modal-info-item"><div class="label">成本價 🔒</div><div class="value" style="font-size:13px;">${(p.cost_price !== null) ? Number(p.cost_price).toLocaleString('zh-TW') : '-'}</div></div>` : ''}
                     </div>
                 </div>
                 <div class="modal-records-title">📋 近期出入庫記錄（最近 10 筆）</div>`;
