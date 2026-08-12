@@ -800,6 +800,10 @@ const { flash, logActivity, getSystemSetting, upsertSystemSetting, hasPermission
 const { escapeHtml, buildEmailHtml, createMailer } = require('./lib/email');
 const sendNotificationEmail = createMailer({ getSystemSetting });
 
+// 借測逾期排程通知
+const { createLoanReminderChecker } = require('./lib/loanReminder');
+const loanReminderChecker = createLoanReminderChecker({ db, getSystemSetting, buildEmailHtml, sendNotificationEmail });
+
 // 認證 / 授權 middleware（由 lib/auth.js 提供，注入 server.js 內的依賴）
 const { requireAuth, requireAdmin, makeGlobalAuthGuard } =
     makeAuthMiddleware({ getSystemSetting, logActivity, flash });
@@ -1145,6 +1149,12 @@ if (require.main === module) {
     logCleanupIntervalHandle = setInterval(checkLogCleanupSchedule, 60 * 1000);
 }
 
+// ===== 借測逾期通知排程（每天 09:00–09:05 檢查一次）=====
+let loanReminderIntervalHandle;
+if (require.main === module) {
+    loanReminderIntervalHandle = setInterval(() => loanReminderChecker.check(), 60 * 1000);
+}
+
 // ===== Mount 抽出的路由模組 =====
 // 在所有 helper / 排程函式定義之後掛載
 {
@@ -1192,6 +1202,7 @@ if (require.main === module) {
         logger.info(`🚀 庫存管理系統已啟動 - port ${PORT} (NODE_ENV=${config.NODE_ENV})`);
         logger.info(`📡 http://localhost:${PORT}`);
         logger.info(`⏰ 備份排程檢查已啟動（每分鐘檢查一次）`);
+        logger.info(`⏰ 借測逾期通知排程已啟動（每天 09:00 檢查一次）`);
     });
 
     // 明確處理 listen 錯誤（最常見：port 被佔用），給清楚指示而非堆疊
@@ -1219,6 +1230,7 @@ function gracefulShutdown(signal) {
     if (backupIntervalHandle) clearInterval(backupIntervalHandle);
     if (backupKickoffHandle) clearTimeout(backupKickoffHandle);
     if (logCleanupIntervalHandle) clearInterval(logCleanupIntervalHandle);
+    if (loanReminderIntervalHandle) clearInterval(loanReminderIntervalHandle);
     if (loginRateLimiter && loginRateLimiter._stop) loginRateLimiter._stop();
 
     // 停止接受新連線

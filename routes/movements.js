@@ -364,9 +364,9 @@ module.exports = function mountMovementRoutes(ctx) {
         }
     });
 
-    // 編輯出入庫記錄的備註（建立者或管理員）
+    // 編輯出入庫記錄的備註／日期（建立者或管理員）
     // 已作廢 / 作廢反向 記錄不可編輯
-    function userCanEditNote(reqUser, record) {
+    function userCanEditRecord(reqUser, record) {
         if (!reqUser || !record) return false;
         if (reqUser.role === 'admin') return true;
         const currentName = reqUser.full_name || reqUser.username;
@@ -387,7 +387,7 @@ module.exports = function mountMovementRoutes(ctx) {
                 if (!record) return res.json({ success: false, error: '記錄不存在' });
                 if (record.is_voided == 1) return res.json({ success: false, error: '已作廢的記錄不可編輯' });
                 if (record.is_void_reversal == 1) return res.json({ success: false, error: '作廢調整記錄不可編輯' });
-                if (!userCanEditNote(req.session.user, record)) {
+                if (!userCanEditRecord(req.session.user, record)) {
                     return res.status(403).json({ success: false, error: '沒有權限編輯此筆備註（須為建立者或管理員）' });
                 }
 
@@ -411,6 +411,47 @@ module.exports = function mountMovementRoutes(ctx) {
 
     app.post('/inbound/:id/note',  buildNoteRoute('inbound_records',  '入庫'));
     app.post('/outbound/:id/note', buildNoteRoute('outbound_records', '出庫'));
+
+    // 編輯出入庫記錄的日期（建立者或管理員）
+    // 日期僅用於顯示/排序/篩選，不參與庫存計算，故直接覆寫即可
+    function buildDateRoute(tableName, dateColumn, label) {
+        return (req, res) => {
+            const { id } = req.params;
+            const newDate = req.body && req.body.date;
+            const v = validators.check([['date', validators.rules.dateString(newDate)]]);
+            if (!v.ok) {
+                return res.json({ success: false, error: v.errors[0].message });
+            }
+            try {
+                const record = db.prepare(
+                    `SELECT id, ${dateColumn} as current_date, created_by, is_voided, is_void_reversal FROM ${tableName} WHERE id = ?`
+                ).get(id);
+                if (!record) return res.json({ success: false, error: '記錄不存在' });
+                if (record.is_voided == 1) return res.json({ success: false, error: '已作廢的記錄不可編輯' });
+                if (record.is_void_reversal == 1) return res.json({ success: false, error: '作廢調整記錄不可編輯' });
+                if (!userCanEditRecord(req.session.user, record)) {
+                    return res.status(403).json({ success: false, error: '沒有權限編輯此筆日期（須為建立者或管理員）' });
+                }
+
+                const trimmedNew = String(newDate).trim();
+                if (trimmedNew === record.current_date) {
+                    return res.json({ success: true, date: record.current_date, unchanged: true });
+                }
+
+                db.prepare(`UPDATE ${tableName} SET ${dateColumn} = ? WHERE id = ?`).run(trimmedNew, id);
+                logActivity(req, 'update',
+                    `修改${label}日期 #${id}：${record.current_date} → ${trimmedNew}`,
+                    tableName, parseInt(id));
+                res.json({ success: true, date: trimmedNew });
+            } catch (e) {
+                logger.error(`修改${label}日期失敗:`, e);
+                res.json({ success: false, error: e.message });
+            }
+        };
+    }
+
+    app.post('/inbound/:id/date',  buildDateRoute('inbound_records',  'inbound_date',  '入庫'));
+    app.post('/outbound/:id/date', buildDateRoute('outbound_records', 'outbound_date', '出庫'));
 
     // 出庫頁面
     app.get('/outbound', (req, res) => {

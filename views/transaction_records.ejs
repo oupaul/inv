@@ -896,6 +896,14 @@
                                     style="background:#e0e7ff; color:#3730a3; border:1px solid #a5b4fc; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
                                     ✏️ 備註
                                 </button>
+                                <button class="btn-edit-date"
+                                    data-id="<%= record.inbound_id || record.outbound_id %>"
+                                    data-type="<%= isInboundSide ? 'inbound' : 'outbound' %>"
+                                    data-desc="<%= record.part_number %> - <%= record.part_name %> (<%= record.transaction_date %>)"
+                                    data-date="<%= record.transaction_date %>"
+                                    style="background:#ecfdf5; color:#065f46; border:1px solid #6ee7b7; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                                    📅 日期
+                                </button>
                                 <% } %>
                                 <% if (isAdmin) { %>
                                 <button class="btn-void-record"
@@ -958,6 +966,23 @@
         </div>
     </div>
 
+    <!-- 編輯日期 Modal -->
+    <div id="dateModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:28px 32px; width:90%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 6px; color:#065f46; font-size:18px;">📅 修改日期</h3>
+            <p style="color:#6b7280; font-size:13px; margin:0 0 14px;">只修改日期欄位，不影響數量或庫存。修改會記入操作紀錄。</p>
+            <div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; color:#065f46;" id="dateRecordDesc"></div>
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600; color:#374151; font-size:14px; display:block; margin-bottom:6px;">日期</label>
+                <input type="date" id="dateValue" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button onclick="closeDateModal()" style="padding:9px 20px; border:1px solid #d1d5db; border-radius:8px; background:#fff; color:#374151; cursor:pointer; font-size:14px;">取消</button>
+                <button onclick="confirmDateSave()" id="dateSaveBtn" style="padding:9px 20px; border:none; border-radius:8px; background:#059669; color:#fff; cursor:pointer; font-size:14px; font-weight:600;">儲存</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ===== 編輯備註 =====
         let noteTargetId = null;
@@ -1009,10 +1034,64 @@
             }
         }
 
+        // ===== 編輯日期 =====
+        let dateTargetId = null;
+        let dateTargetType = null;
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-edit-date');
+            if (!btn) return;
+            dateTargetId = btn.dataset.id;
+            dateTargetType = btn.dataset.type;
+            document.getElementById('dateRecordDesc').textContent = btn.dataset.desc || '';
+            document.getElementById('dateValue').value = btn.dataset.date || '';
+            const modal = document.getElementById('dateModal');
+            modal.style.display = 'flex';
+            setTimeout(() => document.getElementById('dateValue').focus(), 50);
+        });
+
+        function closeDateModal() {
+            document.getElementById('dateModal').style.display = 'none';
+            dateTargetId = null;
+            dateTargetType = null;
+        }
+
+        async function confirmDateSave() {
+            if (!dateTargetId || !dateTargetType) return;
+            const btn = document.getElementById('dateSaveBtn');
+            const newDate = document.getElementById('dateValue').value;
+            if (!newDate) { alert('請選擇日期'); return; }
+            btn.disabled = true;
+            btn.textContent = '儲存中...';
+            try {
+                const res = await fetch('/' + dateTargetType + '/' + dateTargetId + '/date', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: newDate })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeDateModal();
+                    location.reload();
+                } else {
+                    alert('儲存失敗：' + (data.error || '未知錯誤'));
+                    btn.disabled = false;
+                    btn.textContent = '儲存';
+                }
+            } catch (err) {
+                alert('儲存失敗：' + err.message);
+                btn.disabled = false;
+                btn.textContent = '儲存';
+            }
+        }
+
         // ESC 關閉 modal
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && document.getElementById('noteModal').style.display === 'flex') {
                 closeNoteModal();
+            }
+            if (e.key === 'Escape' && document.getElementById('dateModal').style.display === 'flex') {
+                closeDateModal();
             }
         });
     </script>

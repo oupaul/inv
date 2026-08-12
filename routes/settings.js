@@ -17,6 +17,7 @@ module.exports = function mountSettingsRoutes(ctx) {
             notify_parts:    getSystemSetting('email_notify_parts', '1'),
             notify_inbound:  getSystemSetting('email_notify_inbound', '1'),
             notify_outbound: getSystemSetting('email_notify_outbound', '1'),
+            notify_loan_overdue: getSystemSetting('email_notify_loan_overdue', '1'),
         };
         res.render('settings_email', { title: PAGE_TITLE, settings });
     });
@@ -25,7 +26,7 @@ module.exports = function mountSettingsRoutes(ctx) {
         const {
             smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password,
             from_address, from_name, recipients,
-            notify_parts, notify_inbound, notify_outbound
+            notify_parts, notify_inbound, notify_outbound, notify_loan_overdue
         } = req.body;
         try {
             upsertSystemSetting('email_smtp_host',         smtp_host || '',       'SMTP 伺服器位址');
@@ -41,6 +42,7 @@ module.exports = function mountSettingsRoutes(ctx) {
             upsertSystemSetting('email_notify_parts',      notify_parts === 'on' ? '1' : '0',    '料件異動通知');
             upsertSystemSetting('email_notify_inbound',    notify_inbound === 'on' ? '1' : '0',  '入庫通知');
             upsertSystemSetting('email_notify_outbound',   notify_outbound === 'on' ? '1' : '0', '出庫通知');
+            upsertSystemSetting('email_notify_loan_overdue', notify_loan_overdue === 'on' ? '1' : '0', '借測逾期提醒（每天 09:00 檢查）');
             logActivity(req, 'update', '更新 Email 通知設定', 'system', null);
             flash(req, 'success', 'Email 通知設定已儲存！');
         } catch (error) {

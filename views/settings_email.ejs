@@ -305,6 +305,14 @@
                                 <div class="toggle-label-sub">料件出庫或借測時發送 Email 通知</div>
                             </label>
                         </div>
+                        <div class="toggle-item">
+                            <input type="checkbox" id="notify_loan_overdue" name="notify_loan_overdue"
+                                   <%= settings.notify_loan_overdue === '1' ? 'checked' : '' %>>
+                            <label for="notify_loan_overdue">
+                                <div class="toggle-label-main">⏰ 借測逾期提醒</div>
+                                <div class="toggle-label-sub">每天 09:00 檢查一次，若有已逾期、今日到期或3天內到期的借測，彙整寄送提醒信</div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
