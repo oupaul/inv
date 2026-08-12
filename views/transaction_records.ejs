@@ -863,6 +863,14 @@
                                     </div>
                                 <% } %>
                             <% } %>
+                        <% } else if (record.type === 'loan') { %>
+                            <span style="color:#92400e; font-weight:700; font-size:12px; background:#fef3c7; border-radius:8px; padding:2px 8px; display:inline-block; white-space:nowrap;">🏷️ 借測單號 #<%= record.outbound_id %></span>
+                        <% } else if (record.type === 'return') { %>
+                            <% if (record.return_outbound_id) { %>
+                            <span style="color:#1e40af; font-weight:700; font-size:12px; background:#dbeafe; border-radius:8px; padding:2px 8px; display:inline-block; white-space:nowrap;">↩️ 歸還自 #<%= record.return_outbound_id %><% if (record.source_outbound_date) { %>（<%= record.source_outbound_date %> 借出）<% } %></span>
+                            <% } else { %>
+                            -
+                            <% } %>
                         <% } else { %>
                             -
                         <% } %>

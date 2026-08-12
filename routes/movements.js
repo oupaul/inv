@@ -172,10 +172,13 @@ module.exports = function mountMovementRoutes(ctx) {
                 ir.voided_by,
                 datetime(ir.voided_at, '+8 hours') as voided_at,
                 ir.is_void_reversal,
+                ir.return_outbound_id,
+                ro.outbound_date as source_outbound_date,
                 c.name as category_name
             FROM inbound_records ir
             JOIN parts p ON ir.part_id = p.id
             LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN outbound_records ro ON ir.return_outbound_id = ro.id
             WHERE 1=1
         `;
         let inboundParams = [];
