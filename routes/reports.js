@@ -9,9 +9,10 @@ module.exports = function mountReportRoutes(ctx) {
 
     // 匯出盤點報表
     app.get('/export/inventory-check', async (req, res) => {
+        try {
         logActivity(req, 'export', '匯出盤點報表', 'export', null);
         const { search, date_from, date_to } = req.query;
-        
+
         let whereConditions = [];
         let params = [];
         
@@ -95,10 +96,16 @@ module.exports = function mountReportRoutes(ctx) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('盤點記錄.xlsx')}`);
         res.send(buffer);
+        } catch (error) {
+            logger.error('匯出盤點報表失敗:', error);
+            flash(req, 'error', `匯出失敗：${error.message}`);
+            res.redirect('/inventory/check/records');
+        }
     });
-    
+
     // Excel 匯出 - 料件列表
     app.get('/export/parts', async (req, res) => {
+        try {
         const isAdmin = req.session.user && req.session.user.role === 'admin';
         const stmt = db.prepare(`
             SELECT
@@ -151,10 +158,16 @@ module.exports = function mountReportRoutes(ctx) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('料件列表.xlsx')}`);
         res.send(buffer);
+        } catch (error) {
+            logger.error('匯出料件列表失敗:', error);
+            flash(req, 'error', `匯出失敗：${error.message}`);
+            res.redirect('/parts');
+        }
     });
-    
+
     // Excel 匯出 - 出入庫記錄
     app.get('/export/transaction-records', async (req, res) => {
+        try {
         logActivity(req, 'export', '匯出出入庫記錄', 'export', null);
         const { search, type, date_from, date_to, category_id } = req.query;
 
@@ -336,10 +349,16 @@ module.exports = function mountReportRoutes(ctx) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
         res.send(buffer);
+        } catch (error) {
+            logger.error('匯出出入庫記錄失敗:', error);
+            flash(req, 'error', `匯出失敗：${error.message}`);
+            res.redirect('/transaction/records');
+        }
     });
-    
+
     // Excel 匯出 - 庫存
     app.get('/export/inventory', async (req, res) => {
+        try {
         logActivity(req, 'export', '匯出庫存資料', 'export', null);
         const stmt = db.prepare(`
             SELECT 
@@ -388,10 +407,16 @@ module.exports = function mountReportRoutes(ctx) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('庫存查詢.xlsx')}`);
         res.send(buffer);
+        } catch (error) {
+            logger.error('匯出庫存資料失敗:', error);
+            flash(req, 'error', `匯出失敗：${error.message}`);
+            res.redirect('/');
+        }
     });
-    
+
     // Excel 匯入範本下載
     app.get('/import/template', async (req, res) => {
+        try {
         logActivity(req, 'view', '下載匯入範本', 'import', null);
         const workbook = new ExcelJS.Workbook();
         
@@ -460,8 +485,13 @@ module.exports = function mountReportRoutes(ctx) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('料件匯入範本.xlsx')}`);
         res.send(buffer);
+        } catch (error) {
+            logger.error('下載匯入範本失敗:', error);
+            flash(req, 'error', `下載失敗：${error.message}`);
+            res.redirect('/import');
+        }
     });
-    
+
     // Excel 匯入頁面
     app.get('/import', (req, res) => {
         logActivity(req, 'view', '查看匯入頁面', 'import', null);

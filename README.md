@@ -104,6 +104,8 @@ sudo apt update
 sudo apt install nodejs npm -y
 ```
 
+> **本機開發注意**：`package.json` 的 `engines.node` 標記為 `22.x`，這是因為 `better-sqlite3` 是原生模組（`node-gyp` 編譯），在本專案目前的開發機上實測 Node 22 可正常編譯/執行，但更新的 Node 版本（例如 26）在該機器的工具鏈下編譯會失敗（V8 標頭的 C++ 相容性問題），導致 `npm install`／測試在該版本下跑不動。`engines` 只是提示（不會擋 `npm install`），正式主機若用其他 LTS 版本（18/20 等）通常也沒問題；若遇到 `NODE_MODULE_VERSION` 不符的錯誤，改用 Node 22 或執行 `npm rebuild better-sqlite3` 即可排除。
+
 ### 2. 安裝專案依賴套件
 在專案目錄中執行：
 
@@ -190,6 +192,13 @@ npm run test:all           # 全部
 ```
 
 CI：`.github/workflows/ci.yml` 會在 push/PR 時自動執行測試與 `npm audit`。
+
+在 macOS 開發機上，若系統預設 `node` 版本較新（例如 26），`better-sqlite3` 可能編譯失敗或出現
+`NODE_MODULE_VERSION` 不符的錯誤。改用 Node 22 執行即可（見上方「安裝 Node.js」注意事項）：
+
+```bash
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" npm run test:all
+```
 
 ## M365 / Microsoft 365 SSO（可選）
 

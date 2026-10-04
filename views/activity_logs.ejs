@@ -160,6 +160,7 @@
                     <div style="display: flex; gap: 10px;">
                         <button type="submit" class="btn btn-primary">🔍 搜尋</button>
                         <a href="/activity-logs" class="btn btn-secondary">清除</a>
+                        <a href="/export/activity-logs?username=<%= encodeURIComponent(username || '') %>&action_type=<%= encodeURIComponent(action_type || '') %>&date_from=<%= encodeURIComponent(date_from || '') %>&date_to=<%= encodeURIComponent(date_to || '') %>" class="btn btn-success">📊 匯出 Excel</a>
                     </div>
                 </div>
             </form>

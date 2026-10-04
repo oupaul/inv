@@ -3,12 +3,13 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { loginAsAdmin, postForm } = require('./helper');
 
-const { app, db, closeForTest } = require('../../server');
+const { app, db, ready, closeForTest } = require('../../server');
 after(() => closeForTest());
 
 let agent;
 let partId;
 before(async () => {
+    await ready;
     db.prepare("UPDATE users SET force_password_change = 0 WHERE username = 'admin'").run();
     agent = await loginAsAdmin(app);
     // 種一個料件 + 一筆出庫，供發票關聯

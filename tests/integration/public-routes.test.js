@@ -1,10 +1,19 @@
 require('./setup');
-const { test, after } = require('node:test');
+const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
+const { loginAsAdmin } = require('./helper');
 
-const { app, closeForTest } = require('../../server');
+const { app, db, ready, closeForTest } = require('../../server');
 after(() => closeForTest());
+
+let agent;
+before(async () => {
+    await ready;
+    // 404 測試需要已登入身分，否則未知路徑會先被全域 auth guard 導去 /login（這是預期行為，不是 bug）
+    db.prepare("UPDATE users SET force_password_change = 0 WHERE username = 'admin'").run();
+    agent = await loginAsAdmin(app);
+});
 
 test('GET /healthz 不需登入回 200', async () => {
     const res = await request(app).get('/healthz');
@@ -44,7 +53,14 @@ test('安全 HTTP 標頭存在', async () => {
     assert.equal(res.headers['referrer-policy'], 'same-origin');
 });
 
-test('404 處理：未知路徑回 404 而非 5xx', async () => {
-    const res = await request(app).get('/no-such-page');
+test('404 處理：未知路徑（已登入）回 404 而非 5xx', async () => {
+    // 未登入打未知路徑會被全域 auth guard 導去 /login（302），要測真正的 404 handler 需先登入
+    const res = await agent.get('/no-such-page');
     assert.equal(res.status, 404);
+});
+
+test('404 處理：未登入打未知路徑 → 導去 /login（auth guard 優先於 404）', async () => {
+    const res = await request(app).get('/no-such-page');
+    assert.equal(res.status, 302);
+    assert.match(res.headers.location, /\/login/);
 });

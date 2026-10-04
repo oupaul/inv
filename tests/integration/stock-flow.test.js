@@ -4,22 +4,27 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 const { loginAsAdmin, postForm } = require('./helper');
 
-const { app, db, closeForTest } = require('../../server');
+const { app, db, ready, closeForTest } = require('../../server');
 after(() => closeForTest());
 
 let agent;
 before(async () => {
+    // 預設管理員帳號是非同步建立的（argon2 雜湊），先等它就緒避免 race condition
+    await ready;
     // 清掉強制改密碼旗標，直接登入做庫存流程測試
     db.prepare("UPDATE users SET force_password_change = 0 WHERE username = 'admin'").run();
     agent = await loginAsAdmin(app);
 });
 
 // 在 DB 直接建立一個測試料件（繞過 UI 表單，加快測試）
+// part_number 需唯一（UNIQUE 約束）：每個測試各自呼叫一次，故用遞增序號避免互撞
+let seedCounter = 0;
 function seedPart() {
+    seedCounter += 1;
     const result = db.prepare(`
         INSERT INTO parts (part_number, part_name, specification, unit, min_stock, is_active)
         VALUES (?, ?, ?, ?, ?, 1)
-    `).run('TEST-001', '測試料件', '規格', '個', 0);
+    `).run(`TEST-${String(seedCounter).padStart(3, '0')}`, '測試料件', '規格', '個', 0);
     return result.lastInsertRowid;
 }
 

@@ -1,11 +1,12 @@
 require('./setup');
-const { test, after } = require('node:test');
+const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 const { postForm, loginAsAdmin } = require('./helper');
 
-const { app, db, closeForTest } = require('../../server');
+const { app, db, ready, closeForTest } = require('../../server');
 after(() => closeForTest());
+before(async () => { await ready; });
 
 // 清掉預設 admin 的強制改密碼旗標（部分測試只想驗證 session/auth，不需走改密碼流程）
 function clearForcePasswordChange() {

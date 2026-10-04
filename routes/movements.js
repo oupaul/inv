@@ -4,7 +4,7 @@ const validators = require('../lib/validators');
 
 module.exports = function mountMovementRoutes(ctx) {
     const { app, db, config, flash, logActivity, getSystemSetting,
-            buildEmailHtml, sendNotificationEmail, physicalStockSql, requireAdmin } = ctx;
+            buildEmailHtml, sendNotificationEmail, physicalStockSql, outstandingLoansBaseSql, requireAdmin } = ctx;
     const PAGE_TITLE = config.PAGE_TITLE;
 
     app.get('/inbound', (req, res) => {
@@ -83,33 +83,19 @@ module.exports = function mountMovementRoutes(ctx) {
         
         try {
             const stmt = db.prepare(`
-                SELECT 
-                    o.id,
-                    o.part_id,
-                    o.quantity,
-                    o.outbound_date,
-                    o.note,
-                    o.created_at,
-                    p.part_number,
-                    p.part_name,
-                    COALESCE(SUM(i.quantity), 0) as returned_quantity,
-                    o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity
-                FROM outbound_records o
-                JOIN parts p ON o.part_id = p.id
-                LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
-                WHERE o.part_id = ? AND o.is_loan = 1
-                GROUP BY o.id
-                HAVING remaining_quantity > 0
-                ORDER BY o.outbound_date DESC
+                SELECT ol.*, p.part_number, p.part_name
+                FROM (${outstandingLoansBaseSql({ partIdRef: '?' })}) ol
+                JOIN parts p ON p.id = ol.part_id
+                ORDER BY ol.outbound_date DESC
             `);
-            
+
             const records = stmt.all(part_id);
             res.json({ success: true, records });
         } catch (error) {
             res.json({ success: false, error: error.message });
         }
     });
-    
+
     // API: 查詢料件的可退回一般出庫記錄
     app.get('/api/outbound-records/:part_id', (req, res) => {
         const { part_id } = req.params;
@@ -147,15 +133,16 @@ module.exports = function mountMovementRoutes(ctx) {
     app.get('/transaction/records', (req, res) => {
         logActivity(req, 'view', '查看交易記錄', 'transaction_records', null);
         const { search, type, date_from, date_to, category_id } = req.query;
-        
-        let records = [];
-        
-        // 構建入庫記錄查詢
+        const PAGE_SIZE = config.PAGE_SIZE;
+
+        // 入庫與出庫兩邊的 SELECT 欄位清單必須完全一致（數量與順序）才能 UNION ALL，
+        // 各自用 NULL 補上對方獨有的欄位（例如入庫沒有發票相關欄位、出庫沒有歸還來源欄位）
         let inboundQuery = `
-            SELECT 
+            SELECT
                 ir.id as inbound_id,
+                NULL as outbound_id,
                 ir.inbound_date as transaction_date,
-                CASE 
+                CASE
                     WHEN ir.is_void_reversal = 1 THEN 'void_reversal'
                     WHEN ir.is_return = 1 THEN 'return'
                     ELSE 'inbound'
@@ -174,6 +161,11 @@ module.exports = function mountMovementRoutes(ctx) {
                 ir.is_void_reversal,
                 ir.return_outbound_id,
                 ro.outbound_date as source_outbound_date,
+                NULL as converted_from_loan,
+                NULL as has_invoice,
+                NULL as invoice_number,
+                NULL as linked_invoice_id,
+                NULL as returned_quantity,
                 c.name as category_name
             FROM inbound_records ir
             JOIN parts p ON ir.part_id = p.id
@@ -182,12 +174,13 @@ module.exports = function mountMovementRoutes(ctx) {
             WHERE 1=1
         `;
         let inboundParams = [];
-        
-        // 構建出庫記錄查詢
+
         let outboundQuery = `
-            SELECT 
+            SELECT
+                NULL as inbound_id,
+                o.id as outbound_id,
                 o.outbound_date as transaction_date,
-                CASE 
+                CASE
                     WHEN o.is_void_reversal = 1 THEN 'void_reversal'
                     WHEN o.is_loan = 1 THEN 'loan'
                     ELSE 'outbound'
@@ -199,17 +192,18 @@ module.exports = function mountMovementRoutes(ctx) {
                 o.note,
                 o.created_by,
                 datetime(o.created_at, '+8 hours') as created_at,
-                o.converted_from_loan,
-                o.has_invoice,
-                o.invoice_number,
-                o.id as outbound_id,
-                (SELECT ii.invoice_id FROM invoice_items ii WHERE ii.outbound_id = o.id LIMIT 1) as linked_invoice_id,
-                COALESCE((SELECT SUM(i.quantity) FROM inbound_records i WHERE i.return_outbound_id = o.id AND i.is_return = 1), 0) as returned_quantity,
                 o.is_voided,
                 o.void_reason,
                 o.voided_by,
                 datetime(o.voided_at, '+8 hours') as voided_at,
                 o.is_void_reversal,
+                NULL as return_outbound_id,
+                NULL as source_outbound_date,
+                o.converted_from_loan,
+                o.has_invoice,
+                o.invoice_number,
+                (SELECT ii.invoice_id FROM invoice_items ii WHERE ii.outbound_id = o.id LIMIT 1) as linked_invoice_id,
+                COALESCE((SELECT SUM(i.quantity) FROM inbound_records i WHERE i.return_outbound_id = o.id AND i.is_return = 1), 0) as returned_quantity,
                 c.name as category_name
             FROM outbound_records o
             JOIN parts p ON o.part_id = p.id
@@ -217,7 +211,7 @@ module.exports = function mountMovementRoutes(ctx) {
             WHERE 1=1
         `;
         let outboundParams = [];
-        
+
         // 搜尋條件
         if (search && search.trim()) {
             const searchTerm = `%${search.trim()}%`;
@@ -226,7 +220,7 @@ module.exports = function mountMovementRoutes(ctx) {
             outboundQuery += ` AND (p.part_number LIKE ? OR p.part_name LIKE ? OR p.barcode LIKE ?)`;
             outboundParams.push(searchTerm, searchTerm, searchTerm);
         }
-        
+
         // 日期範圍
         if (date_from) {
             inboundQuery += ` AND ir.inbound_date >= ?`;
@@ -262,31 +256,39 @@ module.exports = function mountMovementRoutes(ctx) {
             inboundQuery  += ` AND ir.is_voided = 1`;
             outboundQuery += ` AND o.is_voided = 1`;
         }
-    
-        // 執行查詢
+
+        // 依類型篩選決定要 UNION 哪幾段（與先前「只執行其中一邊查詢」的行為一致）
+        const subQueries = [];
         if (!type || type === 'inbound' || type === 'return' || type === 'voided') {
-            const inboundStmt = db.prepare(inboundQuery);
-            const inboundRecords = inboundStmt.all(...inboundParams);
-            records = records.concat(inboundRecords);
+            subQueries.push({ sql: inboundQuery, params: inboundParams });
         }
-        
         if (!type || type === 'outbound' || type === 'loan' || type === 'voided') {
-            const outboundStmt = db.prepare(outboundQuery);
-            const outboundRecords = outboundStmt.all(...outboundParams);
-            records = records.concat(outboundRecords);
+            subQueries.push({ sql: outboundQuery, params: outboundParams });
         }
-        
-        // 排序
-        records.sort((a, b) => {
-            const dateCompare = new Date(b.transaction_date) - new Date(a.transaction_date);
-            if (dateCompare !== 0) return dateCompare;
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-        
-        // 限制數量
-        records = records.slice(0, 500);
 
         const categories = db.prepare('SELECT id, name FROM categories ORDER BY name').all();
+
+        let records = [];
+        let totalCount = 0;
+        let totalPages = 1;
+        let currentPage = Math.max(1, parseInt(req.query.page) || 1);
+
+        if (subQueries.length > 0) {
+            const unionSql = subQueries.map(sq => sq.sql).join(' UNION ALL ');
+            const allParams = subQueries.flatMap(sq => sq.params);
+
+            totalCount = db.prepare(`SELECT COUNT(*) as total FROM (${unionSql})`).get(...allParams).total;
+            totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+            currentPage = Math.min(currentPage, totalPages);
+            const offset = (currentPage - 1) * PAGE_SIZE;
+
+            // 排序鍵需與分頁前（JS 排序）邏輯一致：先交易日期新到舊，同日期再依記錄建立時間新到舊
+            records = db.prepare(`
+                SELECT * FROM (${unionSql})
+                ORDER BY transaction_date DESC, created_at DESC
+                LIMIT ? OFFSET ?
+            `).all(...allParams, PAGE_SIZE, offset);
+        }
 
         res.render('transaction_records', {
             records,
@@ -296,6 +298,9 @@ module.exports = function mountMovementRoutes(ctx) {
             date_to: date_to || '',
             category_id: category_id || '',
             categories,
+            currentPage,
+            totalPages,
+            totalCount,
             user: req.session.user,
             title: PAGE_TITLE
         });
@@ -602,40 +607,36 @@ module.exports = function mountMovementRoutes(ctx) {
         try {
             // 獲取已過期、今日到期、以及3天內即將到期的借測記錄
             const stmt = db.prepare(`
-                SELECT 
-                    o.id,
-                    o.outbound_date as loan_date,
-                    o.loan_due_date,
-                    o.notification_sent,
+                SELECT
+                    ol.id,
+                    ol.outbound_date as loan_date,
+                    ol.loan_due_date,
+                    ol.notification_sent,
                     p.part_number,
                     p.part_name,
                     p.unit,
-                    o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity,
-                    CASE 
-                        WHEN date(o.loan_due_date) < date('now', '+8 hours') THEN 'overdue'
-                        WHEN date(o.loan_due_date) = date('now', '+8 hours') THEN 'due_today'
-                        WHEN date(o.loan_due_date) <= date('now', '+8 hours', '+3 days') THEN 'due_soon'
+                    ol.remaining_quantity,
+                    CASE
+                        WHEN date(ol.loan_due_date) < date('now', '+8 hours') THEN 'overdue'
+                        WHEN date(ol.loan_due_date) = date('now', '+8 hours') THEN 'due_today'
+                        WHEN date(ol.loan_due_date) <= date('now', '+8 hours', '+3 days') THEN 'due_soon'
                         ELSE 'normal'
                     END as due_status,
-                    CASE 
-                        WHEN o.loan_due_date IS NULL THEN NULL
-                        ELSE julianday(o.loan_due_date) - julianday('now', '+8 hours')
+                    CASE
+                        WHEN ol.loan_due_date IS NULL THEN NULL
+                        ELSE julianday(ol.loan_due_date) - julianday('now', '+8 hours')
                     END as days_until_due
-                FROM outbound_records o
-                JOIN parts p ON o.part_id = p.id
-                LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
-                WHERE o.is_loan = 1 
-                    AND o.loan_due_date IS NOT NULL
-                    AND (date(o.loan_due_date) <= date('now', '+8 hours', '+3 days'))
-                GROUP BY o.id
-                HAVING remaining_quantity > 0
-                ORDER BY 
-                    CASE 
-                        WHEN date(o.loan_due_date) < date('now', '+8 hours') THEN 0
-                        WHEN date(o.loan_due_date) = date('now', '+8 hours') THEN 1
+                FROM (${outstandingLoansBaseSql()}) ol
+                JOIN parts p ON p.id = ol.part_id
+                WHERE ol.loan_due_date IS NOT NULL
+                    AND (date(ol.loan_due_date) <= date('now', '+8 hours', '+3 days'))
+                ORDER BY
+                    CASE
+                        WHEN date(ol.loan_due_date) < date('now', '+8 hours') THEN 0
+                        WHEN date(ol.loan_due_date) = date('now', '+8 hours') THEN 1
                         ELSE 2
                     END,
-                    o.loan_due_date ASC
+                    ol.loan_due_date ASC
             `);
             
             const notifications = stmt.all();
@@ -670,56 +671,52 @@ module.exports = function mountMovementRoutes(ctx) {
     // 借出中料件列表
     app.get('/loans', (req, res) => {
         const stmt = db.prepare(`
-            SELECT 
-                o.id,
-                o.part_id,
-                o.quantity as loaned_quantity,
-                o.outbound_date as loan_date,
-                o.loan_due_date,
-                o.notification_sent,
-                o.note as loan_note,
-                o.created_at as loan_created_at,
+            SELECT
+                ol.id,
+                ol.part_id,
+                ol.quantity as loaned_quantity,
+                ol.outbound_date as loan_date,
+                ol.loan_due_date,
+                ol.notification_sent,
+                ol.note as loan_note,
+                ol.created_at as loan_created_at,
                 p.part_number,
                 p.part_name,
                 p.specification,
                 p.unit,
                 p.barcode,
                 c.name as category_name,
-                COALESCE(SUM(i.quantity), 0) as returned_quantity,
-                o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity,
-                CASE 
-                    WHEN o.quantity - COALESCE(SUM(i.quantity), 0) = o.quantity THEN '未歸還'
-                    WHEN o.quantity - COALESCE(SUM(i.quantity), 0) > 0 THEN '部分歸還'
+                ol.returned_quantity,
+                ol.remaining_quantity,
+                CASE
+                    WHEN ol.remaining_quantity = ol.quantity THEN '未歸還'
+                    WHEN ol.remaining_quantity > 0 THEN '部分歸還'
                     ELSE '已歸還'
                 END as status,
-                CASE 
-                    WHEN o.loan_due_date IS NULL THEN '無到期日期'
-                    WHEN date(o.loan_due_date) < date('now', '+8 hours') THEN '已過期'
-                    WHEN date(o.loan_due_date) = date('now', '+8 hours') THEN '今日到期'
-                    WHEN date(o.loan_due_date) <= date('now', '+8 hours', '+3 days') THEN '即將到期'
+                CASE
+                    WHEN ol.loan_due_date IS NULL THEN '無到期日期'
+                    WHEN date(ol.loan_due_date) < date('now', '+8 hours') THEN '已過期'
+                    WHEN date(ol.loan_due_date) = date('now', '+8 hours') THEN '今日到期'
+                    WHEN date(ol.loan_due_date) <= date('now', '+8 hours', '+3 days') THEN '即將到期'
                     ELSE '正常'
                 END as due_status,
-                CASE 
-                    WHEN o.loan_due_date IS NULL THEN NULL
-                    ELSE julianday(o.loan_due_date) - julianday('now', '+8 hours')
+                CASE
+                    WHEN ol.loan_due_date IS NULL THEN NULL
+                    ELSE julianday(ol.loan_due_date) - julianday('now', '+8 hours')
                 END as days_until_due
-            FROM outbound_records o
-            JOIN parts p ON o.part_id = p.id
+            FROM (${outstandingLoansBaseSql()}) ol
+            JOIN parts p ON p.id = ol.part_id
             LEFT JOIN categories c ON p.category_id = c.id
-            LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
-            WHERE o.is_loan = 1
-            GROUP BY o.id
-            HAVING remaining_quantity > 0
-            ORDER BY 
-                CASE 
-                    WHEN o.loan_due_date IS NULL THEN 999
-                    WHEN date(o.loan_due_date) < date('now', '+8 hours') THEN 0
-                    WHEN date(o.loan_due_date) = date('now', '+8 hours') THEN 1
-                    WHEN date(o.loan_due_date) <= date('now', '+8 hours', '+3 days') THEN 2
+            ORDER BY
+                CASE
+                    WHEN ol.loan_due_date IS NULL THEN 999
+                    WHEN date(ol.loan_due_date) < date('now', '+8 hours') THEN 0
+                    WHEN date(ol.loan_due_date) = date('now', '+8 hours') THEN 1
+                    WHEN date(ol.loan_due_date) <= date('now', '+8 hours', '+3 days') THEN 2
                     ELSE 3
                 END,
-                o.loan_due_date ASC,
-                o.outbound_date DESC
+                ol.loan_due_date ASC,
+                ol.outbound_date DESC
         `);
         
         const records = stmt.all();
@@ -732,21 +729,12 @@ module.exports = function mountMovementRoutes(ctx) {
         
         try {
             // 檢查記錄是否存在且是借測記錄
+            // onlyOutstanding: false — 這裡要分辨「找不到/非借測記錄」與「已全部歸還」兩種不同錯誤，
+            // 不能用預設的 HAVING remaining_quantity > 0 把已全歸還的記錄直接濾掉
             const checkStmt = db.prepare(`
-                SELECT 
-                    o.id,
-                    o.part_id,
-                    o.quantity as loaned_quantity,
-                    o.is_loan,
-                    p.part_number,
-                    p.part_name,
-                    COALESCE(SUM(i.quantity), 0) as returned_quantity,
-                    o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity
-                FROM outbound_records o
-                JOIN parts p ON o.part_id = p.id
-                LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
-                WHERE o.id = ? AND o.is_loan = 1
-                GROUP BY o.id
+                SELECT ol.*, p.part_number, p.part_name, ol.quantity as loaned_quantity
+                FROM (${outstandingLoansBaseSql({ outboundIdRef: '?', onlyOutstanding: false })}) ol
+                JOIN parts p ON p.id = ol.part_id
             `);
             
             const record = checkStmt.get(id);

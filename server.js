@@ -67,7 +67,7 @@ if (restoreDbPath && fs.existsSync(restoreDbPath)) {
 }
 
 // SQL helpers（從 lib/sql 取出，集中維護）
-const { prep, ownedStockSql, physicalStockSql, loanedQtySql, columnExists } = require('./lib/sql')(db);
+const { prep, ownedStockSql, physicalStockSql, loanedQtySql, outstandingLoansBaseSql, columnExists } = require('./lib/sql')(db);
 
 // 創建資料表
 function initDB() {
@@ -671,7 +671,10 @@ async function createDefaultAdmin() {
 }
 
 initDB();
-createDefaultAdmin();
+// createDefaultAdmin() 是非同步（argon2.hash 無同步版本）；將其 promise 透過 module.exports.ready
+// 暴露出去，讓測試端（或任何需要確保預設帳號已就緒的呼叫端）可以 await，避免 race condition
+// （require('./server') 會在雜湊/寫入完成前就同步 return，若測試緊接著登入會打到尚未存在的帳號）
+const defaultAdminReady = createDefaultAdmin();
 
 // ===== 高頻查詢用索引（CREATE INDEX IF NOT EXISTS 安全，可重覆執行）=====
 function createIndexes() {
@@ -889,7 +892,7 @@ app.use((req, res, next) => {
 
 // ===== 掛載已抽出的路由模組 =====
 // 儀表板首頁（見 routes/dashboard）
-require('./routes/dashboard')({ app, db, config, ownedStockSql, loanedQtySql, physicalStockSql });
+require('./routes/dashboard')({ app, db, config, ownedStockSql, loanedQtySql, physicalStockSql, outstandingLoansBaseSql });
 
 // 料件類型 + 單位（見 routes/categories、routes/units）
 require('./routes/categories')({ app, db, config, flash, logActivity });
@@ -906,7 +909,7 @@ require('./routes/parts')({
 // 出入庫 / 借測 / 交易紀錄 / 作廢（見 routes/movements）
 require('./routes/movements')({
     app, db, config, flash, logActivity, getSystemSetting,
-    buildEmailHtml, sendNotificationEmail, physicalStockSql, requireAdmin
+    buildEmailHtml, sendNotificationEmail, physicalStockSql, outstandingLoansBaseSql, requireAdmin
 });
 
 // 庫存盤點（見 routes/inventory-check）
@@ -1272,6 +1275,7 @@ module.exports = {
     app,
     db,
     sessionDbHandle,
+    ready: defaultAdminReady,
     closeForTest: () => {
         try { db.close(); } catch {}
         try { if (sessionDbHandle) sessionDbHandle.close(); } catch {}

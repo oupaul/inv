@@ -3,6 +3,10 @@ const request = require('supertest');
 
 // 登入並回傳帶 cookie 的 agent
 async function loginAsAdmin(app) {
+    // 保險：萬一呼叫端忘記先 await server 的 ready（預設管理員是非同步建立的），這裡補等一次
+    // require('../../server') 此時已經在呼叫端的 module cache 中，這裡只是取同一個 cached 物件
+    const { ready } = require('../../server');
+    if (ready) await ready;
     const agent = request.agent(app);
     // 預設管理員：admin / admin123（force_password_change=1）
     const res = await agent

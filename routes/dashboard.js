@@ -1,6 +1,6 @@
 // 庫存儀表板（首頁）
 module.exports = function mountDashboardRoutes(ctx) {
-    const { app, db, config, ownedStockSql, loanedQtySql, physicalStockSql } = ctx;
+    const { app, db, config, ownedStockSql, loanedQtySql, physicalStockSql, outstandingLoansBaseSql } = ctx;
     const PAGE_TITLE = config.PAGE_TITLE;
 
     app.get('/', (req, res) => {
@@ -49,20 +49,8 @@ module.exports = function mountDashboardRoutes(ctx) {
     
         // 取得所有有效借出記錄（依料件分組，用於儀錶板顯示借出對象）
         const loanDetailsStmt = db.prepare(`
-            SELECT
-                o.part_id,
-                o.note,
-                o.outbound_date,
-                o.loan_due_date,
-                o.created_by,
-                o.quantity,
-                o.quantity - COALESCE(SUM(i.quantity), 0) as remaining_quantity
-            FROM outbound_records o
-            LEFT JOIN inbound_records i ON i.return_outbound_id = o.id
-            WHERE o.is_loan = 1
-            GROUP BY o.id
-            HAVING remaining_quantity > 0
-            ORDER BY o.outbound_date DESC
+            SELECT * FROM (${outstandingLoansBaseSql()}) ol
+            ORDER BY ol.outbound_date DESC
         `);
         const loanDetailsRows = loanDetailsStmt.all();
         const loanDetailsByPart = {};

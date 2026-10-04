@@ -11,7 +11,33 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        /* ── 分頁 ── */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .pagination-info { color: #888; font-size: 13px; }
+        .pagination-btns { display: flex; gap: 6px; }
+        .page-btn {
+            padding: 6px 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 5px;
+            background: white;
+            color: #444;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .page-btn:hover { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        .page-btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); font-weight: 700; }
+        .page-btn:disabled, .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
         body {
             font-family: "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -929,7 +955,30 @@
                 <% }); %>
             </tbody>
         </table>
-        <p style="margin-top: 10px; color: #999; font-size: 14px;" class="records-count">共 <%= records.length %> 筆記錄</p>
+
+        <!-- 分頁控制 -->
+        <div class="pagination">
+            <span class="pagination-info">共 <%= totalCount %> 筆記錄</span>
+            <div class="pagination-btns">
+                <%
+                function pageUrl(p) {
+                    const ps = new URLSearchParams({ search: search||'', type: type||'', date_from: date_from||'', date_to: date_to||'', category_id: category_id||'', page: p });
+                    return '/transaction/records?' + ps.toString();
+                }
+                %>
+                <a href="<%= pageUrl(1) %>"             class="page-btn <%= currentPage===1 ? 'disabled' : '' %>">«</a>
+                <a href="<%= pageUrl(currentPage-1) %>" class="page-btn <%= currentPage===1 ? 'disabled' : '' %>">‹</a>
+                <%
+                const startPage = Math.max(1, currentPage - 2);
+                const endPage   = Math.min(totalPages, currentPage + 2);
+                for (let i = startPage; i <= endPage; i++) {
+                %>
+                <a href="<%= pageUrl(i) %>" class="page-btn <%= i === currentPage ? 'active' : '' %>"><%= i %></a>
+                <% } %>
+                <a href="<%= pageUrl(currentPage+1) %>" class="page-btn <%= currentPage===totalPages ? 'disabled' : '' %>">›</a>
+                <a href="<%= pageUrl(totalPages) %>"    class="page-btn <%= currentPage===totalPages ? 'disabled' : '' %>">»</a>
+            </div>
+        </div>
         <% } else { %>
         <div class="empty-state">
             <p>目前沒有任何記錄</p>
