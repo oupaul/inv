@@ -271,6 +271,37 @@
         /* 縮圖欄 */
         .col-thumb { min-width: 48px; max-width: 52px; }
 
+        /* ── 圖片就地展開檢視器（縮放／平移／旋轉）── */
+        .img-viewer-wrap { margin-top: 14px; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+        .img-viewer-toolbar {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+            background: var(--color-primary); padding: 8px 10px;
+        }
+        .img-viewer-btn {
+            background: rgba(255,255,255,0.12); color: #fff; border: none; border-radius: 5px;
+            padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+            /* 蓋掉全站手機版「button 一律 100% 寬、疊成直排」的規則 ── 這是工具列，必須保持橫排 */
+            width: auto; min-height: 0; margin-bottom: 0;
+        }
+        .img-viewer-btn:hover { background: rgba(255,255,255,0.22); }
+        .img-viewer-btn:disabled { opacity: 0.4; cursor: default; }
+        .img-viewer-btn:disabled:hover { background: rgba(255,255,255,0.12); }
+        .img-viewer-zoom-label { color: #fff; font-size: 12px; width: 40px; text-align: center; }
+        .img-viewer-spacer { flex: 1; }
+        .img-viewer-stage {
+            height: 48vh; background: #0f172a; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; touch-action: none; position: relative;
+        }
+        .img-viewer-stage img {
+            max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none;
+        }
+        .img-viewer-stage.zoomed { cursor: grab; }
+        .img-viewer-stage.zoomed.dragging { cursor: grabbing; }
+        .img-viewer-hint { font-size: 11px; color: #94a3b8; padding: 6px 10px; background: #1e293b; }
+        @media (max-width: 540px) {
+            .img-viewer-stage { height: 38vh; }
+        }
+
         /* ── 狀態徽章 ── */
         .status-badge {
             display: inline-block;
@@ -700,10 +731,10 @@
             const stockCls = p.current_stock <= 0 ? 'stock-zero' : p.current_stock <= 5 ? 'stock-low' : 'stock-ok';
             title.textContent = '📦 ' + p.part_name;
 
-            // 圖片區塊
+            // 圖片區塊（點擊縮圖可就地展開放大檢視器）
             const imgSrc = p.image_path ? '/public' + p.image_path : null;
             const imgHtml = imgSrc
-                ? `<img id="modalPartImg" src="${imgSrc}" alt="料件圖片">`
+                ? `<img id="modalPartImg" src="${imgSrc}" alt="料件圖片" style="cursor:zoom-in;" onclick="toggleImageViewer('${escJs(imgSrc)}', '${escJs(p.part_name)}')" title="點擊放大檢視">`
                 : `<div class="modal-img-placeholder" id="modalPartImg">📷</div>`;
             const delBtnHtml = imgSrc
                 ? `<button type="button" class="btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;font-size:12px;padding:4px 10px;border-radius:6px;white-space:nowrap;" onclick="deletePartImage(${partId})">🗑️ 刪除</button>`
@@ -733,6 +764,7 @@
                         ${p.cost_price !== undefined ? `<div class="modal-info-item"><div class="label">成本價 🔒</div><div class="value" style="font-size:13px;">${(p.cost_price !== null) ? Number(p.cost_price).toLocaleString('zh-TW') : '-'}</div></div>` : ''}
                     </div>
                 </div>
+                <div id="imgViewerArea"></div>
                 <div class="modal-records-title">📋 近期出入庫記錄（最近 10 筆）</div>`;
 
             if (data.records && data.records.length > 0) {
@@ -765,6 +797,183 @@
 
     function escJs(str) {
         return String(str || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"');
+    }
+
+    // ── 圖片就地展開檢視器（縮放／平移／旋轉，參考 expense-platform ImageViewer）──
+    // 座標一律用「相對於容器中心」計算，縮放時才能固定住游標/手指所在的那個點不跑掉。
+    let _imgViewerSrc = null;
+    let _imgViewerState = null; // { scale, x, y, rotation }
+    let _imgViewerGesture = null; // { type:'pan'|'pinch', ... }
+    const _imgViewerPointers = new Map();
+    const IMG_VIEWER_MIN_SCALE = 1, IMG_VIEWER_MAX_SCALE = 6, IMG_VIEWER_BUTTON_STEP = 1.4, IMG_VIEWER_DBLCLICK_SCALE = 2.5;
+
+    function _ivClamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+    function toggleImageViewer(src, filename) {
+        const area = document.getElementById('imgViewerArea');
+        if (!area) return;
+        if (_imgViewerSrc === src) { closeImageViewer(); return; }
+        _imgViewerSrc = src;
+        _imgViewerState = { scale: 1, x: 0, y: 0, rotation: 0 };
+        area.innerHTML = `
+            <div class="img-viewer-wrap">
+                <div class="img-viewer-toolbar">
+                    <button type="button" class="img-viewer-btn" id="ivZoomOut" aria-label="縮小">－</button>
+                    <span class="img-viewer-zoom-label" id="ivZoomLabel">100%</span>
+                    <button type="button" class="img-viewer-btn" id="ivZoomIn" aria-label="放大">＋</button>
+                    <button type="button" class="img-viewer-btn" id="ivRotateLeft">↺ 向左旋轉</button>
+                    <button type="button" class="img-viewer-btn" id="ivRotateRight">↻ 向右旋轉</button>
+                    <button type="button" class="img-viewer-btn" id="ivReset">還原</button>
+                    <span class="img-viewer-spacer"></span>
+                    <button type="button" class="img-viewer-btn" id="ivClose">收合 ✕</button>
+                </div>
+                <div class="img-viewer-stage" id="ivStage">
+                    <img id="ivImg" src="${src}" alt="${escJs(filename || '料件圖片')}" draggable="false">
+                </div>
+                <div class="img-viewer-hint">縮放：＋／－按鈕、Ctrl(⌘)＋滾輪、雙指捏合，或雙擊；放大後可拖曳移動</div>
+            </div>`;
+        area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        _setupImageViewerEvents();
+    }
+
+    function closeImageViewer() {
+        const area = document.getElementById('imgViewerArea');
+        if (area) area.innerHTML = '';
+        _imgViewerSrc = null;
+        _imgViewerState = null;
+        _imgViewerGesture = null;
+        _imgViewerPointers.clear();
+    }
+
+    function _ivApplyTransform() {
+        const img = document.getElementById('ivImg');
+        const stage = document.getElementById('ivStage');
+        if (!img || !_imgViewerState) return;
+        const { scale, x, y, rotation } = _imgViewerState;
+        img.style.transform = `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotation}deg)`;
+        const label = document.getElementById('ivZoomLabel');
+        if (label) label.textContent = Math.round(scale * 100) + '%';
+        const zoomOutBtn = document.getElementById('ivZoomOut');
+        const zoomInBtn = document.getElementById('ivZoomIn');
+        if (zoomOutBtn) zoomOutBtn.disabled = scale <= IMG_VIEWER_MIN_SCALE;
+        if (zoomInBtn) zoomInBtn.disabled = scale >= IMG_VIEWER_MAX_SCALE;
+        if (stage) stage.classList.toggle('zoomed', scale > IMG_VIEWER_MIN_SCALE);
+    }
+
+    function _ivToLocal(stage, clientX, clientY) {
+        const rect = stage.getBoundingClientRect();
+        return { x: clientX - (rect.left + rect.width / 2), y: clientY - (rect.top + rect.height / 2) };
+    }
+
+    // 以 p 點為不動點，從 base 狀態縮放到 nextScale；縮回 1 倍就歸位，避免圖片停在偏掉的位置
+    function _ivZoomAround(nextScale, p, base) {
+        base = base || _imgViewerState;
+        const stage = document.getElementById('ivStage');
+        if (!stage) return;
+        const scale = _ivClamp(nextScale, IMG_VIEWER_MIN_SCALE, IMG_VIEWER_MAX_SCALE);
+        if (scale <= IMG_VIEWER_MIN_SCALE) {
+            _imgViewerState = Object.assign({}, _imgViewerState, { scale: IMG_VIEWER_MIN_SCALE, x: 0, y: 0 });
+            _ivApplyTransform();
+            return;
+        }
+        const rect = stage.getBoundingClientRect();
+        const k = scale / base.scale;
+        const limitX = (rect.width * scale) / 2;
+        const limitY = (rect.height * scale) / 2;
+        _imgViewerState = Object.assign({}, _imgViewerState, {
+            scale,
+            x: _ivClamp(p.x - k * (p.x - base.x), -limitX, limitX),
+            y: _ivClamp(p.y - k * (p.y - base.y), -limitY, limitY)
+        });
+        _ivApplyTransform();
+    }
+
+    function _setupImageViewerEvents() {
+        const stage = document.getElementById('ivStage');
+        if (!stage) return;
+
+        document.getElementById('ivZoomOut').onclick = () => _ivZoomAround(_imgViewerState.scale / IMG_VIEWER_BUTTON_STEP, { x: 0, y: 0 });
+        document.getElementById('ivZoomIn').onclick = () => _ivZoomAround(_imgViewerState.scale * IMG_VIEWER_BUTTON_STEP, { x: 0, y: 0 });
+        document.getElementById('ivRotateLeft').onclick = () => { _imgViewerState.rotation -= 90; _ivApplyTransform(); };
+        document.getElementById('ivRotateRight').onclick = () => { _imgViewerState.rotation += 90; _ivApplyTransform(); };
+        document.getElementById('ivReset').onclick = () => { _imgViewerState = { scale: 1, x: 0, y: 0, rotation: 0 }; _ivApplyTransform(); };
+        document.getElementById('ivClose').onclick = closeImageViewer;
+
+        // React 版用 passive:false 擋掉瀏覽器自己的頁面縮放；只在按著 Ctrl/⌘ 時才縮放
+        // （觸控板雙指捏合在 Chrome 也會以 ctrlKey 的 wheel 事件送出），平常滾輪仍可捲動頁面
+        stage.addEventListener('wheel', function (e) {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            const p = _ivToLocal(stage, e.clientX, e.clientY);
+            _ivZoomAround(_imgViewerState.scale * Math.exp(-_ivClamp(e.deltaY, -50, 50) * 0.005), p);
+        }, { passive: false });
+
+        stage.addEventListener('dblclick', function (e) {
+            const p = _ivToLocal(stage, e.clientX, e.clientY);
+            if (_imgViewerState.scale > IMG_VIEWER_MIN_SCALE) {
+                _imgViewerState = { scale: 1, x: 0, y: 0, rotation: _imgViewerState.rotation };
+                _ivApplyTransform();
+            } else {
+                _ivZoomAround(IMG_VIEWER_DBLCLICK_SCALE, p);
+            }
+        });
+
+        stage.addEventListener('pointerdown', function (e) {
+            stage.setPointerCapture(e.pointerId);
+            _imgViewerPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            stage.classList.add('dragging');
+            if (_imgViewerPointers.size === 1) {
+                _imgViewerGesture = { type: 'pan', startX: e.clientX, startY: e.clientY, base: Object.assign({}, _imgViewerState) };
+            } else if (_imgViewerPointers.size === 2) {
+                const pts = [..._imgViewerPointers.values()];
+                _imgViewerGesture = {
+                    type: 'pinch',
+                    d0: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+                    m0: _ivToLocal(stage, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2),
+                    base: Object.assign({}, _imgViewerState)
+                };
+            }
+        });
+
+        stage.addEventListener('pointermove', function (e) {
+            if (!_imgViewerPointers.has(e.pointerId)) return;
+            _imgViewerPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const g = _imgViewerGesture;
+            if (!g) return;
+            if (g.type === 'pan' && _imgViewerPointers.size === 1) {
+                if (g.base.scale <= IMG_VIEWER_MIN_SCALE) return;
+                const dx = e.clientX - g.startX;
+                const dy = e.clientY - g.startY;
+                const rect = stage.getBoundingClientRect();
+                const limitX = (rect.width * g.base.scale) / 2;
+                const limitY = (rect.height * g.base.scale) / 2;
+                _imgViewerState = Object.assign({}, g.base, {
+                    x: _ivClamp(g.base.x + dx, -limitX, limitX),
+                    y: _ivClamp(g.base.y + dy, -limitY, limitY)
+                });
+                _ivApplyTransform();
+            } else if (g.type === 'pinch' && _imgViewerPointers.size === 2) {
+                const pts = [..._imgViewerPointers.values()];
+                const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                const m = _ivToLocal(stage, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+                _ivZoomAround(g.base.scale * (d / g.d0), m, g.base);
+            }
+        });
+
+        function endPointer(e) {
+            _imgViewerPointers.delete(e.pointerId);
+            stage.classList.remove('dragging');
+            const remaining = [..._imgViewerPointers.values()];
+            if (remaining.length === 1) {
+                _imgViewerGesture = { type: 'pan', startX: remaining[0].x, startY: remaining[0].y, base: Object.assign({}, _imgViewerState) };
+            } else {
+                _imgViewerGesture = null;
+            }
+        }
+        stage.addEventListener('pointerup', endPointer);
+        stage.addEventListener('pointercancel', endPointer);
+
+        _ivApplyTransform();
     }
 
     function uploadPartImage(partId, input) {
