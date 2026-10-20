@@ -654,6 +654,52 @@
                 <a href="/inventory/check/sessions" style="color: #007bff; text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap;">切換盤點事件 →</a>
             </div>
         </div>
+
+        <!-- 盤點進度：已盤 / 未盤 -->
+        <% const totalC = typeof totalCount !== 'undefined' ? totalCount : 0; %>
+        <% const checkedC = typeof checkedCount !== 'undefined' ? checkedCount : 0; %>
+        <% const remainingC = totalC - checkedC; %>
+        <% const pct = totalC > 0 ? Math.round((checkedC / totalC) * 100) : 0; %>
+        <div style="background-color: #fff; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+                <strong style="color: #333; font-size: 15px;">📊 盤點進度：已盤 <span style="color: #28a745;"><%= checkedC %></span> / 未盤 <span style="color: #dc3545;"><%= remainingC %></span>（共 <%= totalC %> 項啟用中料件）</strong>
+                <% if (remainingC > 0) { %>
+                <button type="button" id="toggleUncheckedBtn" class="btn" style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); color: #333; padding: 8px 16px; font-size: 13px; min-height: 36px;">👁️ 顯示未盤清單</button>
+                <% } %>
+            </div>
+            <div style="background-color: #e9ecef; border-radius: 6px; overflow: hidden; height: 18px;">
+                <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); height: 100%; width: <%= pct %>%; transition: width 0.3s;"></div>
+            </div>
+            <% if (remainingC === 0 && totalC > 0) { %>
+            <div style="color: #155724; font-size: 13px; margin-top: 8px; font-weight: 600;">✅ 全部料件都已盤點完成！</div>
+            <% } %>
+
+            <!-- 未盤清單（預設收合） -->
+            <div id="uncheckedListPanel" style="display: none; margin-top: 15px; max-height: 300px; overflow-y: auto; border-top: 1px solid #e0e0e0; padding-top: 12px;">
+                <% if (uncheckedParts && uncheckedParts.length > 0) { %>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr style="text-align: left; color: #666; border-bottom: 2px solid #e0e0e0;">
+                            <th style="padding: 6px;">料號</th>
+                            <th style="padding: 6px;">名稱</th>
+                            <th style="padding: 6px;">類型</th>
+                            <th style="padding: 6px;">條碼</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% uncheckedParts.forEach(function(up) { %>
+                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                            <td style="padding: 6px; font-weight: 600;"><%= up.part_number %></td>
+                            <td style="padding: 6px;"><%= up.part_name %></td>
+                            <td style="padding: 6px; color: #888;"><%= up.category_name || '-' %></td>
+                            <td style="padding: 6px; color: #888;"><%= up.barcode || '-' %></td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+                <% } %>
+            </div>
+        </div>
         <% } %>
 
         <% if (currentSession) { %>
@@ -717,6 +763,7 @@
                     <div style="margin-bottom: 10px;" id="previousQuantityDisplay" style="display: none;">
                         <strong>上次盤點：</strong><span id="previousQuantity">-</span> <span id="previousUnit">個</span>
                     </div>
+                    <div id="alreadyCheckedWarning" style="display: none; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; color: #856404; font-size: 13px; font-weight: 600;"></div>
                     <div class="form-group" style="margin-top: 15px;">
                         <label for="quick_quantity">盤點數量 *</label>
                         <input type="number" id="quick_quantity" min="0" step="1" value="1" style="width: 100%; padding: 10px; font-size: 16px;" placeholder="數量">
@@ -842,10 +889,23 @@
                     unit: '<%= part.unit %>',
                     barcode: '<%= part.barcode || '' %>',
                     previous_check_quantity: <%= part.previous_check_quantity !== null && part.previous_check_quantity !== undefined ? part.previous_check_quantity : 0 %>,
-                    current_check_quantity: <%= part.current_check_quantity !== null && part.current_check_quantity !== undefined ? part.current_check_quantity : 'null' %>
+                    current_check_quantity: <%= part.current_check_quantity !== null && part.current_check_quantity !== undefined ? part.current_check_quantity : 'null' %>,
+                    checked_by: <%- JSON.stringify(part.checked_by || null) %>,
+                    checked_at: <%- JSON.stringify(part.checked_at || null) %>
                 };
             <% }); %>
         <% } %>
+
+        // 未盤清單顯示/隱藏切換
+        const toggleUncheckedBtn = document.getElementById('toggleUncheckedBtn');
+        const uncheckedListPanel = document.getElementById('uncheckedListPanel');
+        if (toggleUncheckedBtn && uncheckedListPanel) {
+            toggleUncheckedBtn.addEventListener('click', () => {
+                const isHidden = uncheckedListPanel.style.display === 'none';
+                uncheckedListPanel.style.display = isHidden ? 'block' : 'none';
+                toggleUncheckedBtn.textContent = isHidden ? '🙈 隱藏未盤清單' : '👁️ 顯示未盤清單';
+            });
+        }
         
         // 當前選中的料件
         let currentPart = null;
@@ -876,7 +936,17 @@
             document.getElementById('previousQuantity').textContent = previousQty;
             document.getElementById('previousUnit').textContent = part.unit;
             document.getElementById('previousQuantityDisplay').style.display = 'block';
-            
+
+            // 若此料件在本次盤點事件中已有人盤點過（可能是別人、或自己先前已提交過），提示但不擋止
+            const warningBox = document.getElementById('alreadyCheckedWarning');
+            if (part.current_check_quantity !== null && part.current_check_quantity !== undefined && part.checked_by) {
+                const timeLabel = part.checked_at ? part.checked_at.slice(5, 16).replace('T', ' ') : '';
+                warningBox.textContent = `⚠️ 此料件已於 ${timeLabel} 由「${part.checked_by}」盤點過（數量：${part.current_check_quantity}），再次提交將覆蓋原本的記錄`;
+                warningBox.style.display = 'block';
+            } else {
+                warningBox.style.display = 'none';
+            }
+
             // 清空數量輸入框並聚焦
             quickQuantityInput.value = '1';
             quickQuantityInput.focus();
@@ -1009,8 +1079,10 @@
             barcodeInput.value = '';
             quickQuantityInput.value = '1';
             partInfo.classList.add('hidden');
+            const warningBoxAfterAdd = document.getElementById('alreadyCheckedWarning');
+            if (warningBoxAfterAdd) warningBoxAfterAdd.style.display = 'none';
             currentPart = null;
-            
+
             // 重新聚焦到條碼輸入框，準備下一次掃描
             // 使用較短的延遲以提高連續掃描的速度
             setTimeout(() => barcodeInput.focus(), 50);
@@ -1309,6 +1381,8 @@
                     if (infoPartNumber) infoPartNumber.textContent = '-';
                     if (infoPartName) infoPartName.textContent = '-';
                     if (previousQuantity) previousQuantity.textContent = '-';
+                    const warningBox = document.getElementById('alreadyCheckedWarning');
+                    if (warningBox) warningBox.style.display = 'none';
                 }
                 // 清除快速選擇料件下拉選單
                 if (quickPartSelect) {

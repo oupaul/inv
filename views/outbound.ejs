@@ -293,6 +293,12 @@
 
         <h1>📤 料件出庫</h1>
 
+        <% if (typeof activeCheckSession !== 'undefined' && activeCheckSession) { %>
+        <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 12px 15px; margin-bottom: 20px; color: #856404; font-size: 14px;">
+            📋 目前有進行中的盤點事件：<strong><%= activeCheckSession.session_name || activeCheckSession.session_date %></strong>，盤點期間異動庫存可能會讓盤點數字需要重新核對。
+        </div>
+        <% } %>
+
         <!-- 無線掃描器使用提示 -->
         <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
             <strong style="color: #856404; font-size: 15px;">📱 無線掃描器快速出庫：</strong>
@@ -345,14 +351,16 @@
                 <label for="part_id">選擇料件 *</label>
                 <select id="part_id" name="part_id" required>
                     <option value="">-- 請先選擇類型或掃描條碼 --</option>
+                    <% const checkedInSession = (typeof activeCheckSession !== 'undefined' && activeCheckSession) ? activeCheckSession.checkedPartIds : []; %>
                     <% parts.forEach(function(part) { %>
-                    <option value="<%= part.id %>" 
+                    <option value="<%= part.id %>"
                             data-stock="<%= part.current_stock %>"
                             data-min-stock="<%= part.min_stock || 0 %>"
                             data-unit="<%= part.unit || '' %>"
                             data-barcode="<%= part.barcode || '' %>"
                             data-category-id="<%= part.category_id || '' %>"
-                            data-category-name="<%= part.category_name || '' %>">
+                            data-category-name="<%= part.category_name || '' %>"
+                            data-checked-in-session="<%= checkedInSession.includes(part.id) ? '1' : '' %>">
                         <%= part.part_number %> - <%= part.part_name %>
                         <% if (part.specification) { %>(<%= part.specification %>)<% } %>
                         <% if (part.category_name) { %> [<%= part.category_name %>]<% } %>
@@ -363,6 +371,9 @@
                 <!-- 即時庫存顯示卡片 -->
                 <div id="stock-info-box" style="display:none; margin-top:10px; padding:10px 14px; border-left:4px solid #28a745; border-radius:6px; font-size:14px; background:#f0fff4;">
                     <span id="stock-info-text"></span>
+                </div>
+                <div id="check-session-warning-box" style="display:none; margin-top:10px; padding:10px 14px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:6px; font-size:13px; color:#856404; font-weight:600;">
+                    ⚠️ 此料件已於本次盤點事件中盤點過，異動後請留意盤點數字需要重新核對
                 </div>
             </div>
             
@@ -527,7 +538,13 @@
             } else if (stockBox) {
                 stockBox.style.display = 'none';
             }
-            
+
+            // 若此料件在目前進行中的盤點事件裡已經盤點過，提示（不擋止）
+            const checkWarningBox = document.getElementById('check-session-warning-box');
+            if (checkWarningBox) {
+                checkWarningBox.style.display = (this.value && selectedOption && selectedOption.getAttribute('data-checked-in-session') === '1') ? 'block' : 'none';
+            }
+
             if (stock > 0) {
                 quantityInput.setAttribute('max', stock);
                 quantityInput.placeholder = `請輸入數量（最多 ${stock}）`;

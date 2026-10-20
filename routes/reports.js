@@ -11,18 +11,24 @@ module.exports = function mountReportRoutes(ctx) {
     app.get('/export/inventory-check', async (req, res) => {
         try {
         logActivity(req, 'export', '匯出盤點報表', 'export', null);
-        const { search, date_from, date_to } = req.query;
+        const { search, date_from, date_to, session_id } = req.query;
 
         let whereConditions = [];
         let params = [];
-        
+
         // 搜尋條件
         if (search && search.trim()) {
             whereConditions.push(`(p.part_number LIKE ? OR p.part_name LIKE ? OR p.barcode LIKE ?)`);
             const searchTerm = `%${search.trim()}%`;
             params.push(searchTerm, searchTerm, searchTerm);
         }
-        
+
+        // 盤點事件篩選（修正：先前此參數有傳但後端未讀取，匯出時完全不會生效）
+        if (session_id && session_id !== '') {
+            whereConditions.push(`ic.session_id = ?`);
+            params.push(session_id);
+        }
+
         // 日期範圍
         if (date_from) {
             whereConditions.push(`ic.check_date >= ?`);
@@ -32,19 +38,19 @@ module.exports = function mountReportRoutes(ctx) {
             whereConditions.push(`ic.check_date <= ?`);
             params.push(date_to);
         }
-        
+
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-        
+
         const stmt = db.prepare(`
-            SELECT 
+            SELECT
                 ic.check_date as '盤點日期',
                 p.part_number as '料號',
                 p.part_name as '料件名稱',
                 p.unit as '單位',
-                ic.system_quantity as '系統庫存',
+                COALESCE(ic.previous_quantity, ic.system_quantity) as '上次盤點',
                 ic.actual_quantity as '實際盤點',
                 ic.difference as '差異',
-                CASE 
+                CASE
                     WHEN ic.difference > 0 THEN '盤盈'
                     WHEN ic.difference < 0 THEN '盤虧'
                     ELSE '相符'
@@ -69,7 +75,7 @@ module.exports = function mountReportRoutes(ctx) {
             { header: '料號', key: '料號', width: 15 },
             { header: '料件名稱', key: '料件名稱', width: 20 },
             { header: '單位', key: '單位', width: 10 },
-            { header: '系統庫存', key: '系統庫存', width: 12 },
+            { header: '上次盤點', key: '上次盤點', width: 12 },
             { header: '實際盤點', key: '實際盤點', width: 12 },
             { header: '差異', key: '差異', width: 12 },
             { header: '狀態', key: '狀態', width: 10 },

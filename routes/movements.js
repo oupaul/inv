@@ -7,6 +7,20 @@ module.exports = function mountMovementRoutes(ctx) {
             buildEmailHtml, sendNotificationEmail, physicalStockSql, outstandingLoansBaseSql, requireAdmin } = ctx;
     const PAGE_TITLE = config.PAGE_TITLE;
 
+    // 查詢目前進行中的盤點事件（若有），以及該事件中已盤點過的料件 id 清單。
+    // 供出入庫頁面顯示「此料件正在盤點中」提醒——只提示不擋止，避免盤點期間的異動悄悄讓盤點數字失真。
+    function getActiveCheckSession() {
+        const session = db.prepare(`
+            SELECT id, session_name, session_date FROM inventory_check_sessions
+            WHERE status = 'in_progress'
+            ORDER BY session_date DESC LIMIT 1
+        `).get();
+        if (!session) return null;
+        const checkedPartIds = db.prepare(`SELECT part_id FROM inventory_checks WHERE session_id = ?`)
+            .all(session.id).map(r => r.part_id);
+        return { ...session, checkedPartIds };
+    }
+
     app.get('/inbound', (req, res) => {
         const stmt = db.prepare(`
             SELECT p.*, c.name as category_name, c.id as category_id,
@@ -18,9 +32,9 @@ module.exports = function mountMovementRoutes(ctx) {
         `);
         const parts = stmt.all();
         const categories = db.prepare('SELECT id, name FROM categories ORDER BY name').all();
-    
+
         const today = new Date().toISOString().split('T')[0];
-        res.render('inbound', { parts, categories, today, title: PAGE_TITLE });
+        res.render('inbound', { parts, categories, today, activeCheckSession: getActiveCheckSession(), title: PAGE_TITLE });
     });
     
     // 入庫處理
@@ -490,6 +504,7 @@ module.exports = function mountMovementRoutes(ctx) {
             query: req.query,
             user: req.session.user,
             csrfToken: req.session.csrfToken,
+            activeCheckSession: getActiveCheckSession(),
             title: PAGE_TITLE
         });
     });

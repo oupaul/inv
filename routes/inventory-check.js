@@ -125,7 +125,7 @@ module.exports = function mountInventoryCheckRoutes(ctx) {
         if (!currentSession) {
             // 仍然顯示料件列表，但提示需要創建盤點事件
             const partsStmt = db.prepare(`
-                SELECT 
+                SELECT
                     p.id,
                     p.part_number,
                     p.part_name,
@@ -142,32 +142,37 @@ module.exports = function mountInventoryCheckRoutes(ctx) {
             `);
             const parts = partsStmt.all();
             const today = new Date().toISOString().split('T')[0];
-            
-            return res.render('inventory_check', { 
-                parts, 
-                today, 
+
+            return res.render('inventory_check', {
+                parts,
+                today,
                 currentSession: null,
                 allSessions: [],
-                user: req.session.user, 
-                title: PAGE_TITLE 
+                checkedCount: 0,
+                totalCount: parts.length,
+                uncheckedParts: [],
+                user: req.session.user,
+                title: PAGE_TITLE
             });
         }
-        
-        // 獲取該盤點事件中已盤點的料件
+
+        // 獲取該盤點事件中已盤點的料件（含盤點人員/時間，供前端顯示「已被誰盤過」）
         const checkedPartsStmt = db.prepare(`
-            SELECT part_id, actual_quantity 
-            FROM inventory_checks 
+            SELECT part_id, actual_quantity, created_by, datetime(created_at, '+8 hours') as created_at
+            FROM inventory_checks
             WHERE session_id = ?
         `);
         const checkedParts = checkedPartsStmt.all(currentSession.id);
         const checkedPartsMap = {};
         checkedParts.forEach(cp => {
-            checkedPartsMap[cp.part_id] = cp.actual_quantity;
+            checkedPartsMap[cp.part_id] = cp;
         });
-        
+
         // 獲取所有料件，並查找上次盤點的數量
+        // 同時在同一條 SQL 內算出系統庫存（system_quantity），避免對每一料件再各跑一次查詢（N+1）
+        // 只列啟用中料件：與「無進行中盤點事件」時的篩選條件一致
         const partsStmt = db.prepare(`
-            SELECT 
+            SELECT
                 p.id,
                 p.part_number,
                 p.part_name,
@@ -175,44 +180,49 @@ module.exports = function mountInventoryCheckRoutes(ctx) {
                 p.unit,
                 p.barcode,
                 c.name as category_name,
-                (SELECT actual_quantity 
+                (SELECT actual_quantity
                  FROM inventory_checks ic2
                  JOIN inventory_check_sessions ics2 ON ic2.session_id = ics2.id
-                 WHERE ic2.part_id = p.id 
+                 WHERE ic2.part_id = p.id
                    AND ics2.session_date < ?
                    AND ics2.status = 'completed'
-                 ORDER BY ics2.session_date DESC 
-                 LIMIT 1) as previous_check_quantity
+                 ORDER BY ics2.session_date DESC
+                 LIMIT 1) as previous_check_quantity,
+                (${physicalStockSql('p.id')}) as system_quantity
             FROM parts p
             LEFT JOIN categories c ON p.category_id = c.id
+            WHERE COALESCE(p.is_active, 1) = 1
             ORDER BY p.part_number
         `);
         const parts = partsStmt.all(currentSession.session_date);
-        
+
         // 如果沒有上次盤點記錄，使用系統庫存作為基準
         parts.forEach(part => {
-            if (!part.previous_check_quantity && part.previous_check_quantity !== 0) {
-                const stockStmt = db.prepare(`
-                    SELECT 
-                        (${physicalStockSql('?')}) as system_quantity
-                `);
-                const stock = stockStmt.get(part.id, part.id);
-                part.previous_check_quantity = stock ? stock.system_quantity : 0;
+            if (part.previous_check_quantity === null || part.previous_check_quantity === undefined) {
+                part.previous_check_quantity = part.system_quantity;
             }
-            // 如果本次已盤點，使用已盤點的數量
-            if (checkedPartsMap[part.id] !== undefined) {
-                part.current_check_quantity = checkedPartsMap[part.id];
+            // 如果本次已盤點，使用已盤點的數量，並附上盤點人員/時間
+            const checked = checkedPartsMap[part.id];
+            if (checked !== undefined) {
+                part.current_check_quantity = checked.actual_quantity;
+                part.checked_by = checked.created_by;
+                part.checked_at = checked.created_at;
             }
         });
-        
+
+        const uncheckedParts = parts.filter(p => p.current_check_quantity === undefined);
+
         const today = new Date().toISOString().split('T')[0];
-        res.render('inventory_check', { 
-            parts, 
-            today, 
+        res.render('inventory_check', {
+            parts,
+            today,
             currentSession,
             allSessions,
-            user: req.session.user, 
-            title: PAGE_TITLE 
+            checkedCount: parts.length - uncheckedParts.length,
+            totalCount: parts.length,
+            uncheckedParts,
+            user: req.session.user,
+            title: PAGE_TITLE
         });
     });
     
@@ -260,11 +270,16 @@ module.exports = function mountInventoryCheckRoutes(ctx) {
                 flash(req, 'error', '請先創建盤點事件！');
                 return res.redirect('/inventory/check/sessions');
             }
-            
-            // 獲取盤點事件的日期
-            const sessionDateStmt = db.prepare('SELECT session_date FROM inventory_check_sessions WHERE id = ?');
-            const sessionDate = sessionDateStmt.get(currentSessionId).session_date;
-            
+
+            // 獲取盤點事件的日期與狀態；已完成的盤點事件不可再提交盤點記錄
+            const sessionDateStmt = db.prepare('SELECT session_date, status FROM inventory_check_sessions WHERE id = ?');
+            const sessionRow = sessionDateStmt.get(currentSessionId);
+            if (sessionRow && sessionRow.status === 'completed') {
+                flash(req, 'error', '此盤點事件已完成，無法再提交盤點記錄！如需修正請管理員重新開啟或建立新的盤點事件。');
+                return res.redirect('/inventory/check/sessions');
+            }
+            const sessionDate = sessionRow.session_date;
+
             let successCount = 0;
             let errorCount = 0;
             let adjustedCount = 0;
@@ -377,174 +392,6 @@ module.exports = function mountInventoryCheckRoutes(ctx) {
             res.redirect(`/inventory/check?session_date=${sessionDate}`);
         } catch (error) {
             flash(req, 'error', `批量盤點失敗：${error.message}`);
-            res.redirect('/inventory/check');
-        }
-    });
-    
-    // 盤點處理（基於盤點事件，比較本次與上次盤點結果）（單項模式，保留以備用）
-    app.post('/inventory/check', (req, res) => {
-        const { part_id, session_id, session_date, actual_quantity, note, auto_adjust } = req.body;
-        const created_by = req.session.user ? (req.session.user.full_name || req.session.user.username) : '系統';
-        const shouldAutoAdjust = auto_adjust === 'on' || auto_adjust === 'true';
-        
-        try {
-            // 驗證盤點事件是否存在
-            let currentSessionId = session_id ? parseInt(session_id) : null;
-            
-            if (!currentSessionId && session_date) {
-                // 根據日期查找或創建盤點事件
-                const sessionStmt = db.prepare('SELECT id FROM inventory_check_sessions WHERE session_date = ?');
-                let session = sessionStmt.get(session_date);
-                
-                if (!session) {
-                    // 創建新的盤點事件
-                    const createSessionStmt = db.prepare(`
-                        INSERT INTO inventory_check_sessions (session_date, session_name, status, created_by)
-                        VALUES (?, ?, 'in_progress', ?)
-                    `);
-                    const sessionResult = createSessionStmt.run(
-                        session_date, 
-                        `${session_date} 盤點`, 
-                        created_by
-                    );
-                    currentSessionId = sessionResult.lastInsertRowid;
-                } else {
-                    currentSessionId = session.id;
-                }
-            }
-            
-            if (!currentSessionId) {
-                flash(req, 'error', '請先創建盤點事件！');
-                return res.redirect('/inventory/check/sessions');
-            }
-            
-            // 獲取盤點事件的日期
-            const sessionDateStmt = db.prepare('SELECT session_date FROM inventory_check_sessions WHERE id = ?');
-            const sessionDate = sessionDateStmt.get(currentSessionId).session_date;
-            
-            // 獲取上次盤點的實際數量（與上次盤點事件比較）
-            const previousCheckStmt = db.prepare(`
-                SELECT ic.actual_quantity, ics.session_date
-                FROM inventory_checks ic
-                JOIN inventory_check_sessions ics ON ic.session_id = ics.id
-                WHERE ic.part_id = ? 
-                  AND ics.id != ?
-                  AND ics.status = 'completed'
-                ORDER BY ics.session_date DESC
-                LIMIT 1
-            `);
-            const previousCheck = previousCheckStmt.get(part_id, currentSessionId);
-            
-            let previousQuantity = null;
-            if (previousCheck) {
-                previousQuantity = previousCheck.actual_quantity;
-            } else {
-                // 如果沒有上次盤點記錄，使用系統庫存作為基準（首次盤點）
-                const stockStmt = db.prepare(`
-                    SELECT 
-                        (${physicalStockSql('?')}) as system_quantity
-                `);
-                const stock = stockStmt.get(part_id, part_id);
-                previousQuantity = stock ? stock.system_quantity : 0;
-            }
-            
-            const actualQty = parseInt(actual_quantity);
-            const difference = actualQty - previousQuantity;
-            
-            // 檢查該料件在本次盤點事件中是否已盤點
-            const existingCheckStmt = db.prepare(`
-                SELECT id FROM inventory_checks 
-                WHERE session_id = ? AND part_id = ?
-            `);
-            const existingCheck = existingCheckStmt.get(currentSessionId, part_id);
-            
-            let checkRecordId;
-            if (existingCheck) {
-                // 獲取當前系統庫存（用於向後兼容）
-                const stockStmt = db.prepare(`
-                    SELECT 
-                        (${physicalStockSql('?')}) as system_quantity
-                `);
-                const stock = stockStmt.get(part_id, part_id);
-                const systemQuantity = stock ? stock.system_quantity : 0;
-                
-                // 更新現有記錄（同時更新 system_quantity 以確保向後兼容）
-                const updateStmt = db.prepare(`
-                    UPDATE inventory_checks 
-                    SET system_quantity = ?, previous_quantity = ?, actual_quantity = ?, difference = ?, note = ?, created_by = ?
-                    WHERE id = ?
-                `);
-                updateStmt.run(systemQuantity, previousQuantity, actualQty, difference, note || null, created_by, existingCheck.id);
-                checkRecordId = existingCheck.id;
-            } else {
-                // 獲取當前系統庫存（用於向後兼容，填充 system_quantity 欄位）
-                const stockStmt = db.prepare(`
-                    SELECT 
-                        (${physicalStockSql('?')}) as system_quantity
-                `);
-                const stock = stockStmt.get(part_id, part_id);
-                const systemQuantity = stock ? stock.system_quantity : 0;
-                
-                // 插入新記錄（同時提供 system_quantity 和 previous_quantity 以確保向後兼容）
-                const checkStmt = db.prepare(`
-                    INSERT INTO inventory_checks (session_id, part_id, check_date, system_quantity, previous_quantity, actual_quantity, difference, note, created_by, is_adjusted)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `);
-                const checkId = checkStmt.run(
-                    currentSessionId, 
-                    part_id, 
-                    sessionDate,
-                    systemQuantity,  // 系統庫存（用於向後兼容）
-                    previousQuantity,  // 上次盤點數量（新的比較基準）
-                    actualQty, 
-                    difference, 
-                    note || null, 
-                    created_by, 
-                    shouldAutoAdjust ? 1 : 0
-                );
-                checkRecordId = checkId.lastInsertRowid;
-            }
-            
-            // 如果有差異且選擇自動調整，則自動調整庫存
-            if (difference !== 0 && shouldAutoAdjust) {
-                let adjustmentNote = '';
-                if (difference > 0) {
-                    // 盤盈：創建入庫記錄
-                    const inboundStmt = db.prepare(`
-                        INSERT INTO inbound_records (part_id, quantity, inbound_date, note, is_return, created_by)
-                        VALUES (?, ?, ?, ?, 0, ?)
-                    `);
-                    adjustmentNote = `盤點調整（盤盈 ${difference}，相較上次盤點 ${previousQuantity}）：${note || ''}`.trim();
-                    inboundStmt.run(part_id, difference, sessionDate, adjustmentNote, created_by);
-                } else {
-                    // 盤虧：創建出庫記錄
-                    const outboundStmt = db.prepare(`
-                        INSERT INTO outbound_records (part_id, quantity, outbound_date, note, is_loan, created_by)
-                        VALUES (?, ?, ?, ?, 0, ?)
-                    `);
-                    adjustmentNote = `盤點調整（盤虧 ${Math.abs(difference)}，相較上次盤點 ${previousQuantity}）：${note || ''}`.trim();
-                    outboundStmt.run(part_id, Math.abs(difference), sessionDate, adjustmentNote, created_by);
-                }
-                
-                // 更新盤點記錄的調整資訊
-                const updateStmt = db.prepare(`
-                    UPDATE inventory_checks 
-                    SET adjustment_note = ?, adjusted_at = CURRENT_TIMESTAMP, adjusted_by = ?, is_adjusted = 1
-                    WHERE id = ?
-                `);
-                updateStmt.run(adjustmentNote, created_by, checkRecordId);
-                
-                flash(req, 'success', `盤點記錄成功！已自動調整庫存（${difference > 0 ? '盤盈' : '盤虧'} ${Math.abs(difference)}，相較上次盤點 ${previousQuantity}）`);
-            } else if (difference !== 0) {
-                flash(req, 'success', `盤點記錄成功！發現差異：${difference > 0 ? '盤盈' : '盤虧'} ${Math.abs(difference)}（相較上次盤點 ${previousQuantity}），請前往「盤點差異報表」進行手動調整。`);
-            } else {
-                flash(req, 'success', `盤點記錄成功！與上次盤點相符（數量：${actualQty}，上次：${previousQuantity}）`);
-            }
-            
-            // 重定向回盤點頁面，保持盤點事件
-            res.redirect(`/inventory/check?session_date=${sessionDate}`);
-        } catch (error) {
-            flash(req, 'error', `盤點失敗：${error.message}`);
             res.redirect('/inventory/check');
         }
     });
