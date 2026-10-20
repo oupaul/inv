@@ -57,7 +57,7 @@
         .amount-item { text-align: right; }
         .amount-item label { font-size: 12px; color: #64748b; display: block; }
         .amount-item .val { font-size: 20px; font-weight: 700; color: #1e40af; }
-        .amount-item.grand .val { font-size: 28px; color: #1d4ed8; }
+        .amount-item.grand .val { font-size: 28px; color: #f06000; }
 
         .status-badge-lg {
             display: inline-block;
@@ -218,8 +218,8 @@
                         <td class="text-right" style="padding:4px 12px; font-weight:700; color:#64748b;">NT$ <%= (invoice.tax_amount||0).toLocaleString('zh-TW',{minimumFractionDigits:0}) %></td>
                     </tr>
                     <tr style="background:#eff6ff;">
-                        <td colspan="7" style="text-align:right; padding:12px; font-weight:700; color:#1d4ed8; font-size:15px;">含稅總額</td>
-                        <td class="text-right" style="padding:12px; font-weight:800; color:#1d4ed8; font-size:18px;">NT$ <%= (invoice.total_amount||0).toLocaleString('zh-TW',{minimumFractionDigits:0}) %></td>
+                        <td colspan="7" style="text-align:right; padding:12px; font-weight:700; color:#f06000; font-size:15px;">含稅總額</td>
+                        <td class="text-right" style="padding:12px; font-weight:800; color:#f06000; font-size:18px;">NT$ <%= (invoice.total_amount||0).toLocaleString('zh-TW',{minimumFractionDigits:0}) %></td>
                     </tr>
                 </tfoot>
             </table>

@@ -32,13 +32,13 @@
             color: #333;
             margin-bottom: 30px;
             padding-bottom: 15px;
-            border-bottom: 3px solid #667eea;
+            border-bottom: 3px solid #1e293b;
             font-size: 28px;
             font-weight: 600;
         }
         
         nav {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             padding: 0;
             border-radius: 8px;
             margin-bottom: 30px;
@@ -127,8 +127,8 @@
         select:focus,
         textarea:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #1e293b;
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
         }
         
         textarea {
@@ -322,7 +322,7 @@
                         <button type="button" id="barcode-clear" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🗑️ 清除</button>
                     </div>
                     <div id="barcode-camera" style="display: none; margin-top: 10px;">
-                        <video id="barcode-video" autoplay playsinline style="width: 100%; max-width: 640px; border: 2px solid #667eea; border-radius: 6px;"></video>
+                        <video id="barcode-video" autoplay playsinline style="width: 100%; max-width: 640px; border: 2px solid #1e293b; border-radius: 6px;"></video>
                         <button type="button" id="stop-scan" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-top: 10px; font-weight: 600;">停止掃描</button>
                     </div>
                     <div id="barcode-status" style="display: none; padding: 10px; border-radius: 6px; margin-top: 10px;"></div>
@@ -390,7 +390,7 @@
             <div class="form-group">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                     <input type="checkbox" id="is_loan" name="is_loan" style="width: auto; margin: 0;">
-                    <span style="font-weight: 600; color: #667eea;">📤 借測（勾選此項表示此出庫為借測，不影響庫存計算）</span>
+                    <span style="font-weight: 600; color: #1e293b;">📤 借測（勾選此項表示此出庫為借測，不影響庫存計算）</span>
                 </label>
                 <small style="color: #666; margin-top: 5px; display: block;">
                     💡 提示：勾選「借測」後，此出庫記錄不會減少庫存數量，用於追蹤借出的料件。
@@ -399,7 +399,7 @@
             
             <!-- 借測相關欄位（勾選借測時顯示） -->
             <div class="form-group" id="loan-fields" style="display: none; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border: 2px solid #e0e0e0;">
-                <h3 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 16px;">⏰ 借測時間設定</h3>
+                <h3 style="margin-top: 0; margin-bottom: 15px; color: #1e293b; font-size: 16px;">⏰ 借測時間設定</h3>
                 
                 <div class="form-group" style="margin-bottom: 0;">
                     <label for="loan_due_date">到期日期 <span id="loan-due-date-required" style="display: none;">*</span></label>

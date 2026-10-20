@@ -32,13 +32,13 @@
             color: #333;
             margin-bottom: 30px;
             padding-bottom: 15px;
-            border-bottom: 3px solid #667eea;
+            border-bottom: 3px solid #1e293b;
             font-size: 28px;
             font-weight: 600;
         }
         
         nav {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             padding: 0;
             border-radius: 8px;
             margin-bottom: 30px;
@@ -127,8 +127,8 @@
         select:focus,
         textarea:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #1e293b;
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
         }
         
         textarea {
@@ -137,7 +137,7 @@
         }
         
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             color: white;
             padding: 12px 30px;
             border: none;
@@ -150,7 +150,7 @@
         
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.4);
         }
         
         .flash-messages {
@@ -288,7 +288,7 @@
                         <button type="button" id="barcode-clear" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🗑️ 清除</button>
                     </div>
                     <div id="barcode-camera" style="display: none; margin-top: 10px;">
-                        <video id="barcode-video" autoplay playsinline style="width: 100%; max-width: 640px; border: 2px solid #667eea; border-radius: 6px;"></video>
+                        <video id="barcode-video" autoplay playsinline style="width: 100%; max-width: 640px; border: 2px solid #1e293b; border-radius: 6px;"></video>
                         <button type="button" id="stop-scan" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-top: 10px; font-weight: 600;">停止掃描</button>
                     </div>
                     <div id="barcode-status" style="display: none; padding: 10px; border-radius: 6px; margin-top: 10px;"></div>
@@ -333,7 +333,7 @@
                     <% }); %>
                 </select>
                 <!-- 即時庫存顯示 -->
-                <div id="stock-info-box" style="display:none; margin-top:10px; padding:10px 14px; background:#f0f7ff; border-left:4px solid #667eea; border-radius:6px; font-size:14px;">
+                <div id="stock-info-box" style="display:none; margin-top:10px; padding:10px 14px; background:#f0f7ff; border-left:4px solid #1e293b; border-radius:6px; font-size:14px;">
                     <span id="stock-info-text"></span>
                 </div>
                 <div id="check-session-warning-box" style="display:none; margin-top:10px; padding:10px 14px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:6px; font-size:13px; color:#856404; font-weight:600;">
@@ -362,7 +362,7 @@
                     <span style="font-weight: 600; color: #065f46;">📥 歸還借測料件</span>
                 </label>
                 <div id="loan-records-info" style="margin-top: 10px; padding: 10px; background-color: white; border-radius: 6px; display: none;">
-                    <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">未歸還的借測記錄：</div>
+                    <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">未歸還的借測記錄：</div>
                     <div id="loan-records-list"></div>
                     <select id="return_outbound_id" style="margin-top: 10px; display: none; width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <option value="">-- 選擇要歸還的借測記錄 --</option>
@@ -675,7 +675,7 @@
                     let html = '';
                     returnOutboundSelect.innerHTML = '<option value="">-- 選擇要歸還的借測記錄 --</option>';
                     loan.records.forEach(r => {
-                        html += `<div style="padding:7px 10px; margin-bottom:5px; background:white; border-left:3px solid #667eea; border-radius:4px; font-size:13px;">
+                        html += `<div style="padding:7px 10px; margin-bottom:5px; background:white; border-left:3px solid #1e293b; border-radius:4px; font-size:13px;">
                             <strong>借測日期：</strong>${r.outbound_date} | <strong>數量：</strong>${r.quantity} | <strong>未歸還：</strong>${r.remaining_quantity}
                             ${r.note ? `<br><small style="color:#666;">備註：${r.note}</small>` : ''}
                         </div>`;

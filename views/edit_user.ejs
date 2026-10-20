@@ -39,12 +39,12 @@
         select:focus,
         textarea:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #1e293b;
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
         }
         
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             color: white;
             padding: 12px 30px;
             border: none;
@@ -57,7 +57,7 @@
         
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.4);
         }
         
         .flash-messages {
@@ -131,7 +131,7 @@
                 <label for="email">電子郵件<% if (typeof ssoEnabled !== 'undefined' && ssoEnabled) { %>（M365 登入信箱）<% } %></label>
                 <input type="email" id="email" name="email" value="<%= user.email || '' %>" placeholder="請輸入電子郵件（選填）">
                 <% if (typeof ssoEnabled !== 'undefined' && ssoEnabled) { %>
-                <small style="display:block; margin-top:4px; color:#667eea; font-size:12px;">
+                <small style="display:block; margin-top:4px; color:#1e293b; font-size:12px;">
                     🔑 若要讓此使用者用 Microsoft 365 登入，請填入其 M365 信箱（需與登入帳號完全一致）。
                 </small>
                 <% } %>

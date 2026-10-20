@@ -15,7 +15,7 @@
         }
         
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             color: white;
             padding: 20px;
             border-radius: 8px;
@@ -286,7 +286,7 @@
                     <input type="date" id="date_to" name="date_to" value="<%= date_to || '' %>" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button type="submit" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🔍 搜尋</button>
+                    <button type="submit" style="background: #1e293b; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🔍 搜尋</button>
                     <a href="/inventory/check/differences" style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">清除</a>
                 </div>
             </form>
@@ -324,7 +324,7 @@
                     <td><%= record.session_date %></td>
                     <td><%= record.part_number %></td>
                     <td><%= record.part_name %></td>
-                    <td style="font-weight: bold; color: #667eea;">
+                    <td style="font-weight: bold; color: #1e293b;">
                         <%= record.previous_quantity !== null && record.previous_quantity !== undefined ? record.previous_quantity : (record.system_quantity || '-') %>
                         <br><small style="color: #999; font-size: 11px;">上次盤點</small>
                     </td>
@@ -358,7 +358,7 @@
                     <td>
                         <%= record.note || '-' %>
                         <% if (record.adjustment_note && record.is_adjusted === 1) { %>
-                            <br><small style="color: #667eea;">調整備註：<%= record.adjustment_note %></small>
+                            <br><small style="color: #1e293b;">調整備註：<%= record.adjustment_note %></small>
                         <% } %>
                     </td>
                     <td class="action-cell">

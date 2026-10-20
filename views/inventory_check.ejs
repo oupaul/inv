@@ -32,13 +32,13 @@
             color: #333;
             margin-bottom: 30px;
             padding-bottom: 15px;
-            border-bottom: 3px solid #667eea;
+            border-bottom: 3px solid #1e293b;
             font-size: 28px;
             font-weight: 600;
         }
         
         nav {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             padding: 0;
             border-radius: 8px;
             margin-bottom: 30px;
@@ -138,8 +138,8 @@
         select:focus,
         textarea:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #1e293b;
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
         }
         
         textarea {
@@ -148,7 +148,7 @@
         }
         
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             color: white;
             padding: 12px 30px;
             border: none;
@@ -161,7 +161,7 @@
         
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.4);
         }
         
         .flash-messages {
@@ -224,7 +224,7 @@
         #barcode-video {
             width: 100%;
             max-width: 640px;
-            border: 2px solid #667eea;
+            border: 2px solid #1e293b;
             border-radius: 6px;
         }
         
@@ -254,7 +254,7 @@
             padding: 15px;
             border-radius: 6px;
             margin-bottom: 20px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #1e293b;
         }
         
         .part-info.hidden {
@@ -273,7 +273,7 @@
         .system-quantity {
             font-size: 18px;
             font-weight: bold;
-            color: #667eea;
+            color: #1e293b;
             margin: 10px 0;
         }
         
@@ -356,7 +356,7 @@
                 font-size: 18px !important;
                 padding: 16px !important;
                 -webkit-appearance: none;
-                border: 2px solid #667eea !important;
+                border: 2px solid #1e293b !important;
                 border-radius: 8px !important;
                 width: 100% !important;
             }
@@ -390,7 +390,7 @@
                 padding: 16px !important;
                 width: 100% !important;
                 text-align: center !important;
-                border: 2px solid #667eea !important;
+                border: 2px solid #1e293b !important;
                 border-radius: 8px !important;
                 font-weight: 600 !important;
                 -webkit-appearance: none;
@@ -447,7 +447,7 @@
             .cart-item-part-number {
                 font-weight: 600;
                 font-size: 16px;
-                color: #667eea;
+                color: #1e293b;
                 flex: 1;
             }
             
@@ -498,7 +498,7 @@
                 font-size: 20px !important;
                 font-weight: 600 !important;
                 text-align: center !important;
-                border: 2px solid #667eea !important;
+                border: 2px solid #1e293b !important;
                 border-radius: 8px !important;
                 min-width: 120px;
                 -webkit-appearance: none;
@@ -719,7 +719,7 @@
         <div class="check-main-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
             <!-- 左側：掃描區域 -->
             <div class="check-scan-area" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px solid #e0e0e0;">
-                <h2 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 18px;">📷 連續掃描盤點</h2>
+                <h2 style="margin-top: 0; margin-bottom: 15px; color: #1e293b; font-size: 18px;">📷 連續掃描盤點</h2>
                 
             <div class="form-group">
                 <label for="barcode" style="font-size: 15px; font-weight: 600; margin-bottom: 8px; display: block;">條碼掃描 / 輸入料號</label>
@@ -776,9 +776,9 @@
             
             <!-- 右側：盤點清單（購物車） -->
             <div class="check-cart-area" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px solid #e0e0e0;">
-                <h2 style="margin-top: 0; margin-bottom: 15px; color: #667eea; font-size: 18px;">
+                <h2 style="margin-top: 0; margin-bottom: 15px; color: #1e293b; font-size: 18px;">
                     📋 盤點清單 
-                    <span id="cartCount" style="background-color: #667eea; color: white; padding: 4px 8px; border-radius: 12px; font-size: 14px; margin-left: 10px;">0</span>
+                    <span id="cartCount" style="background-color: #1e293b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 14px; margin-left: 10px;">0</span>
                 </h2>
                 
                 <div id="checkCart" style="max-height: 500px; overflow-y: auto; margin-bottom: 15px;">
@@ -790,7 +790,7 @@
                     <!-- 桌面版：表格顯示 -->
                     <table id="cartTable" style="display: none; width: 100%; background-color: white; border-radius: 6px; overflow: hidden;">
                         <thead>
-                            <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <tr style="background: #1e293b; color: white;">
                                 <th style="padding: 10px; text-align: left; font-size: 13px;">料號</th>
                                 <th style="padding: 10px; text-align: left; font-size: 13px;">名稱</th>
                                 <th style="padding: 10px; text-align: center; font-size: 13px;">數量</th>
@@ -825,7 +825,7 @@
                         <input type="hidden" id="batch_items" name="items" value="">
                         <input type="hidden" id="batch_auto_adjust_val" name="auto_adjust" value="false">
                         
-                        <button type="submit" id="submitBatchBtn" class="btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; font-size: 16px; font-weight: 600; min-height: 50px;" disabled>
+                        <button type="submit" id="submitBatchBtn" class="btn" style="width: 100%; background: #1e293b; padding: 15px; font-size: 16px; font-weight: 600; min-height: 50px;" disabled>
                             ✓ 提交盤點單 (<span id="submitCount">0</span> 項)
                         </button>
                     </form>
@@ -850,7 +850,7 @@
         <div style="margin-top: 20px;">
             <a href="/inventory/check/sessions" style="color: #666; text-decoration: none; margin-right: 15px;">📋 盤點事件管理</a>
             <a href="/inventory/check/records" style="color: #666; text-decoration: none; margin-right: 15px;">📝 查看盤點記錄</a>
-            <a href="/inventory/check/differences?session_id=<%= currentSession.id %>" style="color: #667eea; text-decoration: none; font-weight: 600;">📊 本事件差異報表</a>
+            <a href="/inventory/check/differences?session_id=<%= currentSession.id %>" style="color: #1e293b; text-decoration: none; font-weight: 600;">📊 本事件差異報表</a>
         </div>
         <% } %>
     </div>

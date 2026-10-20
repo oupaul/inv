@@ -38,7 +38,7 @@
 
         .stat-card.active {
             border-color: var(--color-primary);
-            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25), var(--shadow-md);
+            box-shadow: 0 0 0 2px rgba(30, 41, 59, 0.25), var(--shadow-md);
             transform: translateY(-2px);
         }
 
@@ -474,7 +474,7 @@
                         <td><%= item.category_name || '-' %></td>
                         <td style="font-size:12px; color:#666;"><%= item.specification || '-' %></td>
                         <td style="font-size:12px; color:#999;"><%= item.barcode || '-' %></td>
-                        <td style="font-weight:bold; color:<%= item.total_quantity <= 0 ? '#dc3545' : isLow ? '#ff9800' : '#667eea' %>;">
+                        <td style="font-weight:bold; color:<%= item.total_quantity <= 0 ? '#dc3545' : isLow ? '#ff9800' : '#1e293b' %>;">
                             <%= item.total_quantity %>
                         </td>
                         <td onclick="event.stopPropagation()">
@@ -507,7 +507,7 @@
             <div style="margin-top:30px;">
                 <h3 style="font-size:15px; color:#555; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;">
                     <span>🕐 近期出入庫記錄</span>
-                    <a href="/transaction/records" style="font-size:12px; color:#667eea; text-decoration:none; font-weight:600;">查看全部 →</a>
+                    <a href="/transaction/records" style="font-size:12px; color:#1e293b; text-decoration:none; font-weight:600;">查看全部 →</a>
                 </h3>
                 <table style="font-size:13px;">
                     <thead>
@@ -521,7 +521,7 @@
                             const [label, bg, fg] = typeMap[t.type] || [t.type, '#eee', '#333'];
                         %>
                         <tr>
-                            <td style="white-space:nowrap;"><code style="font-size:11px; color:#667eea;"><%= t.doc_no %></code></td>
+                            <td style="white-space:nowrap;"><code style="font-size:11px; color:#1e293b;"><%= t.doc_no %></code></td>
                             <td style="white-space:nowrap; color:#888;"><%= t.transaction_date %></td>
                             <td><span style="background:<%= bg %>; color:<%= fg %>; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;"><%= label %></span></td>
                             <td style="font-size:11px; color:#888;"><code><%= t.part_number %></code></td>
@@ -752,7 +752,7 @@
                                 <div style="font-size:11px; color:#888; margin-top:1px;">發票：${a.invoice_number}　到期日：${a.payment_due_date}</div>
                             </div>
                             <div style="text-align:right; flex-shrink:0; margin-left:12px;">
-                                <div style="font-size:16px; font-weight:800; color:#1d4ed8;">${fmt(a.total_amount)}</div>
+                                <div style="font-size:16px; font-weight:800; color:#f06000;">${fmt(a.total_amount)}</div>
                                 <div style="font-size:11px; color:${urgentColor}; font-weight:600;">${daysText}</div>
                             </div>
                         </div>`;

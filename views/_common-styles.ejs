@@ -1,5 +1,6 @@
 /* ==========================================
-   庫存管理系統 - 設計系統 v3.0
+   庫存管理系統 - 設計系統 v4.0
+   近乎單色 + 一個節制的強調色（橘 #F06000）
    側邊欄版面配置 + 行動裝置優化
    ========================================== */
 
@@ -9,29 +10,33 @@
     --topbar-height: 52px;
     --bottom-nav-height: 60px;
 
-    /* 主色調 */
-    --color-primary: #4f46e5;
-    --color-primary-hover: #4338ca;
-    --color-primary-light: #e0e7ff;
-    --color-primary-text: #4338ca;
+    /* 主色調：深板岩色實心，用於主按鈕底色、focus 邊框等結構性強調 */
+    --color-primary: #1e293b;
+    --color-primary-hover: #0f172a;
+    --color-primary-light: #f1f5f9;
+    --color-primary-text: #1e293b;
+
+    /* 強調色：只用於少量、非按鈕的地方（active 狀態、連結 hover、圖示強調） */
+    --accent: #f06000;
+    --accent-hover: #d85400;
 
     /* 側邊欄 */
     --sidebar-bg: #1e293b;
     --sidebar-text: #94a3b8;
     --sidebar-hover-bg: rgba(255,255,255,0.06);
-    --sidebar-active-bg: rgba(99,102,241,0.18);
-    --sidebar-active-text: #818cf8;
+    --sidebar-active-bg: rgba(240,96,0,0.15);
+    --sidebar-active-text: #f06000;
     --sidebar-border: rgba(255,255,255,0.07);
     --sidebar-section-color: #475569;
 
     /* 背景 */
-    --bg-page: #f1f5f9;
+    --bg-page: #f8fafc;
     --bg-card: #ffffff;
     --bg-muted: #f8fafc;
 
     /* 邊框 */
     --border: #e2e8f0;
-    --border-focus: #4f46e5;
+    --border-focus: #1e293b;
 
     /* 文字 */
     --text-primary: #1e293b;
@@ -546,11 +551,11 @@ button:active,
 }
 
 .btn-primary {
-    background: var(--info);
+    background: var(--color-primary);
 }
 
 .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-hover);
 }
 
 /* ========== 表格 ========== */
@@ -568,7 +573,7 @@ th, td {
 }
 
 th {
-    /* !important 覆蓋頁面殘留的 th{background:linear-gradient(#667eea...)} */
+    /* !important 覆蓋頁面各自殘留的 th{background:...} 深色樣式，統一用淺色表頭 */
     background: var(--bg-muted) !important;
     color: var(--text-secondary) !important;
     font-weight: 600;
