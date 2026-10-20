@@ -1,6 +1,7 @@
 // 料件管理 + 條碼/QR/料件詳情 API
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const QRCodeGen = require('qrcode');
 const logger = require('../lib/logger');
 const validators = require('../lib/validators');
@@ -11,7 +12,7 @@ module.exports = function mountPartRoutes(ctx) {
         buildEmailHtml, sendNotificationEmail,
         physicalStockSql, loanedQtySql,
         hasPermission, requireAdmin,
-        uploadPartImage
+        uploadPartImage, PART_IMG_DIR, processPartImage
     } = ctx;
     const PAGE_TITLE = config.PAGE_TITLE;
 
@@ -186,22 +187,32 @@ module.exports = function mountPartRoutes(ctx) {
         }
     });
 
-    // 上傳料件圖片
+    // 上傳料件圖片（記憶體暫存 → Sharp 轉檔／壓縮／轉正 → 寫入磁碟）
     app.post('/parts/:id/upload-image', (req, res) => {
-        uploadPartImage.single('part_image')(req, res, (err) => {
+        uploadPartImage.single('part_image')(req, res, async (err) => {
             if (err) return res.json({ success: false, error: err.message });
             if (!req.file) return res.json({ success: false, error: '未收到圖片檔案' });
-            const { id } = req.params;
-            const part = db.prepare('SELECT id, image_path FROM parts WHERE id = ?').get(id);
-            if (!part) return res.json({ success: false, error: '料件不存在' });
-            if (part.image_path) {
-                const oldPath = path.join(__dirname, '..', 'public', part.image_path);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            const id = parseInt(req.params.id);
+            if (!Number.isInteger(id) || id <= 0) return res.json({ success: false, error: '無效的料件 ID' });
+            try {
+                const part = db.prepare('SELECT id, image_path FROM parts WHERE id = ?').get(id);
+                if (!part) return res.json({ success: false, error: '料件不存在' });
+
+                const webpBuffer = await processPartImage(req.file.buffer);
+                const filename = `part_${id}_${crypto.randomBytes(6).toString('hex')}.webp`;
+                fs.writeFileSync(path.join(PART_IMG_DIR, filename), webpBuffer);
+
+                if (part.image_path) {
+                    const oldPath = path.join(__dirname, '..', 'public', part.image_path);
+                    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                }
+                const relativePath = `/uploads/parts/${filename}`;
+                db.prepare('UPDATE parts SET image_path = ? WHERE id = ?').run(relativePath, id);
+                logActivity(req, 'update', `上傳料件圖片 (ID: ${id})`, 'part', id);
+                res.json({ success: true, image_path: relativePath });
+            } catch (procErr) {
+                res.json({ success: false, error: procErr.message || '圖片處理失敗' });
             }
-            const relativePath = `/uploads/parts/${req.file.filename}`;
-            db.prepare('UPDATE parts SET image_path = ? WHERE id = ?').run(relativePath, id);
-            logActivity(req, 'update', `上傳料件圖片 (ID: ${id})`, 'part', id);
-            res.json({ success: true, image_path: relativePath });
         });
     });
 

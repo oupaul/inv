@@ -726,7 +726,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 // 檔案上傳（從 lib/uploads 統一管理）
-const { upload, uploadPartImage, PART_IMG_DIR } = require('./lib/uploads')({ baseDir: __dirname, config });
+const { upload, uploadPartImage, PART_IMG_DIR, processPartImage } = require('./lib/uploads')({ baseDir: __dirname, config });
 
 // 靜態檔案服務（料件圖片）— 加上 Cache-Control
 app.use('/public', express.static(path.join(__dirname, 'public'), {
@@ -903,7 +903,7 @@ require('./routes/parts')({
     app, db, config, flash, logActivity, getSystemSetting,
     buildEmailHtml, sendNotificationEmail,
     physicalStockSql, loanedQtySql,
-    hasPermission, requireAdmin, uploadPartImage
+    hasPermission, requireAdmin, uploadPartImage, PART_IMG_DIR, processPartImage
 });
 
 // 出入庫 / 借測 / 交易紀錄 / 作廢（見 routes/movements）
