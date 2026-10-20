@@ -19,7 +19,7 @@
     "warehouse"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@azure/msal-node": "^2.16.2",
     "argon2": "^0.44.0",
